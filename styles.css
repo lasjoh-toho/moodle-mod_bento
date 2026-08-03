@@ -1,0 +1,94 @@
+.mod-bento-import { margin-bottom: 1rem; }
+
+.mod-bento-drop {
+  border: 2px dashed #c7ccd6;
+  border-radius: 12px;
+  padding: 28px 20px;
+  text-align: center;
+  cursor: pointer;
+  background: #fafbfc;
+  transition: border-color .15s ease, background .15s ease;
+}
+.mod-bento-drop:hover,
+.mod-bento-drop:focus {
+  border-color: #ff9e5e;
+  outline: none;
+}
+.mod-bento-drop.drag {
+  border-color: #ff9e5e;
+  background: #fff3ec;
+}
+.mod-bento-drop.done {
+  border-color: #6fce8f;
+  border-style: solid;
+}
+.mod-bento-drop-title {
+  font-weight: 600;
+  margin: 0 0 4px;
+}
+.mod-bento-drop-sub {
+  color: #6b7280;
+  font-size: 0.85rem;
+  margin: 0;
+}
+.mod-bento-drop-status {
+  margin-top: 10px;
+  font-size: 0.85rem;
+  min-height: 1.2em;
+}
+
+.mod-bento-items {
+  display: flex;
+  flex-direction: column;
+  margin-top: 10px;
+}
+.mod-bento-item {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 12px 14px;
+  border: 1px solid #dfe3e8;
+  border-radius: 10px;
+  background: #fff;
+  cursor: grab;
+}
+.mod-bento-item:active { cursor: grabbing; }
+.mod-bento-item.dragging { opacity: 0.4; }
+.mod-bento-item.existing { border-color: #ff9e5e; background: #fff8f4; }
+.mod-bento-item-grip { color: #9aa3b0; font-size: 15px; padding-top: 2px; user-select: none; }
+.mod-bento-item-info { flex: 1; min-width: 0; }
+.mod-bento-item-name { font-weight: 600; font-size: 0.92rem; word-break: break-word; }
+.mod-bento-item-name em { font-weight: 400; color: #8a6d55; font-style: normal; }
+.mod-bento-item-meta { color: #6b7280; font-size: 0.8rem; margin-top: 2px; }
+.mod-bento-item-warnings { margin: 6px 0 0; padding-left: 18px; color: #8a6d55; font-size: 0.78rem; }
+.mod-bento-item-remove {
+  border: none;
+  background: transparent;
+  color: #9aa3b0;
+  cursor: pointer;
+  font-size: 14px;
+  padding: 2px 4px;
+}
+.mod-bento-item-remove:hover { color: #c0392b; }
+
+.mod-bento-connector { display: flex; justify-content: center; align-items: center; height: 26px; }
+.mod-bento-connector-btn {
+  width: 26px;
+  height: 26px;
+  border-radius: 999px;
+  padding: 0;
+  font-size: 13px;
+  line-height: 1;
+  border: 1px solid #dfe3e8;
+  background: #f4f5f7;
+  cursor: pointer;
+}
+.mod-bento-connector-btn:hover { background: #ff9e5e; border-color: #ff9e5e; color: #241205; }
+
+.mod-bento-warn {
+  margin: 10px 0 0;
+  font-size: 0.82rem;
+  color: #8a6d55;
+  border-left: 2px solid #ff9e5e;
+  padding-left: 10px;
+}

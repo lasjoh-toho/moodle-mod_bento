@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<libraries>
+  <library>
+    <location>thirdpartylibs/jszip.min.js</location>
+    <name>JSZip</name>
+    <license>MIT</license>
+    <version>3.10.1</version>
+  </library>
+</libraries>

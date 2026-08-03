@@ -1,0 +1,93 @@
+<?php
+// This file is part of Moodle - http://moodle.org/
+//
+// Moodle is free software: you can redistribute it and/or modify
+// it under the terms of the GNU General Public License as published by
+// the Free Software Foundation, either version 3 of the License, or
+// (at your option) any later version.
+//
+// Moodle is distributed in the hope that it will be useful,
+// but WITHOUT ANY WARRANTY; without even the implied warranty of
+// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+// GNU General Public License for more details.
+//
+// You should have received a copy of the GNU General Public License
+// along with Moodle.  If not, see <http://www.gnu.org/licenses/>.
+
+/**
+ * The full Bento editor, opened from the activity's settings/gear menu
+ * ("Bearbeiten"). Same raw-full-page approach as view.php (see its comment).
+ *
+ * Unlike earlier versions of this file, there's no injected script hunting
+ * for Bento's native Save button anymore — that turned out fragile (icon
+ * fingerprinting, timing, fullscreen visibility, load-order races). Instead,
+ * Bento itself now knows how to save into Moodle natively: its own Save
+ * button checks for a URL containing "mod/bento" and a
+ * <meta name="bento-moodle-config"> tag (see editor/moodle.ts in the Bento
+ * source), and posts to mod_bento_save_document itself when both are
+ * present. This file's only remaining job is to supply that meta tag —
+ * cmid, sesskey, wwwroot — right alongside the document it already splices
+ * into #bento-doc.
+ *
+ * Access is gated by the mod/bento:edit capability alone (see access.php) —
+ * no separate role check on top of it; a capability check already IS the
+ * "does this user count as able to edit" answer, by design.
+ *
+ * @package     mod_bento
+ * @copyright   2026 The Bento authors
+ * @license     http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
+ */
+
+require(__DIR__ . '/../../config.php');
+require_once(__DIR__ . '/lib.php');
+
+$id = required_param('id', PARAM_INT);
+
+$cm = get_coursemodule_from_id('bento', $id, 0, false, MUST_EXIST);
+$course = get_course($cm->course);
+$bento = $DB->get_record('bento', ['id' => $cm->instance], '*', MUST_EXIST);
+
+require_login($course, true, $cm);
+$context = context_module::instance($cm->id);
+require_capability('mod/bento:edit', $context);
+
+$shellpath = __DIR__ . '/asset/bento-shell.html';
+$shell = file_get_contents($shellpath);
+if ($shell === false) {
+    throw new moodle_exception('shellmissing', 'mod_bento');
+}
+
+$jsonforembed = str_replace('<', '\u003c', $bento->document);
+
+$html = preg_replace(
+    '/(<script[^>]*id=["\']bento-doc["\'][^>]*>)([\s\S]*?)(<\/script>)/',
+    '$1' . str_replace('$', '\\$', $jsonforembed) . '$3',
+    $shell,
+    1
+);
+
+$title = format_string($bento->name);
+
+$moodleconfig = [
+    'cmid' => (int) $cm->id,
+    'sesskey' => sesskey(),
+    'wwwroot' => $CFG->wwwroot,
+];
+// json_encode's default escaping already turns '<' into '\u003c' inside
+// string values — safe to drop straight into an HTML attribute — but the
+// attribute itself still needs its own quotes escaped, and any literal '$'
+// neutralised before it goes through preg_replace's replacement string.
+$configattr = str_replace('$', '\\$', htmlspecialchars(json_encode($moodleconfig), ENT_QUOTES, 'UTF-8'));
+$configmeta = '<meta name="bento-moodle-config" content="' . $configattr . '">';
+
+$jstitle = json_encode($title . ' — Bearbeiten');
+$titlescript = '<script>document.title = ' . str_replace('$', '\\$', $jstitle) . ';</script>';
+
+$html = preg_replace('/<head[^>]*>/', '$0' . $configmeta . $titlescript, $html, 1);
+
+header('Content-Type: text/html; charset=utf-8');
+header('X-Frame-Options: SAMEORIGIN');
+header('Cache-Control: no-store, no-cache, must-revalidate, max-age=0');
+header('Pragma: no-cache');
+echo $html;
+die;

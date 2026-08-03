@@ -1,0 +1,48 @@
+name: Build & release mod_bento
+
+# Manual only — a build pulls whatever is CURRENTLY on the bento fork's
+# branch (see build.mjs), so triggering it is a deliberate "cut a new
+# release" action.
+on:
+  workflow_dispatch: {}
+
+permissions:
+  contents: write # needed to create the release + upload the asset
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      # The whole point: if the bento fork doesn't clone, doesn't install,
+      # doesn't typecheck, or doesn't build — this step exits non-zero and
+      # the job stops HERE. No release gets created, so nothing changes for
+      # anyone already using the last working zip.
+      - name: Build mod_bento.zip from the bento fork
+        run: node build.mjs
+
+      - name: Verify the zip actually contains a real plugin
+        run: |
+          test -s dist/mod_bento.zip
+          unzip -l dist/mod_bento.zip | grep -q 'bento/version.php'
+          unzip -l dist/mod_bento.zip | grep -q 'bento/asset/bento-shell.html'
+
+      - name: Read the version this build produced
+        id: ver
+        run: |
+          V=$(unzip -p dist/mod_bento.zip bento/version.php | grep -oE '\$plugin->version\s*=\s*[0-9]+' | grep -oE '[0-9]+')
+          echo "version=$V" >> "$GITHUB_OUTPUT"
+
+      - uses: softprops/action-gh-release@v2
+        with:
+          tag_name: v${{ steps.ver.outputs.version }}
+          name: mod_bento ${{ steps.ver.outputs.version }}
+          files: dist/mod_bento.zip
+          body: |
+            Built automatically from `lasjoh-toho/bento` (branch `moodle-and-editor-enhancements`).
+            Install via Site administration → Plugins → Install plugins.
