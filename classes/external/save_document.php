@@ -115,6 +115,13 @@ class save_document extends external_api {
         if (!$bento->allowstudentsubmissions) {
             throw new \moodle_exception('submissionsnotenabled', 'mod_bento');
         }
+        if ($bento->duedate > 0 && time() > $bento->duedate) {
+            // Catches a tab that was already open before the deadline passed
+            // — the read-only flag edit.php sets on a fresh page load only
+            // takes effect on THAT load, not retroactively for one already
+            // open.
+            throw new \moodle_exception('deadlinepassed', 'mod_bento');
+        }
 
         $existing = $DB->get_record('bento_submissions', ['bentoid' => $bento->id, 'userid' => $USER->id]);
         if ($existing) {

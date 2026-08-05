@@ -122,6 +122,14 @@ if ($bento->intro) {
     echo $OUTPUT->box(format_module_intro('bento', $bento, $cm->id), 'generalbox mod_introbox');
 }
 
+if ($bento->duedatevisible && $bento->duedate > 0) {
+    $pastdue = time() > $bento->duedate;
+    echo $OUTPUT->notification(
+        get_string($pastdue ? 'duedatepassedinfo' : 'duedateinfo', 'mod_bento', userdate($bento->duedate)),
+        $pastdue ? 'warning' : 'info'
+    );
+}
+
 if ($cansubmit) {
     echo html_writer::start_div('mod-bento-mine card mb-4');
     echo html_writer::start_div('card-body');
@@ -145,10 +153,9 @@ if ($cansubmit) {
             get_string('presentmypresentation', 'mod_bento'),
             ['class' => 'btn btn-secondary']
         );
-        echo html_writer::tag('p',
-            get_string('created', 'mod_bento') . ': ' . userdate($mine->timecreated) . ' — ' .
+        echo html_writer::tag('div',
             get_string('lastmodified', 'mod_bento') . ': ' . userdate($mine->timemodified),
-            ['class' => 'text-muted small mt-2 mb-0']
+            ['class' => 'text-muted small mt-2']
         );
     } else {
         echo html_writer::tag('p', get_string('nosubmissionyet', 'mod_bento'), ['class' => 'text-muted']);
@@ -185,10 +192,9 @@ if (empty($others)) {
             get_string('present', 'mod_bento'),
             ['class' => 'btn btn-sm btn-outline-primary']
         );
-        echo html_writer::tag('p',
-            get_string('created', 'mod_bento') . ': ' . userdate($s->timecreated) . '<br>' .
+        echo html_writer::tag('div',
             get_string('lastmodified', 'mod_bento') . ': ' . userdate($s->timemodified),
-            ['class' => 'text-muted small mt-2 mb-0']
+            ['class' => 'text-muted small mt-2']
         );
         echo html_writer::end_div();
         echo html_writer::end_div();

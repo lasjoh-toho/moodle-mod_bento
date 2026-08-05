@@ -15,6 +15,8 @@
         <FIELD NAME="grade" TYPE="int" LENGTH="10" NOTNULL="true" DEFAULT="100" SEQUENCE="false" COMMENT="Max points for the gradebook item; 0 = ungraded; negative = a scale id (standard Moodle convention)"/>
         <FIELD NAME="allowstudentsubmissions" TYPE="int" LENGTH="1" NOTNULL="true" DEFAULT="0" SEQUENCE="false" COMMENT="0 = classic single teacher-authored deck (v1 behaviour). 1 = each enrolled student creates/imports and edits their OWN presentation instead (bento_submissions)."/>
         <FIELD NAME="submissionvisibility" TYPE="char" LENGTH="20" NOTNULL="true" DEFAULT="auto" SEQUENCE="false" COMMENT="Only meaningful when allowstudentsubmissions=1. 'auto' = every student can see every other student's submission immediately. 'moderated' = a submission is only visible to OTHER students once a teacher approves it (see bento_submissions.status); the owner can always see/edit their own regardless."/>
+        <FIELD NAME="duedate" TYPE="int" LENGTH="10" NOTNULL="true" DEFAULT="0" SEQUENCE="false" COMMENT="0 = no deadline. Once passed, a student (mod/bento:submit, no mod/bento:edit) can no longer save changes to their own submission — enforced in edit.php and the mod_bento_save_document web service, both server-side. Never restricts mod/bento:edit."/>
+        <FIELD NAME="duedatevisible" TYPE="int" LENGTH="1" NOTNULL="true" DEFAULT="1" SEQUENCE="false" COMMENT="Whether the deadline itself (not just its enforcement) is shown to students on the gallery page."/>
         <FIELD NAME="timecreated" TYPE="int" LENGTH="10" NOTNULL="true" DEFAULT="0" SEQUENCE="false"/>
         <FIELD NAME="timemodified" TYPE="int" LENGTH="10" NOTNULL="true" DEFAULT="0" SEQUENCE="false"/>
       </FIELDS>

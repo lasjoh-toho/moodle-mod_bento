@@ -50,6 +50,16 @@ function xmldb_bento_upgrade($oldversion) {
         $dbman->add_field($table, $field);
     }
 
+    $field = new xmldb_field('duedate', XMLDB_TYPE_INTEGER, '10', null, XMLDB_NOTNULL, null, '0', 'submissionvisibility');
+    if (!$dbman->field_exists($table, $field)) {
+        $dbman->add_field($table, $field);
+    }
+
+    $field = new xmldb_field('duedatevisible', XMLDB_TYPE_INTEGER, '1', null, XMLDB_NOTNULL, null, '1', 'duedate');
+    if (!$dbman->field_exists($table, $field)) {
+        $dbman->add_field($table, $field);
+    }
+
     // ---- new table: one student-authored document per student per instance ----
     $table = new xmldb_table('bento_submissions');
     if (!$dbman->table_exists($table)) {

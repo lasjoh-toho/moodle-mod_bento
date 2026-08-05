@@ -195,12 +195,16 @@ foreach ($users as $u) {
                 get_string('present', 'mod_bento'),
                 ['class' => 'btn btn-sm btn-outline-primary']
             );
-            $dates = html_writer::tag('span',
-                get_string('created', 'mod_bento') . ': ' . userdate($sub->timecreated) . ' · ' .
+            $dates = html_writer::tag('div',
                 get_string('lastmodified', 'mod_bento') . ': ' . userdate($sub->timemodified),
-                ['class' => 'text-muted small ml-2']
+                ['class' => 'text-muted small mt-1']
             );
-            $row[] = $link . $dates;
+            $cell = $link . $dates;
+            if ($existing && $existing->timemodified < $sub->timemodified) {
+                $cell .= html_writer::tag('div', get_string('gradebeforeeditwarning', 'mod_bento'),
+                    ['class' => 'text-warning small mt-1']);
+            }
+            $row[] = $cell;
         } else {
             $row[] = html_writer::tag('span', get_string('nosubmission', 'mod_bento'), ['class' => 'text-muted']);
         }

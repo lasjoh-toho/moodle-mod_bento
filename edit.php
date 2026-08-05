@@ -53,6 +53,7 @@ $context = context_module::instance($cm->id);
 bento_require_current_schema();
 
 $caneditmaster = has_capability('mod/bento:edit', $context);
+$pastdue = false;
 if ($caneditmaster) {
     $document = $bento->document;
     $ownerlabel = '';
@@ -64,6 +65,14 @@ if ($caneditmaster) {
     $submission = bento_get_or_create_submission($bento->id, $USER->id);
     $document = $submission->document;
     $ownerlabel = ' — ' . get_string('mypresentation', 'mod_bento');
+    $pastdue = $bento->duedate > 0 && time() > $bento->duedate;
+    if ($pastdue) {
+        $decoded = json_decode($document, true);
+        if (is_array($decoded)) {
+            $decoded['readonly'] = true;
+            $document = json_encode($decoded);
+        }
+    }
 }
 
 $shellpath = __DIR__ . '/asset/bento-shell.html';
@@ -83,12 +92,17 @@ $html = preg_replace(
 
 $title = format_string($bento->name) . $ownerlabel;
 
-$configmeta = bento_moodle_config_meta((int) $cm->id);
+$configmeta = $pastdue ? '' : bento_moodle_config_meta((int) $cm->id);
 
 $jstitle = json_encode($title . ' — Bearbeiten');
 $titlescript = '<script>document.title = ' . str_replace('$', '\\$', $jstitle) . ';</script>';
 
 $html = preg_replace('/<head[^>]*>/', '$0' . $configmeta . $titlescript, $html, 1);
+
+if ($pastdue) {
+    $banner = bento_deadline_passed_banner_html((int) $bento->duedate);
+    $html = preg_replace('/<body[^>]*>/', '$0' . str_replace('$', '\\$', $banner), $html, 1);
+}
 
 header('Content-Type: text/html; charset=utf-8');
 header('X-Frame-Options: SAMEORIGIN');

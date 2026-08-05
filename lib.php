@@ -294,6 +294,24 @@ function bento_back_link_html(moodle_url $target, string $label): string {
         . 'box-shadow:0 2px 10px rgba(0,0,0,.25);">&larr; ' . $safelabel . '</a>';
 }
 
+/**
+ * A small fixed banner telling a student their submission is now
+ * read-only because bento.duedate has passed — injected the same way as
+ * bento_back_link_html(), for the same reason (edit.php splices the whole
+ * app in as one raw page, no Moodle chrome to hang a notification off of).
+ *
+ * @param int $duedate
+ * @return string
+ */
+function bento_deadline_passed_banner_html(int $duedate): string {
+    $when = userdate($duedate);
+    $text = get_string('deadlinepassednotice', 'mod_bento', $when);
+    return '<div style="position:fixed;top:14px;left:50%;transform:translateX(-50%);z-index:2147483647;'
+        . 'font:600 13px system-ui,-apple-system,sans-serif;color:#5c3a00;background:rgba(255,236,196,.95);'
+        . 'backdrop-filter:blur(10px);padding:8px 16px;border-radius:999px;'
+        . 'box-shadow:0 2px 10px rgba(0,0,0,.25);">' . s($text) . '</div>';
+}
+
 // ---------------------------------------------------------------------
 // Student submissions (bento.allowstudentsubmissions). Each enrolled
 // student gets their OWN row in bento_submissions instead of everyone

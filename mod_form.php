@@ -75,6 +75,17 @@ class mod_bento_mod_form extends moodleform_mod {
         $mform->setDefault('allowstudentsubmissions', 0);
         $mform->addHelpButton('allowstudentsubmissions', 'allowstudentsubmissions', 'mod_bento');
 
+        $mform->addElement('date_time_selector', 'duedate', get_string('duedate', 'mod_bento'), ['optional' => true]);
+        $mform->setDefault('duedate', 0);
+        $mform->addHelpButton('duedate', 'duedate', 'mod_bento');
+        $mform->hideIf('duedate', 'allowstudentsubmissions', 'notchecked');
+
+        $mform->addElement('advcheckbox', 'duedatevisible', get_string('duedatevisible', 'mod_bento'));
+        $mform->setDefault('duedatevisible', 1);
+        $mform->addHelpButton('duedatevisible', 'duedatevisible', 'mod_bento');
+        $mform->hideIf('duedatevisible', 'allowstudentsubmissions', 'notchecked');
+        $mform->hideIf('duedatevisible', 'duedate[enabled]', 'notchecked');
+
         $mform->addElement('select', 'submissionvisibility', get_string('submissionvisibility', 'mod_bento'), [
             'auto' => get_string('submissionvisibility_auto', 'mod_bento'),
             'moderated' => get_string('submissionvisibility_moderated', 'mod_bento'),
