@@ -92,6 +92,9 @@ if (!$bento->allowstudentsubmissions) {
     $headinject = $caneditmaster ? bento_moodle_config_meta((int) $cm->id) . $bootstrap : $bootstrap;
     $html = preg_replace('/<head[^>]*>/', '$0' . str_replace('$', '\\$', $headinject), $html, 1);
 
+    $backlink = bento_back_link_html(course_get_url($course), get_string('backtocourse', 'mod_bento'));
+    $html = preg_replace('/<body[^>]*>/', '$0' . str_replace('$', '\\$', $backlink), $html, 1);
+
     header('Content-Type: text/html; charset=utf-8');
     header('X-Frame-Options: SAMEORIGIN');
     header('Cache-Control: no-store, no-cache, must-revalidate, max-age=0');

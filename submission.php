@@ -106,6 +106,10 @@ $bootstrap = '<script>location.hash = "present"; document.title = ' . json_encod
 $headinject = $isowner ? bento_moodle_config_meta((int) $cm->id) . $bootstrap : $bootstrap;
 $html = preg_replace('/<head[^>]*>/', '$0' . str_replace('$', '\\$', $headinject), $html, 1);
 
+$backlink = bento_back_link_html(new moodle_url('/mod/bento/view.php', ['id' => $cm->id]), get_string('backtogallery', 'mod_bento'));
+$html = preg_replace('/<body[^>]*>/', '$0' . str_replace('$', '\\$', $backlink), $html, 1);
+
+
 header('Content-Type: text/html; charset=utf-8');
 header('X-Frame-Options: SAMEORIGIN');
 header('Cache-Control: no-store, no-cache, must-revalidate, max-age=0');

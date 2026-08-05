@@ -173,7 +173,7 @@ $head = [get_string('fullname')];
 if ($bento->allowstudentsubmissions) {
     $head[] = get_string('mypresentation', 'mod_bento');
 }
-$head[] = get_string('grade') . ' (' . get_string('maxgrade', 'grades') . ': ' . (int) $bento->grade . ')';
+$head[] = get_string('grade', 'grades') . ' (' . get_string('maxgrade', 'grades') . ': ' . (int) $bento->grade . ')';
 $head[] = get_string('feedback');
 $head[] = get_string('visibility', 'mod_bento');
 $table->head = $head;
@@ -195,14 +195,14 @@ foreach ($users as $u) {
                 get_string('present', 'mod_bento'),
                 ['class' => 'btn btn-sm btn-outline-primary']
             );
-            $dates = html_writer::tag('div',
-                get_string('created', 'mod_bento') . ': ' . userdate($sub->timecreated) . '<br>' .
+            $dates = html_writer::tag('span',
+                get_string('created', 'mod_bento') . ': ' . userdate($sub->timecreated) . ' · ' .
                 get_string('lastmodified', 'mod_bento') . ': ' . userdate($sub->timemodified),
-                ['class' => 'text-muted small mt-1']
+                ['class' => 'text-muted small ml-2']
             );
             $row[] = $link . $dates;
         } else {
-            $row[] = html_writer::tag('span', get_string('nosubmissionyet', 'mod_bento'), ['class' => 'text-muted']);
+            $row[] = html_writer::tag('span', get_string('nosubmission', 'mod_bento'), ['class' => 'text-muted']);
         }
     }
 

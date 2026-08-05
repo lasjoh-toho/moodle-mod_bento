@@ -85,7 +85,7 @@ if (empty($submissions)) {
 }
 
 $table = new html_table();
-$table->head = [get_string('fullname'), get_string('status'), get_string('created', 'mod_bento'), get_string('lastmodified', 'mod_bento'), ''];
+$table->head = [get_string('fullname'), get_string('status'), '', get_string('created', 'mod_bento'), get_string('lastmodified', 'mod_bento')];
 $table->attributes['class'] = 'generaltable';
 
 foreach ($submissions as $s) {
@@ -101,9 +101,9 @@ foreach ($submissions as $s) {
     $table->data[] = [
         fullname($s),
         $badge,
+        $togglebutton . $presentlink,
         userdate($s->timecreated),
         userdate($s->timemodified),
-        $togglebutton . $presentlink,
     ];
 }
 
