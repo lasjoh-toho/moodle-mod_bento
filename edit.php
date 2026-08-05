@@ -83,17 +83,7 @@ $html = preg_replace(
 
 $title = format_string($bento->name) . $ownerlabel;
 
-$moodleconfig = [
-    'cmid' => (int) $cm->id,
-    'sesskey' => sesskey(),
-    'wwwroot' => $CFG->wwwroot,
-];
-// json_encode's default escaping already turns '<' into '\u003c' inside
-// string values — safe to drop straight into an HTML attribute — but the
-// attribute itself still needs its own quotes escaped, and any literal '$'
-// neutralised before it goes through preg_replace's replacement string.
-$configattr = str_replace('$', '\\$', htmlspecialchars(json_encode($moodleconfig), ENT_QUOTES, 'UTF-8'));
-$configmeta = '<meta name="bento-moodle-config" content="' . $configattr . '">';
+$configmeta = bento_moodle_config_meta((int) $cm->id);
 
 $jstitle = json_encode($title . ' — Bearbeiten');
 $titlescript = '<script>document.title = ' . str_replace('$', '\\$', $jstitle) . ';</script>';

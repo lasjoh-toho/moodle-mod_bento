@@ -49,22 +49,28 @@ require_capability('mod/bento:view', $context);
 bento_view($bento, $course, $cm, $context);
 
 if (!$bento->allowstudentsubmissions) {
-    // ---- classic single-document present mode (v1 behaviour, unchanged) ----
+    // ---- classic single-document present mode (v1 behaviour) ----
     $shellpath = __DIR__ . '/asset/bento-shell.html';
     $shell = file_get_contents($shellpath);
     if ($shell === false) {
         throw new moodle_exception('shellmissing', 'mod_bento');
     }
 
-    // Force read-only before embedding — see submission.php for the full
-    // reasoning (same fix, same underlying gap): without this, exiting
-    // present mode (Escape) drops into Bento's full live editor with no
-    // Moodle save wiring at all (only edit.php injects that), for ANYONE
-    // with mod/bento:view — not just teachers/editors.
-    $decoded = json_decode($bento->document, true);
-    if (is_array($decoded)) {
-        $decoded['readonly'] = true;
-        $bento->document = json_encode($decoded);
+    // Whoever can edit this document gets the FULL live editor directly —
+    // that's deliberate, not a leftover gap: opening the activity and being
+    // able to edit+save right there (no separate "Edit" page detour) is the
+    // whole point of Bento over e.g. a PowerPoint file in Moodle. Read-only
+    // is only forced for everyone who canNOT edit it — a student in classic
+    // (non-submission) mode — so exiting present mode there can't drop into
+    // a live editor with no Moodle save wiring (see submission.php for the
+    // full reasoning on that half).
+    $caneditmaster = has_capability('mod/bento:edit', $context);
+    if (!$caneditmaster) {
+        $decoded = json_decode($bento->document, true);
+        if (is_array($decoded)) {
+            $decoded['readonly'] = true;
+            $bento->document = json_encode($decoded);
+        }
     }
 
     $jsonforembed = str_replace('<', '\u003c', $bento->document);
@@ -79,10 +85,12 @@ if (!$bento->allowstudentsubmissions) {
     // Auto-launch present mode (main.ts already supports this — it checks
     // location.hash === '#present' once its bundle runs) and set the tab title.
     // Injected right after <head> so it runs as early as possible, well before
-    // the (much larger) app bundle further down parses.
+    // the (much larger) app bundle further down parses. The moodle-config
+    // meta tag (editable viewers only) goes in the same spot.
     $title = format_string($bento->name);
     $bootstrap = '<script>location.hash = "present"; document.title = ' . json_encode($title) . ';</script>';
-    $html = preg_replace('/<head[^>]*>/', '$0' . str_replace('$', '\\$', $bootstrap), $html, 1);
+    $headinject = $caneditmaster ? bento_moodle_config_meta((int) $cm->id) . $bootstrap : $bootstrap;
+    $html = preg_replace('/<head[^>]*>/', '$0' . str_replace('$', '\\$', $headinject), $html, 1);
 
     header('Content-Type: text/html; charset=utf-8');
     header('X-Frame-Options: SAMEORIGIN');

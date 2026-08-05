@@ -20,6 +20,11 @@
  * before student submissions existed. Same raw-full-page approach (see
  * view.php's own comment for why).
  *
+ * The submission's OWN owner gets the full live editor directly (edit+save
+ * right there, same convenience view.php gives a teacher for the master
+ * document) — anyone else viewing it (a classmate, or a teacher via
+ * mod/bento:viewallsubmissions) always gets it read-only, no exceptions.
+ *
  * Access: the submission's own owner always gets in; anyone else needs
  * mod/bento:viewallsubmissions (teachers) OR the instance's
  * submissionvisibility to be 'auto' AND the submission's status to be
@@ -68,19 +73,22 @@ if ($shell === false) {
     throw new moodle_exception('shellmissing', 'mod_bento');
 }
 
-// Force read-only before embedding — this page is a VIEWER, reachable for
-// classmates' submissions too, not just one's own. Without this, exiting
-// present mode (Escape) would drop into Bento's full live editor with no
-// Moodle save wiring at all (only edit.php injects that) — at best a
-// confusing dead-end Save button, at worst a route to editing someone
-// else's work that just silently fails to persist instead of being
-// blocked outright. bento_validate_document() strips this flag for
-// edit.php/the master document for the opposite reason (that one must
-// always be the full editor) — this is the deliberate inverse of that.
-$decoded = json_decode($submission->document, true);
-if (is_array($decoded)) {
-    $decoded['readonly'] = true;
-    $submission->document = json_encode($decoded);
+// Only force read-only for viewers who AREN'T this submission's owner —
+// this page is reachable for classmates' (or, with viewall, any student's)
+// submissions too, and editing/saving into someone else's work must never
+// be possible regardless of who's looking, even a teacher browsing via
+// viewall. The owner themselves gets the full live editor directly instead
+// (meta tag included, below) — same reasoning as view.php's teacher case:
+// opening it and being able to edit+save right there, no separate "Edit"
+// page detour, is the whole point of Bento over e.g. a PowerPoint file in
+// Moodle. bento_validate_document() strips readonly for edit.php/the
+// master document for the same reason, on the teacher's copy.
+if (!$isowner) {
+    $decoded = json_decode($submission->document, true);
+    if (is_array($decoded)) {
+        $decoded['readonly'] = true;
+        $submission->document = json_encode($decoded);
+    }
 }
 
 $jsonforembed = str_replace('<', '\u003c', $submission->document);
@@ -95,7 +103,8 @@ $html = preg_replace(
 $owneruser = $DB->get_record('user', ['id' => $submission->userid], '*', MUST_EXIST);
 $title = format_string($bento->name) . ' — ' . fullname($owneruser);
 $bootstrap = '<script>location.hash = "present"; document.title = ' . json_encode($title) . ';</script>';
-$html = preg_replace('/<head[^>]*>/', '$0' . str_replace('$', '\\$', $bootstrap), $html, 1);
+$headinject = $isowner ? bento_moodle_config_meta((int) $cm->id) . $bootstrap : $bootstrap;
+$html = preg_replace('/<head[^>]*>/', '$0' . str_replace('$', '\\$', $headinject), $html, 1);
 
 header('Content-Type: text/html; charset=utf-8');
 header('X-Frame-Options: SAMEORIGIN');

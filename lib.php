@@ -241,6 +241,37 @@ function bento_require_current_schema(): void {
     }
 }
 
+/**
+ * The <meta name="bento-moodle-config"> tag that tells Bento's own Save
+ * button (editor/moodle.ts) it's running inside this Moodle activity and
+ * should save via mod_bento_save_document instead of normal local-file
+ * behaviour. Originally only edit.php ever needed this — now view.php and
+ * submission.php also inject it, but ONLY for whichever document the
+ * current viewer is actually entitled to edit (see those files' own
+ * comments), so opening the activity and pressing Escape to edit+save
+ * directly still works for whoever owns that document, without opening the
+ * door to editing something that isn't theirs.
+ *
+ * @param int $cmid
+ * @return string
+ */
+function bento_moodle_config_meta(int $cmid): string {
+    global $CFG;
+    $moodleconfig = [
+        'cmid' => $cmid,
+        'sesskey' => sesskey(),
+        'wwwroot' => $CFG->wwwroot,
+    ];
+    // json_encode's default escaping already turns '<' into '\u003c' inside
+    // string values — safe to drop straight into an HTML attribute — but the
+    // attribute itself still needs its own quotes escaped, and any literal
+    // '$' neutralised too: every caller drops this straight into a
+    // preg_replace() REPLACEMENT string, where '$' has its own special
+    // meaning (backreferences).
+    $configattr = str_replace('$', '\\$', htmlspecialchars(json_encode($moodleconfig), ENT_QUOTES, 'UTF-8'));
+    return '<meta name="bento-moodle-config" content="' . $configattr . '">';
+}
+
 // ---------------------------------------------------------------------
 // Student submissions (bento.allowstudentsubmissions). Each enrolled
 // student gets their OWN row in bento_submissions instead of everyone
