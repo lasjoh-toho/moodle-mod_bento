@@ -20,10 +20,18 @@ defined('MOODLE_INTERNAL') || die();
 
 require_once($CFG->dirroot . '/mod/bento/lib.php');
 
-use external_api;
-use external_function_parameters;
-use external_value;
-use external_single_structure;
+// Moodle moved these out of the global namespace into core_external a
+// while back; the old global-namespace names (external_api etc.) are what
+// this whole file originally used, and they worked fine on older Moodle
+// releases where a deprecated alias still existed — this particular
+// install doesn't have that alias anymore, which is exactly what surfaced
+// as a fatal "Class external_api not found" the moment this ran, silently
+// AFTER the client had already shown a false "saved" toast (see moodle.ts
+// for the matching client-side fix to that specific consequence).
+use core_external\external_api;
+use core_external\external_function_parameters;
+use core_external\external_value;
+use core_external\external_single_structure;
 use context_module;
 use invalid_parameter_exception;
 

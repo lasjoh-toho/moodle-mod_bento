@@ -162,7 +162,7 @@ echo $OUTPUT->notification(get_string('draftgradeexplainer', 'mod_bento'), 'info
 $users = get_enrolled_users($context, 'mod/bento:view', 0, 'u.*', 'u.lastname, u.firstname');
 $existinggrades = $DB->get_records('bento_grades', ['bentoid' => $bento->id], '', 'userid, grade, feedback, published');
 $submissions = $bento->allowstudentsubmissions
-    ? $DB->get_records_menu('bento_submissions', ['bentoid' => $bento->id], '', 'userid, id')
+    ? $DB->get_records('bento_submissions', ['bentoid' => $bento->id], '', 'userid, id, timecreated, timemodified')
     : [];
 
 echo html_writer::start_tag('form', ['method' => 'post', 'action' => new moodle_url('/mod/bento/grade.php', ['id' => $cm->id])]);
@@ -189,11 +189,18 @@ foreach ($users as $u) {
 
     if ($bento->allowstudentsubmissions) {
         if (isset($submissions[$u->id])) {
-            $row[] = html_writer::link(
-                new moodle_url('/mod/bento/submission.php', ['id' => $cm->id, 'submissionid' => $submissions[$u->id]]),
+            $sub = $submissions[$u->id];
+            $link = html_writer::link(
+                new moodle_url('/mod/bento/submission.php', ['id' => $cm->id, 'submissionid' => $sub->id]),
                 get_string('present', 'mod_bento'),
                 ['class' => 'btn btn-sm btn-outline-primary']
             );
+            $dates = html_writer::tag('div',
+                get_string('created', 'mod_bento') . ': ' . userdate($sub->timecreated) . '<br>' .
+                get_string('lastmodified', 'mod_bento') . ': ' . userdate($sub->timemodified),
+                ['class' => 'text-muted small mt-1']
+            );
+            $row[] = $link . $dates;
         } else {
             $row[] = html_writer::tag('span', get_string('nosubmissionyet', 'mod_bento'), ['class' => 'text-muted']);
         }

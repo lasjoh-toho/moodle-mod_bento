@@ -81,6 +81,7 @@ $string['unapprove'] = 'Freigabe zurückziehen';
 $string['moderatesubmissions'] = 'Einreichungen freigeben';
 $string['notmoderated'] = 'Diese Aktivität ist auf automatische Sichtbarkeit eingestellt — hier gibt es nichts freizugeben, alle eingereichten Präsentationen sind bereits für alle sichtbar.';
 $string['lastmodified'] = 'Zuletzt geändert';
+$string['created'] = 'Angelegt';
 $string['submissionsnotenabled'] = 'Für diese Aktivität sind keine eigenen Präsentationen von Lernenden aktiviert.';
 $string['submissionnotvisible'] = 'Diese Präsentation ist für dich (noch) nicht sichtbar.';
 $string['schemaoutofdate'] = 'Die installierten Bento-Plugin-Dateien (Version {$a->code}) sind neuer als die Datenbank (zuletzt aktualisiert auf Version {$a->installed}). Das passiert, wenn die Plugin-Dateien aktualisiert wurden, das Datenbank-Upgrade dazu aber noch nicht gelaufen ist. Bitte als Administrator:in „Website-Administration → Benachrichtigungen“ aufrufen, um das nachzuholen.';

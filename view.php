@@ -142,6 +142,11 @@ if ($cansubmit) {
             get_string('presentmypresentation', 'mod_bento'),
             ['class' => 'btn btn-secondary']
         );
+        echo html_writer::tag('p',
+            get_string('created', 'mod_bento') . ': ' . userdate($mine->timecreated) . ' — ' .
+            get_string('lastmodified', 'mod_bento') . ': ' . userdate($mine->timemodified),
+            ['class' => 'text-muted small mt-2 mb-0']
+        );
     } else {
         echo html_writer::tag('p', get_string('nosubmissionyet', 'mod_bento'), ['class' => 'text-muted']);
         echo html_writer::link(
@@ -176,6 +181,11 @@ if (empty($others)) {
             new moodle_url('/mod/bento/submission.php', ['id' => $cm->id, 'submissionid' => $s->id]),
             get_string('present', 'mod_bento'),
             ['class' => 'btn btn-sm btn-outline-primary']
+        );
+        echo html_writer::tag('p',
+            get_string('created', 'mod_bento') . ': ' . userdate($s->timecreated) . '<br>' .
+            get_string('lastmodified', 'mod_bento') . ': ' . userdate($s->timemodified),
+            ['class' => 'text-muted small mt-2 mb-0']
         );
         echo html_writer::end_div();
         echo html_writer::end_div();
