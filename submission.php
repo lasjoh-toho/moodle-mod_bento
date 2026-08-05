@@ -67,6 +67,21 @@ if ($shell === false) {
     throw new moodle_exception('shellmissing', 'mod_bento');
 }
 
+// Force read-only before embedding — this page is a VIEWER, reachable for
+// classmates' submissions too, not just one's own. Without this, exiting
+// present mode (Escape) would drop into Bento's full live editor with no
+// Moodle save wiring at all (only edit.php injects that) — at best a
+// confusing dead-end Save button, at worst a route to editing someone
+// else's work that just silently fails to persist instead of being
+// blocked outright. bento_validate_document() strips this flag for
+// edit.php/the master document for the opposite reason (that one must
+// always be the full editor) — this is the deliberate inverse of that.
+$decoded = json_decode($submission->document, true);
+if (is_array($decoded)) {
+    $decoded['readonly'] = true;
+    $submission->document = json_encode($decoded);
+}
+
 $jsonforembed = str_replace('<', '\u003c', $submission->document);
 
 $html = preg_replace(

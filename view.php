@@ -55,6 +55,17 @@ if (!$bento->allowstudentsubmissions) {
         throw new moodle_exception('shellmissing', 'mod_bento');
     }
 
+    // Force read-only before embedding — see submission.php for the full
+    // reasoning (same fix, same underlying gap): without this, exiting
+    // present mode (Escape) drops into Bento's full live editor with no
+    // Moodle save wiring at all (only edit.php injects that), for ANYONE
+    // with mod/bento:view — not just teachers/editors.
+    $decoded = json_decode($bento->document, true);
+    if (is_array($decoded)) {
+        $decoded['readonly'] = true;
+        $bento->document = json_encode($decoded);
+    }
+
     $jsonforembed = str_replace('<', '\u003c', $bento->document);
 
     $html = preg_replace(
