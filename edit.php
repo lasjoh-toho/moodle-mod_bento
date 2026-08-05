@@ -15,23 +15,24 @@
 // along with Moodle.  If not, see <http://www.gnu.org/licenses/>.
 
 /**
- * The full Bento editor, opened from the activity's settings/gear menu
- * ("Bearbeiten"). Same raw-full-page approach as view.php (see its comment).
+ * The full Bento editor. Two different documents can land here depending
+ * on capability and mode:
  *
- * Unlike earlier versions of this file, there's no injected script hunting
- * for Bento's native Save button anymore — that turned out fragile (icon
- * fingerprinting, timing, fullscreen visibility, load-order races). Instead,
- * Bento itself now knows how to save into Moodle natively: its own Save
- * button checks for a URL containing "mod/bento" and a
+ *  - mod/bento:edit (teachers): the ONE shared master document
+ *    (bento.document) — unchanged from before student submissions existed.
+ *  - mod/bento:submit, no mod/bento:edit, and bento.allowstudentsubmissions
+ *    is on (students): their OWN row in bento_submissions, found-or-created
+ *    via bento_get_or_create_submission() so this page never needs a
+ *    separate id param — ownership is always "whichever row belongs to the
+ *    logged-in user for this instance".
+ *
+ * Either way, Bento itself now knows how to save into Moodle natively: its
+ * own Save button checks for a URL containing "mod/bento" and a
  * <meta name="bento-moodle-config"> tag (see editor/moodle.ts in the Bento
  * source), and posts to mod_bento_save_document itself when both are
- * present. This file's only remaining job is to supply that meta tag —
- * cmid, sesskey, wwwroot — right alongside the document it already splices
- * into #bento-doc.
- *
- * Access is gated by the mod/bento:edit capability alone (see access.php) —
- * no separate role check on top of it; a capability check already IS the
- * "does this user count as able to edit" answer, by design.
+ * present — that endpoint (classes/external/save_document.php) is what
+ * actually decides WHICH of the two documents above gets written, using
+ * the same capability check this file uses to decide which one to show.
  *
  * @package     mod_bento
  * @copyright   2026 The Bento authors
@@ -49,7 +50,20 @@ $bento = $DB->get_record('bento', ['id' => $cm->instance], '*', MUST_EXIST);
 
 require_login($course, true, $cm);
 $context = context_module::instance($cm->id);
-require_capability('mod/bento:edit', $context);
+
+$caneditmaster = has_capability('mod/bento:edit', $context);
+if ($caneditmaster) {
+    $document = $bento->document;
+    $ownerlabel = '';
+} else {
+    require_capability('mod/bento:submit', $context);
+    if (!$bento->allowstudentsubmissions) {
+        throw new moodle_exception('submissionsnotenabled', 'mod_bento');
+    }
+    $submission = bento_get_or_create_submission($bento->id, $USER->id);
+    $document = $submission->document;
+    $ownerlabel = ' — ' . get_string('mypresentation', 'mod_bento');
+}
 
 $shellpath = __DIR__ . '/asset/bento-shell.html';
 $shell = file_get_contents($shellpath);
@@ -57,7 +71,7 @@ if ($shell === false) {
     throw new moodle_exception('shellmissing', 'mod_bento');
 }
 
-$jsonforembed = str_replace('<', '\u003c', $bento->document);
+$jsonforembed = str_replace('<', '\u003c', $document);
 
 $html = preg_replace(
     '/(<script[^>]*id=["\']bento-doc["\'][^>]*>)([\s\S]*?)(<\/script>)/',
@@ -66,7 +80,7 @@ $html = preg_replace(
     1
 );
 
-$title = format_string($bento->name);
+$title = format_string($bento->name) . $ownerlabel;
 
 $moodleconfig = [
     'cmid' => (int) $cm->id,

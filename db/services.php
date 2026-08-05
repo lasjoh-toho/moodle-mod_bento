@@ -28,9 +28,9 @@ $functions = [
     'mod_bento_save_document' => [
         'classname'   => 'mod_bento\external\save_document',
         'methodname'  => 'execute',
-        'description' => 'Saves the current in-editor bento/slides document back onto its activity instance.',
+        'description' => 'Saves the current in-editor bento/slides document — to the shared master document (mod/bento:edit) or to the calling user\'s own submission (mod/bento:submit, when student submissions are enabled), decided server-side.',
         'type'        => 'write',
         'ajax'        => true,
-        'capabilities' => 'mod/bento:edit',
+        'capabilities' => 'mod/bento:edit, mod/bento:submit',
     ],
 ];

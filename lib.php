@@ -120,6 +120,8 @@ function bento_delete_instance($id) {
         return false;
     }
 
+    $DB->delete_records('bento_submissions', ['bentoid' => $id]);
+    $DB->delete_records('bento_grades', ['bentoid' => $id]);
     $DB->delete_records('bento', ['id' => $id]);
 
     $bento->cmidnumber = null;
@@ -203,6 +205,104 @@ function bento_blank_document(): string {
         ],
         'modified' => date('c'),
     ]);
+}
+
+// ---------------------------------------------------------------------
+// Student submissions (bento.allowstudentsubmissions). Each enrolled
+// student gets their OWN row in bento_submissions instead of everyone
+// sharing bento.document — see that table's comment in install.xml, and
+// submission.php / edit.php for where these get used.
+// ---------------------------------------------------------------------
+
+/**
+ * Finds a student's own submission for this instance, if they already have
+ * one. Never creates one — see bento_get_or_create_submission() for that.
+ *
+ * @param int $bentoid
+ * @param int $userid
+ * @return stdClass|false
+ */
+function bento_get_submission(int $bentoid, int $userid) {
+    global $DB;
+    return $DB->get_record('bento_submissions', ['bentoid' => $bentoid, 'userid' => $userid]);
+}
+
+/**
+ * Finds a student's own submission, creating an empty one on first visit —
+ * the "anlegen" (create) half of "anlegen oder importieren"; the "importieren"
+ * half is the SAME import/merge widget mod_form.php already uses for the
+ * teacher's own document, reused here (see submission_new.php).
+ *
+ * @param int $bentoid
+ * @param int $userid
+ * @return stdClass the (possibly just-created) submission row
+ */
+function bento_get_or_create_submission(int $bentoid, int $userid): stdClass {
+    $existing = bento_get_submission($bentoid, $userid);
+    if ($existing) {
+        return $existing;
+    }
+    return bento_create_submission($bentoid, $userid, bento_blank_document());
+}
+
+/**
+ * Creates a student's submission row outright with the given starting
+ * document — used both for the blank-deck case above and for the "import a
+ * .pptx/.json/.bento.html as my starting deck" flow (submission_new.php),
+ * where the document is already known at creation time.
+ *
+ * New submissions always start 'pending' — meaningless in 'auto' visibility
+ * mode (ignored entirely there) but the correct starting point in
+ * 'moderated' mode: nothing is visible to classmates until a teacher
+ * approves it, not even a just-created blank deck.
+ *
+ * @param int $bentoid
+ * @param int $userid
+ * @param string $document raw bento/slides JSON, NOT yet validated
+ * @return stdClass the newly created submission row
+ */
+function bento_create_submission(int $bentoid, int $userid, string $document): stdClass {
+    global $DB;
+    $now = time();
+    $record = (object) [
+        'bentoid' => $bentoid,
+        'userid' => $userid,
+        'document' => bento_validate_document($document),
+        'status' => 'pending',
+        'timecreated' => $now,
+        'timemodified' => $now,
+    ];
+    $record->id = $DB->insert_record('bento_submissions', $record);
+    return $record;
+}
+
+/**
+ * Every submission the given user is currently ALLOWED to see for this
+ * instance — their own (always, regardless of status) plus classmates'
+ * submissions per the instance's visibility setting: all of them if
+ * 'auto', only 'approved' ones if 'moderated'. A user with
+ * mod/bento:viewallsubmissions (teachers) bypasses the moderation filter
+ * entirely and sees every submission, own or not.
+ *
+ * @param stdClass $bento
+ * @param int $userid
+ * @param bool $bypassmoderation true for anyone with mod/bento:viewallsubmissions
+ * @return stdClass[] keyed by submission id, each with a joined-in ->fullname
+ */
+function bento_visible_submissions(stdClass $bento, int $userid, bool $bypassmoderation): array {
+    global $DB;
+
+    $userfields = \core_user\fields::for_name()->get_sql('u', false, '', '', false)->selects;
+    $showallregardlessofstatus = $bypassmoderation || $bento->submissionvisibility !== 'moderated';
+    $visibilitycondition = $showallregardlessofstatus ? '1 = 1' : "s.status = 'approved'";
+
+    $sql = "SELECT s.*, {$userfields}
+              FROM {bento_submissions} s
+              JOIN {user} u ON u.id = s.userid
+             WHERE s.bentoid = :bentoid
+               AND (s.userid = :userid OR {$visibilitycondition})
+          ORDER BY u.lastname, u.firstname";
+    return $DB->get_records_sql($sql, ['bentoid' => $bento->id, 'userid' => $userid]);
 }
 
 // ---------------------------------------------------------------------
@@ -299,7 +399,7 @@ function bento_update_grades(stdClass $bento, int $userid = 0): void {
  * @return void
  */
 function bento_extend_settings_navigation(settings_navigation $settings, navigation_node $bentonode): void {
-    global $PAGE;
+    global $PAGE, $DB;
 
     $cm = $PAGE->cm;
     if (!$cm) {
@@ -326,6 +426,19 @@ function bento_extend_settings_navigation(settings_navigation $settings, navigat
             'bentograde',
             new pix_icon('i/grades', '')
         );
+    }
+    if (has_capability('mod/bento:moderatesubmissions', $context)) {
+        $bento = $DB->get_record('bento', ['id' => $cm->instance]);
+        if ($bento && $bento->allowstudentsubmissions) {
+            $bentonode->add(
+                get_string('moderatesubmissions', 'mod_bento'),
+                new moodle_url('/mod/bento/moderate.php', ['id' => $cm->id]),
+                navigation_node::TYPE_SETTING,
+                null,
+                'bentomoderate',
+                new pix_icon('i/check', '')
+            );
+        }
     }
 }
 

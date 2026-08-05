@@ -74,4 +74,47 @@ $capabilities = [
         ],
     ],
 
+    // Create/edit ONE'S OWN submission when the activity has student
+    // submissions turned on (bento.allowstudentsubmissions). Deliberately
+    // does not imply mod/bento:edit or vice versa — a student with this
+    // capability can never touch the teacher's own master document, and a
+    // teacher editing the master document doesn't need this at all.
+    'mod/bento:submit' => [
+        'riskbitmask' => RISK_XSS,
+        'captype' => 'write',
+        'contextlevel' => CONTEXT_MODULE,
+        'archetypes' => [
+            'student' => CAP_ALLOW,
+        ],
+    ],
+
+    // Bypasses the "moderated" visibility restriction — sees every
+    // student's submission regardless of its approval status. A teacher
+    // reviewing work needs this even before anything's been approved.
+    'mod/bento:viewallsubmissions' => [
+        'captype' => 'read',
+        'contextlevel' => CONTEXT_MODULE,
+        'archetypes' => [
+            'teacher' => CAP_ALLOW,
+            'editingteacher' => CAP_ALLOW,
+            'manager' => CAP_ALLOW,
+        ],
+    ],
+
+    // Approve/un-approve individual submissions in "moderated" visibility
+    // mode (moderate.php). Kept separate from viewallsubmissions so a
+    // reviewer role could plausibly see everything without also being able
+    // to change what other students get to see — the default archetypes
+    // below happen to grant both together, same reasoning as edit/grade above.
+    'mod/bento:moderatesubmissions' => [
+        'riskbitmask' => RISK_XSS,
+        'captype' => 'write',
+        'contextlevel' => CONTEXT_MODULE,
+        'archetypes' => [
+            'teacher' => CAP_ALLOW,
+            'editingteacher' => CAP_ALLOW,
+            'manager' => CAP_ALLOW,
+        ],
+    ],
+
 ];

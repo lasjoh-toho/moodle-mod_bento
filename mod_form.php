@@ -68,6 +68,21 @@ class mod_bento_mod_form extends moodleform_mod {
         $mform->setType('document', PARAM_RAW);
         $mform->setDefault('document', $existing);
 
+        // ---- student submissions: each learner gets their own deck instead ----
+        $mform->addElement('header', 'bentosubmissionshdr', get_string('studentsubmissions', 'mod_bento'));
+
+        $mform->addElement('advcheckbox', 'allowstudentsubmissions', get_string('allowstudentsubmissions', 'mod_bento'));
+        $mform->setDefault('allowstudentsubmissions', 0);
+        $mform->addHelpButton('allowstudentsubmissions', 'allowstudentsubmissions', 'mod_bento');
+
+        $mform->addElement('select', 'submissionvisibility', get_string('submissionvisibility', 'mod_bento'), [
+            'auto' => get_string('submissionvisibility_auto', 'mod_bento'),
+            'moderated' => get_string('submissionvisibility_moderated', 'mod_bento'),
+        ]);
+        $mform->setDefault('submissionvisibility', 'auto');
+        $mform->addHelpButton('submissionvisibility', 'submissionvisibility', 'mod_bento');
+        $mform->hideIf('submissionvisibility', 'allowstudentsubmissions', 'notchecked');
+
         // ---- grading, availability, common module settings ----
         $this->standard_grading_coursemodule_elements();
         $this->standard_coursemodule_elements();

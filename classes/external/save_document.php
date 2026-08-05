@@ -28,9 +28,18 @@ use context_module;
 use invalid_parameter_exception;
 
 /**
- * mod_bento_save_document — called by the small "save" button edit.php
- * injects into the running Bento editor; reads window.bento.doc and posts
- * it here as plain JSON.
+ * mod_bento_save_document — called by Bento's own Save button (editor/
+ * moodle.ts) whenever it detects a mod/bento context.
+ *
+ * WHICH document this writes to is decided entirely server-side from the
+ * calling user's OWN capabilities — never from anything the client sends —
+ * exactly mirroring edit.php's own branch (see that file's comment):
+ *
+ *  - mod/bento:edit → the shared master document (bento.document).
+ *  - otherwise, mod/bento:submit + allowstudentsubmissions on → the
+ *    caller's OWN row in bento_submissions, found via (bentoid, userid) —
+ *    never a client-supplied submission id, so there's no way for one
+ *    student's request to end up writing into another student's row.
  *
  * @package     mod_bento
  * @copyright   2026 The Bento authors
@@ -58,7 +67,7 @@ class save_document extends external_api {
      * @return array
      */
     public static function execute($cmid, $document): array {
-        global $DB;
+        global $DB, $USER;
 
         $params = self::validate_parameters(self::execute_parameters(), [
             'cmid' => $cmid,
@@ -68,7 +77,6 @@ class save_document extends external_api {
         $cm = get_coursemodule_from_id('bento', $params['cmid'], 0, false, MUST_EXIST);
         $context = context_module::instance($cm->id);
         self::validate_context($context);
-        require_capability('mod/bento:edit', $context);
 
         $decoded = json_decode($params['document'], true);
         if (!is_array($decoded) || ($decoded['format'] ?? null) !== 'bento/slides' || empty($decoded['slides'])) {
@@ -81,13 +89,41 @@ class save_document extends external_api {
         // activity must always open in the full editor, never Bento's
         // minimal read-only player card.
         unset($decoded['readonly']);
-
         $now = time();
-        $DB->update_record('bento', (object) [
-            'id' => $cm->instance,
-            'document' => json_encode($decoded),
-            'timemodified' => $now,
-        ]);
+        $cleandocument = json_encode($decoded);
+
+        if (has_capability('mod/bento:edit', $context)) {
+            $DB->update_record('bento', (object) [
+                'id' => $cm->instance,
+                'document' => $cleandocument,
+                'timemodified' => $now,
+            ]);
+            return ['ok' => true, 'timemodified' => $now];
+        }
+
+        require_capability('mod/bento:submit', $context);
+        $bento = $DB->get_record('bento', ['id' => $cm->instance], '*', MUST_EXIST);
+        if (!$bento->allowstudentsubmissions) {
+            throw new \moodle_exception('submissionsnotenabled', 'mod_bento');
+        }
+
+        $existing = $DB->get_record('bento_submissions', ['bentoid' => $bento->id, 'userid' => $USER->id]);
+        if ($existing) {
+            $DB->update_record('bento_submissions', (object) [
+                'id' => $existing->id,
+                'document' => $cleandocument,
+                'timemodified' => $now,
+            ]);
+        } else {
+            $DB->insert_record('bento_submissions', (object) [
+                'bentoid' => $bento->id,
+                'userid' => $USER->id,
+                'document' => $cleandocument,
+                'status' => 'pending',
+                'timecreated' => $now,
+                'timemodified' => $now,
+            ]);
+        }
 
         return ['ok' => true, 'timemodified' => $now];
     }

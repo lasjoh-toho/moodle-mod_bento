@@ -29,11 +29,14 @@ use core_privacy\local\request\helper;
 /**
  * Privacy provider for mod_bento.
  *
- * The stored presentation document itself (table `bento`) is shared
- * per-activity content, not personal data — the only personal data this
- * plugin owns is the manually-entered grade/feedback in `bento_grades`.
- * Completion and grade-history are core Moodle systems with their own
- * providers; we only need to account for our own table here.
+ * The TEACHER's shared master document (table `bento`, the `document`
+ * column) is per-activity content, not personal data. Two things ARE
+ * personal data, both handled identically below: the manually-entered
+ * grade/feedback in `bento_grades`, and — once student submissions are
+ * enabled (bento.allowstudentsubmissions) — each student's OWN authored
+ * presentation in `bento_submissions`, which is personal precisely because
+ * it's their own created content, same reasoning as an assignment
+ * submission's file content would be.
  *
  * @package     mod_bento
  * @copyright   2026 The Bento authors
@@ -52,6 +55,14 @@ class provider implements
             'timemodified' => 'privacy:metadata:bento_grades:timemodified',
         ], 'privacy:metadata:bento_grades');
 
+        $collection->add_database_table('bento_submissions', [
+            'userid' => 'privacy:metadata:bento_submissions:userid',
+            'document' => 'privacy:metadata:bento_submissions:document',
+            'status' => 'privacy:metadata:bento_submissions:status',
+            'timecreated' => 'privacy:metadata:bento_submissions:timecreated',
+            'timemodified' => 'privacy:metadata:bento_submissions:timemodified',
+        ], 'privacy:metadata:bento_submissions');
+
         return $collection;
     }
 
@@ -61,10 +72,14 @@ class provider implements
                   JOIN {course_modules} cm ON cm.id = ctx.instanceid AND ctx.contextlevel = :contextlevel
                   JOIN {modules} m ON m.id = cm.module AND m.name = 'bento'
                   JOIN {bento} b ON b.id = cm.instance
-                  JOIN {bento_grades} bg ON bg.bentoid = b.id
-                 WHERE bg.userid = :userid";
+             LEFT JOIN {bento_grades} bg ON bg.bentoid = b.id AND bg.userid = :userid1
+             LEFT JOIN {bento_submissions} bs ON bs.bentoid = b.id AND bs.userid = :userid2
+                 WHERE bg.userid = :userid3 OR bs.userid = :userid4";
 
-        $params = ['contextlevel' => CONTEXT_MODULE, 'userid' => $userid];
+        $params = [
+            'contextlevel' => CONTEXT_MODULE,
+            'userid1' => $userid, 'userid2' => $userid, 'userid3' => $userid, 'userid4' => $userid,
+        ];
 
         $contextlist = new contextlist();
         $contextlist->add_from_sql($sql, $params);
@@ -80,8 +95,14 @@ class provider implements
                   FROM {course_modules} cm
                   JOIN {bento} b ON b.id = cm.instance
                   JOIN {bento_grades} bg ON bg.bentoid = b.id
-                 WHERE cm.id = :cmid";
-        $userlist->add_from_sql('userid', $sql, ['cmid' => $context->instanceid]);
+                 WHERE cm.id = :cmid1
+                 UNION
+                SELECT bs.userid
+                  FROM {course_modules} cm
+                  JOIN {bento} b ON b.id = cm.instance
+                  JOIN {bento_submissions} bs ON bs.bentoid = b.id
+                 WHERE cm.id = :cmid2";
+        $userlist->add_from_sql('userid', $sql, ['cmid1' => $context->instanceid, 'cmid2' => $context->instanceid]);
     }
 
     public static function export_user_data(approved_contextlist $contextlist): void {
@@ -96,20 +117,40 @@ class provider implements
             if (!$cm) {
                 continue;
             }
-            $bento = $DB->get_record('bento', ['id' => $cm->instance]);
+
             $grade = $DB->get_record('bento_grades', ['bentoid' => $cm->instance, 'userid' => $user->id]);
-            if (!$grade) {
-                continue;
+            if ($grade) {
+                writer::with_context($context)->export_data(
+                    [get_string('modulename', 'mod_bento'), get_string('privacy:gradesubcontext', 'mod_bento')],
+                    (object) [
+                        'grade' => $grade->grade,
+                        'feedback' => $grade->feedback,
+                        'timemodified' => \core_privacy\local\request\transform::datetime($grade->timemodified),
+                    ]
+                );
             }
-            $data = (object) [
-                'grade' => $grade->grade,
-                'feedback' => $grade->feedback,
-                'timemodified' => \core_privacy\local\request\transform::datetime($grade->timemodified),
-            ];
-            writer::with_context($context)->export_data(
-                [get_string('modulename', 'mod_bento')],
-                $data
-            );
+
+            $submission = $DB->get_record('bento_submissions', ['bentoid' => $cm->instance, 'userid' => $user->id]);
+            if ($submission) {
+                // The document itself is exported as a title/slide-count
+                // summary rather than the full JSON — the raw document can
+                // be MBs of embedded images, which the export writer isn't
+                // meant for; the presentation itself is still reachable to
+                // the user directly inside the activity while their account
+                // exists.
+                $decoded = json_decode($submission->document, true);
+                $slidecount = is_array($decoded['slides'] ?? null) ? count($decoded['slides']) : 0;
+                writer::with_context($context)->export_data(
+                    [get_string('modulename', 'mod_bento'), get_string('privacy:submissionsubcontext', 'mod_bento')],
+                    (object) [
+                        'title' => $decoded['title'] ?? '',
+                        'slidecount' => $slidecount,
+                        'status' => $submission->status,
+                        'timecreated' => \core_privacy\local\request\transform::datetime($submission->timecreated),
+                        'timemodified' => \core_privacy\local\request\transform::datetime($submission->timemodified),
+                    ]
+                );
+            }
         }
     }
 
@@ -123,6 +164,7 @@ class provider implements
             return;
         }
         $DB->delete_records('bento_grades', ['bentoid' => $cm->instance]);
+        $DB->delete_records('bento_submissions', ['bentoid' => $cm->instance]);
     }
 
     public static function delete_data_for_user(approved_contextlist $contextlist): void {
@@ -137,6 +179,7 @@ class provider implements
                 continue;
             }
             $DB->delete_records('bento_grades', ['bentoid' => $cm->instance, 'userid' => $user->id]);
+            $DB->delete_records('bento_submissions', ['bentoid' => $cm->instance, 'userid' => $user->id]);
         }
     }
 
@@ -152,6 +195,7 @@ class provider implements
         }
         foreach ($userlist->get_userids() as $userid) {
             $DB->delete_records('bento_grades', ['bentoid' => $cm->instance, 'userid' => $userid]);
+            $DB->delete_records('bento_submissions', ['bentoid' => $cm->instance, 'userid' => $userid]);
         }
     }
 }

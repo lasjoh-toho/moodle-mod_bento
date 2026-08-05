@@ -8,39 +8,14 @@ mode — no editor chrome, just the deck.
 
 ## Install
 
-1. Grab the latest `mod_bento.zip` from this repo's
-   [Releases](../../releases) — already packaged with the correct internal
-   structure for Moodle's uploader (a single top-level folder named `bento`).
+1. This plugin is already packaged as `mod_bento.zip`, with the correct
+   internal structure for Moodle's uploader: a single top-level folder named
+   `bento` (not `mod_bento`) containing `version.php` directly inside it.
 2. Site administration → Plugins → Install plugins → upload the zip, or
    unzip it so you get `<moodle>/mod/bento/version.php` and visit
    Site administration → Notifications to trigger the install.
 3. Confirm the install — it creates two tables (`bento`, `bento_grades`) and
    the capabilities below.
-
-## Cutting a new release
-
-The repo here holds the plugin's own PHP/JS source — the actual embedded
-Bento app (`asset/bento-shell.html`) is deliberately NOT committed; it's
-built fresh each time from the current
-[`lasjoh-toho/bento`](https://github.com/lasjoh-toho/bento) fork
-(`moodle-and-editor-enhancements` branch).
-
-1. Update that fork the normal way (merge upstream, resolve conflicts, push).
-2. Here → **Actions** → **Build & release mod_bento** → **Run workflow**.
-3. `build.mjs` clones the fork, builds the real app, drops it into
-   `asset/bento-shell.html`, bumps `version.php`, zips it all up, and — only
-   if every step above succeeded — publishes it as a new GitHub Release.
-   A build failure (bad clone, failed `npm install`, a TypeScript error)
-   stops the job before any release is created; the previous release stays
-   the latest one, untouched.
-
-## License note
-
-This repo's `LICENSE` file is MIT. The individual PHP file headers still say
-`GNU GPL v3 or later`, matching Moodle core's own convention (and what
-Moodle's official plugins directory expects for a listed plugin). Worth
-resolving one way or the other before any formal distribution; flagged here
-rather than silently picking one.
 
 ## How the three pages fit together
 
@@ -59,6 +34,36 @@ edited, not just when first created: the currently-saved document always
 shows up as a card too, so dropping in another file merges it with what's
 already there — same drag-to-reorder-then-✚-to-connect flow as the
 standalone tool.
+
+## Student submissions (optional)
+
+Off by default — the activity works exactly like v1 (one teacher-authored
+deck, shared by everyone). Turning on **"Students create their own
+presentations"** in the activity settings changes the model entirely: each
+enrolled student gets their own row in `bento_submissions` instead, created
+via the same drop/import widget above (`submission_new.php`) or from
+scratch, and can only ever edit that one presentation — `edit.php` and the
+`mod_bento_save_document` web service both decide which document to show/
+save based on the calling user's OWN capabilities server-side, never on
+anything the client sends, so there's no way for one student's request to
+reach another student's row.
+
+Visibility of OTHER students' submissions is a second setting,
+independent of the one above:
+- **Automatic** — every submission is visible to every other student the
+  moment it exists.
+- **Moderated** — a submission is only visible to classmates once a
+  teacher approves it on the new **"Approve submissions"** page
+  (`moderate.php`, reachable from the settings/gear menu when this mode is
+  active). A student can always see and keep editing their OWN submission
+  regardless of its approval status.
+
+`view.php` becomes a normal themed gallery page in this mode instead of
+launching straight into present mode — "my presentation" (create/edit/
+present) plus a card per classmate submission this user is currently
+allowed to see, each opening in present mode via `submission.php` (the
+per-submission equivalent of what `view.php` always did for the single
+shared document before).
 
 ## Known gaps — read before relying on this in production
 

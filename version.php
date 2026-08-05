@@ -25,7 +25,7 @@
 defined('MOODLE_INTERNAL') || die();
 
 $plugin->component = 'mod_bento';
-$plugin->version   = 2026080311;
+$plugin->version   = 2026080420;
 $plugin->requires  = 2022041900; // Moodle 4.0+ (needs modern JS/DOM features the Bento app itself relies on).
 $plugin->maturity  = MATURITY_ALPHA;
 $plugin->release   = '0.1.0';
