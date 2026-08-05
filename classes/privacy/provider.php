@@ -52,6 +52,7 @@ class provider implements
             'userid' => 'privacy:metadata:bento_grades:userid',
             'grade' => 'privacy:metadata:bento_grades:grade',
             'feedback' => 'privacy:metadata:bento_grades:feedback',
+            'published' => 'privacy:metadata:bento_grades:published',
             'timemodified' => 'privacy:metadata:bento_grades:timemodified',
         ], 'privacy:metadata:bento_grades');
 
@@ -125,6 +126,7 @@ class provider implements
                     (object) [
                         'grade' => $grade->grade,
                         'feedback' => $grade->feedback,
+                        'published' => (bool) $grade->published,
                         'timemodified' => \core_privacy\local\request\transform::datetime($grade->timemodified),
                     ]
                 );

@@ -364,8 +364,15 @@ function bento_grade_item_delete(stdClass $bento) {
 }
 
 /**
- * Pushes one or all users' manually-entered grades into the gradebook.
- * Called by core after grade_item updates come in from the gradebook UI.
+ * Pushes one or all users' manually-entered grades into the gradebook,
+ * AND sets each pushed grade's own hidden flag to match its `published`
+ * column — the actual mechanism behind "note a grade, publish it later":
+ * grade_update() alone would make a freshly-entered grade visible in the
+ * gradebook immediately, same as any other activity; a per-grade
+ * grade_grade->hidden flag (set via the documented set_hidden() API,
+ * right after grade_update() has ensured the grade_grade row exists) is
+ * what actually keeps a draft grade invisible to its student until this
+ * plugin's own publish action flips it.
  *
  * @param stdClass $bento
  * @param int $userid 0 = all users
@@ -385,6 +392,42 @@ function bento_update_grades(stdClass $bento, int $userid = 0): void {
         $gradelist[$g->userid] = ['userid' => $g->userid, 'rawgrade' => $g->grade];
     }
     bento_grade_item_update($bento, $gradelist ?: null);
+
+    foreach ($grades as $g) {
+        bento_set_grade_visibility($bento, (int) $g->userid, (bool) $g->published);
+    }
+}
+
+/**
+ * Shows or hides ONE student's already-pushed grade in the real gradebook
+ * — the grade_item itself (shared by every student) stays visible either
+ * way; only that one student's own grade_grade row's hidden flag changes.
+ * A no-op if the grade hasn't reached the gradebook yet (grade_update()
+ * needs to run first — bento_update_grades() above always does both in
+ * the right order).
+ *
+ * @param stdClass $bento
+ * @param int $userid
+ * @param bool $published true = visible to the student, false = hidden
+ * @return void
+ */
+function bento_set_grade_visibility(stdClass $bento, int $userid, bool $published): void {
+    global $CFG;
+    require_once($CFG->libdir . '/grade/grade_item.php');
+    require_once($CFG->libdir . '/grade/grade_grade.php');
+
+    $gradeitem = grade_item::fetch([
+        'courseid' => $bento->course, 'itemtype' => 'mod', 'itemmodule' => 'bento',
+        'iteminstance' => $bento->id, 'itemnumber' => 0,
+    ]);
+    if (!$gradeitem) {
+        return;
+    }
+    $gradegrade = grade_grade::fetch(['itemid' => $gradeitem->id, 'userid' => $userid]);
+    if (!$gradegrade) {
+        return;
+    }
+    $gradegrade->set_hidden($published ? 0 : 1);
 }
 
 /**

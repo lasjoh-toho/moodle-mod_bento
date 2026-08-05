@@ -69,5 +69,20 @@ function xmldb_bento_upgrade($oldversion) {
         $dbman->create_table($table);
     }
 
+    // ---- draft/publish grading: one new column on bento_grades ----
+    $table = new xmldb_table('bento_grades');
+    $field = new xmldb_field('published', XMLDB_TYPE_INTEGER, '1', null, XMLDB_NOTNULL, null, '0', 'feedback');
+    if (!$dbman->field_exists($table, $field)) {
+        $dbman->add_field($table, $field);
+        // Grades entered before this column existed were already pushed
+        // straight into the gradebook, visible — leave them exactly as
+        // visible as they already were rather than retroactively hiding
+        // existing marks the moment this upgrade runs. Only grades entered
+        // from here on default to the new draft-first behaviour (the
+        // column's own DEFAULT '0' above, used for any row inserted after
+        // this point).
+        $DB->set_field('bento_grades', 'published', 1, []);
+    }
+
     return true;
 }

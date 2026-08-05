@@ -17,8 +17,17 @@
 /**
  * Manual grading — a plain table, one row per enrolled student. There is no
  * auto-score for a presentation, so this is the whole grading UI (reachable
- * from the activity's settings/gear menu, "Bewerten"); grades entered here
- * are pushed straight into the course gradebook.
+ * from the activity's settings/gear menu, "Bewerten").
+ *
+ * Entering or changing a grade NEVER makes it visible to the student by
+ * itself — every grade starts (or stays) a draft, tracked by
+ * bento_grades.published, until the separate "Veröffentlichen" action next
+ * to that row is clicked. Under the hood this still pushes straight into
+ * the real Moodle gradebook on every save (so grade history, exports, and
+ * everything else that reads grade_grade sees it) — it's that specific
+ * student's OWN grade_grade row that stays hidden until published, via
+ * bento_set_grade_visibility() in lib.php. The grade_item itself (shared by
+ * the whole class) is never hidden — only individual students' own grades.
  *
  * @package     mod_bento
  * @copyright   2026 The Bento authors
@@ -74,10 +83,23 @@ if ($isscale) {
     exit;
 }
 
-// ---- handle submission ----
+// ---- quick publish/un-publish toggle — separate from the grade-entry form below ----
+$toggleid = optional_param('publishtoggle', 0, PARAM_INT);
+if ($toggleid) {
+    require_sesskey();
+    $existing = $DB->get_record('bento_grades', ['bentoid' => $bento->id, 'userid' => $toggleid]);
+    if ($existing) {
+        $existing->published = $existing->published ? 0 : 1;
+        $existing->timemodified = time();
+        $DB->update_record('bento_grades', $existing);
+        bento_set_grade_visibility($bento, $toggleid, (bool) $existing->published);
+    }
+    redirect(new moodle_url('/mod/bento/grade.php', ['id' => $cm->id]));
+}
+
+// ---- handle grade/feedback form submission ----
 if ($data = data_submitted()) {
     require_sesskey();
-    require_capability('mod/bento:grade', $context);
 
     $grademax = max(1, (int) $bento->grade);
     $now = time();
@@ -90,21 +112,29 @@ if ($data = data_submitted()) {
             continue;
         }
         $value = trim((string) $value);
+        $existing = $DB->get_record('bento_grades', ['bentoid' => $bento->id, 'userid' => $userid]);
         if ($value === '') {
-            $DB->delete_records('bento_grades', ['bentoid' => $bento->id, 'userid' => $userid]);
+            if ($existing) {
+                $DB->delete_records('bento_grades', ['id' => $existing->id]);
+            }
             continue;
         }
         $grade = (float) str_replace(',', '.', $value);
         $grade = max(0, min($grademax, $grade));
         $feedback = trim((string) ($data->{'feedback_' . $userid} ?? ''));
 
-        $existing = $DB->get_record('bento_grades', ['bentoid' => $bento->id, 'userid' => $userid]);
         $record = (object) [
             'bentoid' => $bento->id,
             'userid' => $userid,
             'grader' => $USER->id,
             'grade' => $grade,
             'feedback' => $feedback,
+            // Entering/changing a grade never publishes it by itself —
+            // a brand-new grade starts as a draft (published=0); an
+            // EXISTING grade's own publish state carries over untouched,
+            // whatever it already was, so correcting a typo in an
+            // already-published mark doesn't silently re-hide it.
+            'published' => $existing->published ?? 0,
             'timemodified' => $now,
         ];
         if ($existing) {
@@ -126,33 +156,73 @@ if ($data = data_submitted()) {
 // ---- render ----
 echo $OUTPUT->header();
 echo $OUTPUT->heading(format_string($bento->name) . ' — ' . get_string('gradepresentation', 'mod_bento'));
+echo $OUTPUT->notification(get_string('draftgradeexplainer', 'mod_bento'), 'info');
 
 $users = get_enrolled_users($context, 'mod/bento:view', 0, 'u.*', 'u.lastname, u.firstname');
-$existinggrades = $DB->get_records_menu('bento_grades', ['bentoid' => $bento->id], '', 'userid, grade');
-$existingfeedback = $DB->get_records_menu('bento_grades', ['bentoid' => $bento->id], '', 'userid, feedback');
+$existinggrades = $DB->get_records('bento_grades', ['bentoid' => $bento->id], '', 'userid, grade, feedback, published');
+$submissions = $bento->allowstudentsubmissions
+    ? $DB->get_records_menu('bento_submissions', ['bentoid' => $bento->id], '', 'userid, id')
+    : [];
 
 echo html_writer::start_tag('form', ['method' => 'post', 'action' => new moodle_url('/mod/bento/grade.php', ['id' => $cm->id])]);
 echo html_writer::empty_tag('input', ['type' => 'hidden', 'name' => 'sesskey', 'value' => sesskey()]);
 
 $table = new html_table();
-$table->head = [
-    get_string('fullname'),
-    get_string('grade') . ' (' . get_string('maxgrade', 'grades') . ': ' . (int) $bento->grade . ')',
-    get_string('feedback'),
-];
+$head = [get_string('fullname')];
+if ($bento->allowstudentsubmissions) {
+    $head[] = get_string('mypresentation', 'mod_bento');
+}
+$head[] = get_string('grade') . ' (' . get_string('maxgrade', 'grades') . ': ' . (int) $bento->grade . ')';
+$head[] = get_string('feedback');
+$head[] = get_string('visibility', 'mod_bento');
+$table->head = $head;
 $table->attributes['class'] = 'generaltable';
 
 foreach ($users as $u) {
-    $gradeval = $existinggrades[$u->id] ?? '';
-    $feedbackval = $existingfeedback[$u->id] ?? '';
+    $existing = $existinggrades[$u->id] ?? null;
+    $gradeval = $existing->grade ?? '';
+    $feedbackval = $existing->feedback ?? '';
+    $published = (bool) ($existing->published ?? false);
+
+    $row = [fullname($u)];
+
+    if ($bento->allowstudentsubmissions) {
+        if (isset($submissions[$u->id])) {
+            $row[] = html_writer::link(
+                new moodle_url('/mod/bento/submission.php', ['id' => $cm->id, 'submissionid' => $submissions[$u->id]]),
+                get_string('present', 'mod_bento'),
+                ['class' => 'btn btn-sm btn-outline-primary']
+            );
+        } else {
+            $row[] = html_writer::tag('span', get_string('nosubmissionyet', 'mod_bento'), ['class' => 'text-muted']);
+        }
+    }
+
     $gradeinput = html_writer::empty_tag('input', [
         'type' => 'number', 'step' => '0.01', 'min' => '0', 'max' => (int) $bento->grade,
         'name' => 'grade_' . $u->id, 'value' => $gradeval, 'style' => 'width:6em',
     ]);
+    $row[] = $gradeinput;
+
     $feedbackinput = html_writer::empty_tag('input', [
         'type' => 'text', 'name' => 'feedback_' . $u->id, 'value' => s($feedbackval), 'style' => 'width:100%',
     ]);
-    $table->data[] = [fullname($u), $gradeinput, $feedbackinput];
+    $row[] = $feedbackinput;
+
+    if ($existing) {
+        $badge = html_writer::tag('span', get_string($published ? 'gradepublished' : 'gradedraft', 'mod_bento'),
+            ['class' => 'badge ' . ($published ? 'badge-success' : 'badge-secondary')]);
+        $toggleurl = new moodle_url('/mod/bento/grade.php', [
+            'id' => $cm->id, 'publishtoggle' => $u->id, 'sesskey' => sesskey(),
+        ]);
+        $togglebutton = html_writer::link($toggleurl, get_string($published ? 'unpublish' : 'publish', 'mod_bento'),
+            ['class' => 'btn btn-sm ml-1 ' . ($published ? 'btn-outline-secondary' : 'btn-success')]);
+        $row[] = $badge . ' ' . $togglebutton;
+    } else {
+        $row[] = '';
+    }
+
+    $table->data[] = $row;
 }
 
 echo html_writer::table($table);
