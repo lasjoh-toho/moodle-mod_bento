@@ -43,6 +43,7 @@ $bento = $DB->get_record('bento', ['id' => $cm->instance], '*', MUST_EXIST);
 
 require_login($course, true, $cm);
 $context = context_module::instance($cm->id);
+bento_require_current_schema();
 require_capability('mod/bento:view', $context);
 
 bento_view($bento, $course, $cm, $context);

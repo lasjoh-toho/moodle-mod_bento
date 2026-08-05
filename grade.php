@@ -46,6 +46,7 @@ $bento = $DB->get_record('bento', ['id' => $cm->instance], '*', MUST_EXIST);
 
 require_login($course, true, $cm);
 $context = context_module::instance($cm->id);
+bento_require_current_schema();
 require_capability('mod/bento:grade', $context);
 
 $PAGE->set_url('/mod/bento/grade.php', ['id' => $cm->id]);

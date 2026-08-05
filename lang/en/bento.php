@@ -83,6 +83,7 @@ $string['notmoderated'] = 'This activity is set to automatic visibility — ther
 $string['lastmodified'] = 'Last modified';
 $string['submissionsnotenabled'] = 'Student presentations aren\'t enabled for this activity.';
 $string['submissionnotvisible'] = 'This presentation isn\'t visible to you (yet).';
+$string['schemaoutofdate'] = 'The installed Bento plugin files (version {$a->code}) are newer than the database (last upgraded to version {$a->installed}). This happens when the plugin files were updated but the matching database upgrade hasn\'t run yet. As an administrator, please visit "Site administration → Notifications" to complete it.';
 
 $string['bento:addinstance'] = 'Add a new Bento presentation';
 $string['bento:view'] = 'View a Bento presentation';

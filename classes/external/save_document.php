@@ -77,6 +77,7 @@ class save_document extends external_api {
         $cm = get_coursemodule_from_id('bento', $params['cmid'], 0, false, MUST_EXIST);
         $context = context_module::instance($cm->id);
         self::validate_context($context);
+        bento_require_current_schema();
 
         $decoded = json_decode($params['document'], true);
         if (!is_array($decoded) || ($decoded['format'] ?? null) !== 'bento/slides' || empty($decoded['slides'])) {

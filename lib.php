@@ -207,6 +207,40 @@ function bento_blank_document(): string {
     ]);
 }
 
+/**
+ * Guards against exactly the class of error just reported: the plugin's
+ * CODE files updated (a fresh mod_bento.zip re-installed) while the
+ * DATABASE schema hasn't caught up — Moodle's own upgrade step (Site
+ * administration → Notifications) is a separate, easy-to-miss manual
+ * action from updating the files themselves, and skipping it means code
+ * touches a column/table that doesn't exist yet, surfacing as a cryptic
+ * dmlreadexception with no obvious cause.
+ *
+ * Compares the code's own declared version (version.php) against what
+ * Moodle recorded as the last successfully upgraded version for this
+ * plugin (get_config, itself cached — this adds no real per-request cost)
+ * and fails with a clear, actionable message instead of letting that raw
+ * SQL error surface. Call this near the top of any entry point that
+ * touches schema newer than the original v1 install — student
+ * submissions, draft/publish grading.
+ *
+ * @return void
+ * @throws moodle_exception if the code is ahead of the installed schema
+ */
+function bento_require_current_schema(): void {
+    global $CFG;
+    $plugin = new stdClass();
+    require($CFG->dirroot . '/mod/bento/version.php');
+    $codeversion = (int) $plugin->version;
+    $installedversion = (int) get_config('mod_bento', 'version');
+    if ($installedversion < $codeversion) {
+        throw new moodle_exception('schemaoutofdate', 'mod_bento', '', (object) [
+            'installed' => $installedversion,
+            'code' => $codeversion,
+        ]);
+    }
+}
+
 // ---------------------------------------------------------------------
 // Student submissions (bento.allowstudentsubmissions). Each enrolled
 // student gets their OWN row in bento_submissions instead of everyone

@@ -50,6 +50,7 @@ $bento = $DB->get_record('bento', ['id' => $cm->instance], '*', MUST_EXIST);
 
 require_login($course, true, $cm);
 $context = context_module::instance($cm->id);
+bento_require_current_schema();
 
 $caneditmaster = has_capability('mod/bento:edit', $context);
 if ($caneditmaster) {

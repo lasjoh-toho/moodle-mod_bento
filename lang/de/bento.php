@@ -83,6 +83,7 @@ $string['notmoderated'] = 'Diese Aktivität ist auf automatische Sichtbarkeit ei
 $string['lastmodified'] = 'Zuletzt geändert';
 $string['submissionsnotenabled'] = 'Für diese Aktivität sind keine eigenen Präsentationen von Lernenden aktiviert.';
 $string['submissionnotvisible'] = 'Diese Präsentation ist für dich (noch) nicht sichtbar.';
+$string['schemaoutofdate'] = 'Die installierten Bento-Plugin-Dateien (Version {$a->code}) sind neuer als die Datenbank (zuletzt aktualisiert auf Version {$a->installed}). Das passiert, wenn die Plugin-Dateien aktualisiert wurden, das Datenbank-Upgrade dazu aber noch nicht gelaufen ist. Bitte als Administrator:in „Website-Administration → Benachrichtigungen“ aufrufen, um das nachzuholen.';
 
 $string['bento:addinstance'] = 'Eine neue Bento-Präsentation hinzufügen';
 $string['bento:view'] = 'Eine Bento-Präsentation ansehen';
