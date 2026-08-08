@@ -121,6 +121,12 @@
   border-radius: 6px; cursor: pointer; white-space: nowrap;
 }
 .mod-bento-paste-ctxmenu button:hover { background: rgba(255,255,255,.22); }
+.mod-bento-paste-ctxmenu { flex-wrap: wrap; max-width: 320px; }
+.mbp-ctx-danger { background: rgba(220,80,60,.5) !important; }
+.mbp-ctx-danger:hover { background: rgba(220,80,60,.75) !important; }
+.mod-bento-paste-doc [data-mbp] { cursor: grab; }
+.mod-bento-paste-doc [data-mbp].mbp-dragging { opacity: 0.4; }
+.mod-bento-paste-doc [data-mbp].mbp-dragover { outline: 2px dashed #ff9e5e; outline-offset: 2px; }
 .mod-bento-paste-preview {
   border: 1px solid #c7ccd6; border-radius: 12px; padding: 16px 20px; max-height: 50vh; overflow-y: auto;
   background: #fafbfc;

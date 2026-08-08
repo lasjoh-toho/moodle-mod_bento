@@ -73,9 +73,6 @@
     var ctxMenu = document.createElement('div');
     ctxMenu.className = 'mod-bento-paste-ctxmenu';
     ctxMenu.style.display = 'none';
-    ctxMenu.innerHTML =
-      '<button type="button" class="mbp-ctx-endslide">' + esc(t('pastectxendslide')) + '</button>' +
-      '<button type="button" class="mbp-ctx-togglemode">' + esc(t('pastectxtogglemode')) + '</button>';
     document.body.appendChild(ctxMenu);
 
     var pasteCatcher = modal.querySelector('.mod-bento-paste-catcher');
@@ -86,8 +83,6 @@
     var viewToggle = modal.querySelector('.mod-bento-paste-viewtoggle');
     var generateBtn = modal.querySelector('.mod-bento-paste-generatebtn');
     var closeBtn = modal.querySelector('.mod-bento-paste-modal-close');
-    var ctxEndSlide = ctxMenu.querySelector('.mbp-ctx-endslide');
-    var ctxToggleMode = ctxMenu.querySelector('.mbp-ctx-togglemode');
 
     function esc(s) {
       return String(s || '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
@@ -241,6 +236,12 @@
       return el;
     }
 
+    var LR_TYPE_LABELS = {
+      heading: 'Überschrift', explain: 'Erklärtext', quote: 'Quelle/Zitat',
+      caption: 'Caption', glossary: 'Glossar (Vokabel)', task: 'Arbeitsauftrag',
+      references: 'Quellennachweise',
+    };
+
     function buildInitialDoc(blocks) {
       lrDoc.innerHTML = '';
       lrDoc.appendChild(makeBreakMarker(1));
@@ -249,16 +250,19 @@
           var img = document.createElement('img');
           img.src = b.dataUrl;
           img.dataset.mbp = 'image';
+          img.draggable = true;
           lrDoc.appendChild(img);
         } else if (b.html) {
           var p = document.createElement('p');
           p.innerHTML = b.html;
           p.dataset.mbp = 'text';
+          p.draggable = true;
           if (b.headingLevel) p.classList.add('mbp-h' + b.headingLevel);
           lrDoc.appendChild(p);
         }
       });
       refreshSlideNumbers();
+      wireDragAndDrop();
     }
 
     function refreshSlideNumbers() {
@@ -277,64 +281,295 @@
       });
     }
 
-    function splitAtCursorForMarker() {
+    /** Which slide number (1-based) a given node currently falls under —
+     *  used to label the tier-3 "Block auf Folie X erstellen" buttons
+     *  with the actual number, not a generic placeholder. */
+    function slideNumberOf(node) {
+      var slideNum = 0;
+      for (var i = 0; i < lrDoc.children.length; i++) {
+        var child = lrDoc.children[i];
+        if (child.dataset.mbpMarker === 'break') slideNum++;
+        if (child === node || (child.contains && child.contains(node))) return slideNum;
+      }
+      return slideNum;
+    }
+
+    /** Whether `node` currently falls inside a Zusatztext (on/off marker)
+     *  range — same scan every other mode-aware function here already
+     *  does, kept as its own small helper since tier-2's type buttons
+     *  need to know the CURRENT mode to decide default button state. */
+    function isInZusatzRange(node) {
+      var inZusatz = false;
+      for (var i = 0; i < lrDoc.children.length; i++) {
+        var child = lrDoc.children[i];
+        if (child === node || (child.contains && child.contains(node))) return inZusatz;
+        if (child.dataset.mbpMarker === 'break') inZusatz = false;
+        else if (child.dataset.mbpMarker === 'zusatz-on') inZusatz = true;
+        else if (child.dataset.mbpMarker === 'zusatz-off') inZusatz = false;
+      }
+      return inZusatz;
+    }
+
+    /** Splits the paragraph the cursor is currently in at the exact
+     *  cursor position — returns {before, after}, either of which may be
+     *  null if the cursor sat at that edge (nothing to split there). Pure
+     *  DOM surgery, no marker inserted — callers decide what goes between
+     *  the two halves. */
+    function splitParagraphAtCursor() {
       var sel = window.getSelection();
-      if (!sel || !sel.rangeCount) return lrDoc.lastElementChild;
+      if (!sel || !sel.rangeCount) return null;
       var range = sel.getRangeAt(0);
-      if (!lrDoc.contains(range.startContainer)) return lrDoc.lastElementChild;
+      if (!lrDoc.contains(range.startContainer)) return null;
       var p = range.startContainer;
       if (p.nodeType === 3) p = p.parentElement;
       while (p && p.parentElement !== lrDoc) p = p.parentElement;
-      if (!p || p.tagName !== 'P') return p || lrDoc.lastElementChild;
+      if (!p || p.dataset.mbp !== 'text') return null;
 
       var beforeRange = document.createRange();
       beforeRange.selectNodeContents(p);
       beforeRange.setEnd(range.startContainer, range.startOffset);
       var beforeText = beforeRange.toString();
       var afterText = p.textContent.slice(beforeText.length);
-      if (!beforeText.trim() || !afterText.trim()) return p;
+
+      if (!beforeText.trim()) return { before: null, after: p };
+      if (!afterText.trim()) return { before: p, after: null };
 
       var afterP = document.createElement('p');
       afterP.textContent = afterText;
       afterP.dataset.mbp = 'text';
+      afterP.draggable = true;
       p.textContent = beforeText;
       p.parentNode.insertBefore(afterP, p.nextSibling);
-      return p;
+      return { before: p, after: afterP };
     }
 
-    ctxEndSlide.addEventListener('click', function () {
-      var anchor = splitAtCursorForMarker();
-      anchor.parentNode.insertBefore(makeBreakMarker(1), anchor.nextSibling);
-      refreshSlideNumbers();
-      ctxMenu.style.display = 'none';
-    });
-    ctxToggleMode.addEventListener('click', function () {
-      var anchor = splitAtCursorForMarker();
-      var inZusatz = false;
-      for (var i = 0; i < lrDoc.children.length; i++) {
-        var node = lrDoc.children[i];
-        if (node === anchor || (node.contains && node.contains(anchor))) break;
-        if (node.dataset.mbpMarker === 'break') inZusatz = false;
-        else if (node.dataset.mbpMarker === 'zusatz-on') inZusatz = true;
-        else if (node.dataset.mbpMarker === 'zusatz-off') inZusatz = false;
+    /** A break always gets its own blank line — a visible, focusable gap
+     *  around the marker rather than it sitting flush against the
+     *  surrounding text, per feedback. `after` may be null (cursor was at
+     *  the very end of the document) — an empty paragraph still gets
+     *  created so there's somewhere to keep typing. */
+    function insertBreakWithBlankLine(beforeNode, afterNode) {
+      var blank = document.createElement('p');
+      blank.dataset.mbp = 'text';
+      blank.draggable = true;
+      var marker = makeBreakMarker(1);
+      var anchor = beforeNode || lrDoc.lastElementChild;
+      if (anchor && anchor.parentNode) {
+        anchor.parentNode.insertBefore(marker, anchor.nextSibling);
+        marker.parentNode.insertBefore(blank, marker.nextSibling);
+      } else {
+        lrDoc.appendChild(marker);
+        lrDoc.appendChild(blank);
       }
-      anchor.parentNode.insertBefore(makeModeMarker(!inZusatz), anchor.nextSibling);
-      refreshSlideNumbers();
-      ctxMenu.style.display = 'none';
-    });
+      if (afterNode) blank.parentNode.insertBefore(afterNode, blank.nextSibling);
+      wireDragAndDrop();
+      return blank;
+    }
+
+    function placeCursorIn(node) {
+      var range = document.createRange();
+      range.selectNodeContents(node);
+      range.collapse(false);
+      var sel = window.getSelection();
+      sel.removeAllRanges();
+      sel.addRange(range);
+    }
+
+    // ---- drag-and-drop: blocks move between slides, and between slide
+    // content and Zusatztext, simply by landing on the other side of a
+    // marker — refreshSlideNumbers()/parseDocToBlocks() already derive
+    // both from scanning marker positions, so relocating a node is all
+    // moving it between slides/modes actually requires. ----
+    var dragged = null;
+    function wireDragAndDrop() {
+      Array.prototype.forEach.call(lrDoc.querySelectorAll('[data-mbp]'), function (node) {
+        node.ondragstart = function (ev) {
+          dragged = node;
+          ev.dataTransfer.effectAllowed = 'move';
+          node.classList.add('mbp-dragging');
+        };
+        node.ondragend = function () { node.classList.remove('mbp-dragging'); dragged = null; };
+        node.ondragover = function (ev) {
+          if (!dragged || dragged === node) return;
+          ev.preventDefault();
+          node.classList.add('mbp-dragover');
+        };
+        node.ondragleave = function () { node.classList.remove('mbp-dragover'); };
+        node.ondrop = function (ev) {
+          ev.preventDefault();
+          node.classList.remove('mbp-dragover');
+          if (!dragged || dragged === node) return;
+          var rect = node.getBoundingClientRect();
+          var before = (ev.clientY - rect.top) < rect.height / 2;
+          node.parentNode.insertBefore(dragged, before ? node : node.nextSibling);
+          refreshSlideNumbers();
+        };
+      });
+    }
+
+    // ---- the 3-tier context menu itself ----
+    function clearCtxMenu() { ctxMenu.innerHTML = ''; }
+    function addCtxBtn(label, onClick, cssClass) {
+      var b = document.createElement('button');
+      b.type = 'button';
+      if (cssClass) b.className = cssClass;
+      b.textContent = label;
+      b.addEventListener('mousedown', function (ev) { ev.preventDefault(); onClick(); ctxMenu.style.display = 'none'; });
+      ctxMenu.appendChild(b);
+      return b;
+    }
 
     function showCtxMenuAtCursor() {
       var sel = window.getSelection();
       if (!sel || !sel.rangeCount || !lrDoc.contains(sel.anchorNode)) { ctxMenu.style.display = 'none'; return; }
-      var range = sel.getRangeAt(0).cloneRange();
-      var rect = range.getClientRects()[0];
-      if (!rect) rect = range.startContainer.nodeType === 1 ? range.startContainer.getBoundingClientRect() : null;
-      if (!rect || (!rect.width && !rect.height)) { ctxMenu.style.display = 'none'; return; }
+      var range = sel.getRangeAt(0);
+      var collapsed = range.collapsed;
+      var containerNode = range.startContainer;
+      if (containerNode.nodeType === 3) containerNode = containerNode.parentElement;
+      while (containerNode && containerNode.parentElement !== lrDoc && containerNode !== lrDoc) containerNode = containerNode.parentElement;
+      var inBlock = containerNode && containerNode.dataset && containerNode.dataset.mbp === 'text';
+
+      clearCtxMenu();
+      if (collapsed && !inBlock) {
+        // Tier 1: nothing selected AND the cursor isn't inside any block's
+        // own text (i.e. it landed between blocks, or the document is
+        // otherwise between-content) — the only meaningful action here is
+        // starting a new slide right at this point.
+        addCtxBtn('\u25aa Folie endet hier', function () {
+          var split = splitParagraphAtCursor(); // usually a no-op between blocks, harmless if so
+          insertBreakWithBlankLine(split ? split.before : null, split ? split.after : null);
+        });
+      } else if (collapsed && inBlock) {
+        // Tier 2: cursor inside a block, nothing selected — reclassify
+        // the WHOLE current block directly, or split it in two first.
+        addCtxBtn('\u2702 Block teilen', function () {
+          var split = splitParagraphAtCursor();
+          if (split && split.after) placeCursorIn(split.after);
+          wireDragAndDrop();
+        });
+        var curInZusatz = isInZusatzRange(containerNode);
+        if (curInZusatz) {
+          addCtxBtn('\u2192 Folieninhalt', function () {
+            toggleBlockZusatz(containerNode, false);
+            delete containerNode.dataset.mbpType;
+          });
+        } else {
+          addCtxBtn('\u2192 Zusatztext', function () {
+            toggleBlockZusatz(containerNode, true);
+            containerNode.dataset.mbpType = 'explain';
+          });
+        }
+        Object.keys(LR_TYPE_LABELS).forEach(function (ty) {
+          addCtxBtn(LR_TYPE_LABELS[ty], function () {
+            if (!isInZusatzRange(containerNode)) toggleBlockZusatz(containerNode, true);
+            containerNode.dataset.mbpType = ty;
+          });
+        });
+      } else {
+        // Tier 3: text IS selected — the selection becomes its own new
+        // block (before/after what's left of the original block keep
+        // their existing role, same convention as the standalone
+        // converter's own split logic), OR is simply discarded.
+        var slideNum = slideNumberOf(containerNode) || 1;
+        addCtxBtn('Block auf Folie ' + slideNum + ' erstellen', function () {
+          createBlockFromSelection(false);
+        });
+        addCtxBtn('Block auf Ergänzungsseite zu Folie ' + slideNum + ' erstellen', function () {
+          createBlockFromSelection(true);
+        });
+        addCtxBtn('Text löschen', function () {
+          range.deleteContents();
+        }, 'mbp-ctx-danger');
+      }
+
       ctxMenu.style.display = 'flex';
+      var rect = range.getClientRects()[0];
+      if (!rect) rect = containerNode ? containerNode.getBoundingClientRect() : null;
+      if (!rect || (!rect.width && !rect.height)) { ctxMenu.style.display = 'none'; return; }
       var menuRect = ctxMenu.getBoundingClientRect();
       ctxMenu.style.left = Math.max(8, Math.min(rect.left, window.innerWidth - menuRect.width - 8)) + 'px';
       ctxMenu.style.top = Math.max(8, rect.top - menuRect.height - 8) + 'px';
     }
+
+    /** Moves a block across the nearest zusatz-on/zusatz-off boundary by
+     *  inserting one where needed — the same "position relative to
+     *  markers decides role" convention drag-and-drop already relies on,
+     *  just invoked programmatically for the tier-2 type buttons. */
+    function toggleBlockZusatz(node, toZusatz) {
+      var currentlyIn = isInZusatzRange(node);
+      if (currentlyIn === toZusatz) return;
+      node.parentNode.insertBefore(makeModeMarker(toZusatz), node);
+      // if the NEXT node would otherwise inherit a mode it shouldn't,
+      // close the range right after this one block only.
+      if (node.nextSibling) node.parentNode.insertBefore(makeModeMarker(!toZusatz), node.nextSibling);
+      refreshSlideNumbers();
+    }
+
+    function createBlockFromSelection(asZusatz) {
+      var sel = window.getSelection();
+      if (!sel || !sel.rangeCount) return;
+      var range = sel.getRangeAt(0);
+      var text = range.toString();
+      if (!text.trim()) return;
+      var split = splitParagraphAtCursor(); // cursor is at range.startContainer here — but we need BOTH ends split
+      // splitParagraphAtCursor only splits at the CURRENT collapsed
+      // position, so for a real selection we do it manually: delete the
+      // selected text from its home paragraph and insert a fresh block
+      // in its place, keeping whatever's left before/after as-is.
+      void split; // (not used directly — see below)
+      var container = range.startContainer.nodeType === 3 ? range.startContainer.parentElement : range.startContainer;
+      while (container && container.parentElement !== lrDoc && container !== lrDoc) container = container.parentElement;
+      if (!container || container.dataset.mbp !== 'text') return;
+
+      var fullText = container.textContent;
+      var startOffset = getTextOffsetInNode(container, range.startContainer, range.startOffset);
+      var endOffset = getTextOffsetInNode(container, range.endContainer, range.endOffset);
+      var before = fullText.slice(0, startOffset);
+      var middle = fullText.slice(startOffset, endOffset);
+      var after = fullText.slice(endOffset);
+
+      var newBlock = document.createElement('p');
+      newBlock.textContent = middle;
+      newBlock.dataset.mbp = 'text';
+      newBlock.draggable = true;
+      if (asZusatz) newBlock.dataset.mbpType = 'explain';
+
+      var afterP = null;
+      if (after.trim()) {
+        afterP = document.createElement('p');
+        afterP.textContent = after;
+        afterP.dataset.mbp = 'text';
+        afterP.draggable = true;
+      }
+      container.textContent = before;
+      if (!before.trim()) {
+        container.parentNode.insertBefore(newBlock, container);
+        container.remove();
+      } else {
+        container.parentNode.insertBefore(newBlock, container.nextSibling);
+      }
+      if (afterP) newBlock.parentNode.insertBefore(afterP, newBlock.nextSibling);
+      if (asZusatz) toggleBlockZusatz(newBlock, true);
+      refreshSlideNumbers();
+      wireDragAndDrop();
+    }
+
+    /** Plain-text offset of (node, offset) relative to `root`'s own
+     *  textContent — needed because a selection's start/endContainer can
+     *  be any descendant text node (e.g. inside a <b>), not necessarily
+     *  the paragraph itself. */
+    function getTextOffsetInNode(root, node, offset) {
+      if (node === root) return offset;
+      var walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT);
+      var total = 0;
+      var cur;
+      while ((cur = walker.nextNode())) {
+        if (cur === node) return total + offset;
+        total += cur.textContent.length;
+      }
+      return total;
+    }
+
     lrDoc.addEventListener('click', showCtxMenuAtCursor);
     lrDoc.addEventListener('keyup', function (ev) { if (ev.key.indexOf('Arrow') === 0) showCtxMenuAtCursor(); });
     document.addEventListener('click', function (ev) {
@@ -353,7 +588,11 @@
           blocks.push({ kind: 'image', dataUrl: node.getAttribute('src'), slideBreakBefore: pendingBreak });
         } else {
           var text = (node.textContent || '').trim();
-          if (text) blocks.push({ kind: 'text', role: inZusatz ? 'longread' : 'slide', text: text, slideBreakBefore: pendingBreak });
+          if (text) blocks.push({
+            kind: 'text', role: inZusatz ? 'longread' : 'slide', text: text,
+            longReadType: node.dataset.mbpType || 'explain',
+            slideBreakBefore: pendingBreak,
+          });
         }
         pendingBreak = false;
       });
@@ -460,7 +699,7 @@
         var text = block.text.trim();
         if (!text) return;
         if (block.role === 'longread') {
-          ensureLongRead().blocks.push({ id: uuid(), type: 'explain', text: text });
+          ensureLongRead().blocks.push({ id: uuid(), type: block.longReadType || 'explain', text: text });
         } else {
           var isTitle = slideTextCount === 0;
           current.elements.push({
