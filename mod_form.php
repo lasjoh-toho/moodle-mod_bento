@@ -101,6 +101,12 @@ class mod_bento_mod_form extends moodleform_mod {
         $this->add_action_buttons();
 
         $PAGE->requires->js(new \moodle_url('/mod/bento/bentoconvert.js'));
+        $PAGE->requires->strings_for_js([
+            'pastetile', 'pastetilesub', 'pastestep1title', 'pastestep1desc', 'pastecatcherplaceholder',
+            'pastestep2title', 'pastestep2desc', 'pasteviewtoggle', 'pastectxendslide', 'pastectxtogglemode',
+            'pastegeneratebtn',
+        ], 'mod_bento');
+        $PAGE->requires->js(new \moodle_url('/mod/bento/bentopaste.js'));
     }
 
     /**
@@ -137,6 +143,10 @@ class mod_bento_mod_form extends moodleform_mod {
                     <p class="mod-bento-drop-sub">' . get_string('droppptxsub', 'mod_bento') . '</p>
                     <input type="file" id="mod-bento-file" accept=".pptx,.ppt,.json,.html,.htm" multiple style="display:none">
                 </div>
+                <button type="button" class="mod-bento-pastetile" id="mod-bento-pastetile">
+                    <span class="mod-bento-pastetile-title">' . get_string('pastetile', 'mod_bento') . '</span>
+                    <span class="mod-bento-pastetile-sub">' . get_string('pastetilesub', 'mod_bento') . '</span>
+                </button>
                 <div class="mod-bento-items" id="mod-bento-items"></div>
             </div>';
     }

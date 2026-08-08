@@ -37,6 +37,17 @@ $string['document'] = 'Document (internal)';
 $string['droppptxhere'] = 'Drop a .pptx file here';
 $string['droppptxsub'] = 'Converted entirely in your browser — several files can be dropped and connected with ✚, same as the standalone converter. Drag to reorder first if order matters. Leave as-is to keep what\'s already saved.';
 $string['editusehint'] = 'Use "Edit presentation" in this activity\'s settings menu for slide-by-slide changes — dropping a file here instead merges it with what\'s already saved.';
+$string['pastetile'] = 'Paste text';
+$string['pastetilesub'] = 'Text copied from a webpage/PDF — split across several slides plus a companion text';
+$string['pastestep1title'] = 'Paste text';
+$string['pastestep1desc'] = 'Copy text from a webpage or a PDF, then paste it here with Ctrl+V (Cmd+V on a Mac). Images in the copied content are carried over — this Moodle-integrated version fetches them through your own site (no cross-origin restriction, unlike the standalone converter).';
+$string['pastecatcherplaceholder'] = 'Click here and paste…';
+$string['pastestep2title'] = 'Edit text';
+$string['pastestep2desc'] = 'Place the cursor anywhere in the text — a small menu above the caret lets you end a slide or switch between slide content and companion text, starting exactly there. Nothing was detected automatically.';
+$string['pasteviewtoggle'] = 'Slide view';
+$string['pastectxendslide'] = '▪ End slide here';
+$string['pastectxtogglemode'] = '↕ Switch slide/companion text';
+$string['pastegeneratebtn'] = 'Add to presentation';
 
 $string['editpresentation'] = 'Edit presentation';
 $string['gradepresentation'] = 'Grade';

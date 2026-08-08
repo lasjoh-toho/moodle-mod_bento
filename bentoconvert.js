@@ -727,5 +727,15 @@ function mergeDocs(docA, docB){
 
     var form = docField.closest('form');
     if (form) form.addEventListener('submit', syncDocField); // belt-and-suspenders — renderItems() already keeps it current
+
+    // Minimal public surface for bentopaste.js (a separate script, loaded
+    // AFTER this one — see mod_form.php/submission_new.php) to add its own
+    // generated deck into this SAME merge-with-✚ list, instead of keeping
+    // a second, disconnected list of pending decks. Deliberately just
+    // these two functions — nothing about HOW items/renderItems work
+    // internally is exposed, only "add one more, then repaint".
+    window.bentoConvertApi = {
+      addItem: function (item) { items.push(item); renderItems(); },
+    };
   });
 })();

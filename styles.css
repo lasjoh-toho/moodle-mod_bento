@@ -37,6 +37,103 @@
   min-height: 1.2em;
 }
 
+.mod-bento-pastetile {
+  display: block;
+  width: 100%;
+  margin-top: 10px;
+  border: 2px dashed #c7ccd6;
+  border-radius: 12px;
+  padding: 14px 20px;
+  text-align: left;
+  cursor: pointer;
+  background: #fafbfc;
+  transition: border-color .15s ease, background .15s ease;
+}
+.mod-bento-pastetile:hover,
+.mod-bento-pastetile:focus {
+  border-color: #ff9e5e;
+  outline: none;
+}
+.mod-bento-pastetile-title {
+  display: block;
+  font-weight: 600;
+  margin: 0 0 2px;
+}
+.mod-bento-pastetile-sub {
+  display: block;
+  color: #6b7280;
+  font-size: 0.85rem;
+}
+
+/* ————— paste-and-split modal (bentopaste.js) ————— */
+.mod-bento-paste-modal {
+  position: fixed; inset: 0; z-index: 2000; background: rgba(10, 14, 20, .55);
+  display: none; align-items: center; justify-content: center; padding: 24px;
+}
+.mod-bento-paste-modal.show { display: flex; }
+.mod-bento-paste-modal-inner {
+  position: relative; background: #fff; border-radius: 16px; width: min(760px, 100%);
+  max-height: 88vh; overflow-y: auto; padding: 26px 28px;
+}
+.mod-bento-paste-modal-close {
+  position: absolute; top: 16px; right: 16px; width: 32px; height: 32px; border-radius: 999px;
+  border: none; background: #f0f0f0; cursor: pointer; font-size: 14px;
+}
+.mod-bento-paste-catcher {
+  min-height: 160px; border: 2px dashed #c7ccd6; border-radius: 12px; padding: 20px;
+  font-size: 14px; color: #6b7280; display: flex; align-items: center; justify-content: center;
+  text-align: center; outline: none; cursor: text;
+}
+.mod-bento-paste-catcher:focus { border-color: #ff9e5e; }
+.mod-bento-paste-step2head { display: flex; align-items: flex-start; justify-content: space-between; gap: 16px; }
+.mod-bento-paste-viewtoggle {
+  flex: none; font-size: 12px; font-weight: 700; padding: 7px 14px; border-radius: 999px;
+  border: 1px solid #c7ccd6; background: #fff; cursor: pointer; white-space: nowrap;
+}
+.mod-bento-paste-viewtoggle.active { background: #ff9e5e; color: #2B120A; border-color: transparent; }
+.mod-bento-paste-doc {
+  border: 1px solid #c7ccd6; border-radius: 12px; padding: 20px 24px; min-height: 200px;
+  max-height: 50vh; overflow-y: auto; background: #fff; color: #1a1a1a; font-size: 14.5px; line-height: 1.65;
+  outline: none;
+}
+.mod-bento-paste-doc p { margin: 0 0 1em; }
+.mod-bento-paste-doc img { max-width: 100%; border-radius: 6px; margin: 0 0 1em; display: block; }
+.mod-bento-paste-doc p.mbp-h1 { font-size: 1.7em; font-weight: 700; }
+.mod-bento-paste-doc p.mbp-h2 { font-size: 1.45em; font-weight: 700; }
+.mod-bento-paste-doc p.mbp-h3 { font-size: 1.25em; font-weight: 700; }
+.mod-bento-paste-doc p.mbp-h4, .mod-bento-paste-doc p.mbp-h5, .mod-bento-paste-doc p.mbp-h6 { font-size: 1.1em; font-weight: 700; }
+.mod-bento-paste-doc .mbp-zusatz { background: #FFF7E8; padding: 2px 6px; border-radius: 4px; box-decoration-break: clone; -webkit-box-decoration-break: clone; }
+.mbp-marker-break {
+  user-select: none; margin: 14px 0; padding: 5px 0; border-top: 2px solid #C25A43;
+  font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: .05em; color: #C25A43;
+  text-align: center;
+}
+.mbp-marker-mode {
+  user-select: none; display: inline-block; margin: 0 0 0.6em; font-size: 11px; font-weight: 700;
+  color: #B8860B; background: #FFF3D6; padding: 2px 8px; border-radius: 999px;
+}
+.mod-bento-paste-ctxmenu {
+  position: fixed; z-index: 2100; display: flex; gap: 4px; padding: 5px; background: #14161c;
+  border-radius: 8px; box-shadow: 0 6px 18px rgba(0,0,0,.35);
+}
+.mod-bento-paste-ctxmenu button {
+  border: none; background: rgba(255,255,255,.1); color: #fff; font-size: 11.5px; padding: 6px 10px;
+  border-radius: 6px; cursor: pointer; white-space: nowrap;
+}
+.mod-bento-paste-ctxmenu button:hover { background: rgba(255,255,255,.22); }
+.mod-bento-paste-preview {
+  border: 1px solid #c7ccd6; border-radius: 12px; padding: 16px 20px; max-height: 50vh; overflow-y: auto;
+  background: #fafbfc;
+}
+.mbp-preview-slide { border: 1px solid #e0e0e0; border-radius: 10px; padding: 12px 14px; margin-bottom: 12px; background: #fff; }
+.mbp-preview-slide h4 { margin: 0 0 8px; font-size: 12px; text-transform: uppercase; letter-spacing: .04em; color: #C25A43; }
+.mbp-preview-slide p { margin: 0 0 6px; font-size: 13px; }
+.mbp-preview-zusatz { color: #7a6a3d; font-style: italic; }
+.mod-bento-paste-generatebtn {
+  display: block; width: 100%; margin-top: 18px; padding: 12px; border: none; border-radius: 10px;
+  background: #ff9e5e; color: #2B120A; font-weight: 700; font-size: 14px; cursor: pointer;
+}
+
 .mod-bento-items {
   display: flex;
   flex-direction: column;

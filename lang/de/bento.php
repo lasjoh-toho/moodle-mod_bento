@@ -37,6 +37,17 @@ $string['document'] = 'Dokument (intern)';
 $string['droppptxhere'] = 'Eine .pptx-Datei hier ablegen';
 $string['droppptxsub'] = 'Wird komplett im Browser umgewandelt — mehrere Dateien lassen sich ablegen und über ✚ verbinden, genau wie im eigenständigen Konverter. Vorher per Ziehen sortieren, falls die Reihenfolge wichtig ist. So lassen, um das bereits Gespeicherte zu behalten.';
 $string['editusehint'] = 'Nutze „Präsentation bearbeiten" im Einstellungsmenü dieser Aktivität für Änderungen an einzelnen Folien — eine Datei hier abzulegen verbindet sie stattdessen mit dem bereits Gespeicherten.';
+$string['pastetile'] = 'Text einfügen';
+$string['pastetilesub'] = 'Kopierter Text aus Webseite/PDF — wird auf mehrere Folien plus einen Zusatztext aufgeteilt';
+$string['pastestep1title'] = 'Text einfügen';
+$string['pastestep1desc'] = 'Text aus einer Webseite oder einem PDF kopieren, dann hier mit Strg+V (Cmd+V auf dem Mac) einfügen. Bilder im kopierten Inhalt werden mit übernommen — diese Moodle-Version holt sie über die eigene Seite (keine Sicherheitsbeschränkung wie beim eigenständigen Konverter).';
+$string['pastecatcherplaceholder'] = 'Hier klicken und einfügen…';
+$string['pastestep2title'] = 'Text bearbeiten';
+$string['pastestep2desc'] = 'Cursor irgendwo in den Text setzen — ein kleines Menü über der Schreibmarke lässt eine Folie enden oder zwischen Folieninhalt und Zusatztext wechseln, ab genau dieser Stelle. Nichts wurde automatisch erkannt.';
+$string['pasteviewtoggle'] = 'Folienansicht';
+$string['pastectxendslide'] = '▪ Folie endet hier';
+$string['pastectxtogglemode'] = '↕ Wechsel Folientext/Zusatztext';
+$string['pastegeneratebtn'] = 'Zur Präsentation hinzufügen';
 
 $string['editpresentation'] = 'Präsentation bearbeiten';
 $string['gradepresentation'] = 'Bewerten';
