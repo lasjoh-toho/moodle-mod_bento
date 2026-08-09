@@ -539,10 +539,10 @@ function mergeDocs(docA, docB){
 // Wires the always-available import/merge widget in mod_form.php: drop one
 // or more .pptx/.json/.bento.html files, drag to reorder, ✚ between cards to
 // merge (same mergeDocs() as the standalone converter tool, bentoconvert.js),
-// remove a card outright. Whichever ONE card remains becomes the hidden
-// `document` field's value; if the teacher leaves more than one un-merged,
-// the first one is used (with a visible warning) rather than silently
-// dropping the rest.
+// remove a card outright. Whatever's left in the list becomes the hidden
+// `document` field's value — auto-merged in order at save time regardless
+// of whether every ✚ was clicked manually (see syncDocField/
+// computeCombinedDoc), so nothing left un-merged is ever silently dropped.
 (function () {
   document.addEventListener('DOMContentLoaded', function () {
     var drop = document.getElementById('mod-bento-drop');
@@ -553,6 +553,21 @@ function mergeDocs(docA, docB){
       var v = el && parseInt(el.dataset.cmid, 10);
       return v ? v : 0;
     })();
+    /** Checked before Demo/Import/Paste can actually do anything — makes
+     *  more sense to ask for agreement right here, at the point someone is
+     *  about to bring content in, rather than only at whatever page they'd
+     *  eventually land on afterward (which used to be the only place this
+     *  was ever checked, meaning someone could import/paste content
+     *  entirely, THEN get asked to agree only once trying to open the
+     *  result). Redirects to terms.php with a returnurl back to exactly
+     *  this page, so nothing already filled in on the activity form itself
+     *  is lost — they land right back here once they've agreed. */
+    function bentoGuardTerms() {
+      var el = document.getElementById('mod-bento-importer');
+      if (!el || el.dataset.termsagreed === '1') return true;
+      window.location.href = M.cfg.wwwroot + '/mod/bento/terms.php?returnurl=' + encodeURIComponent(location.pathname + location.search + location.hash);
+      return false;
+    }
     var docField = document.getElementById('id_document');
     var existingScript = document.getElementById('mod-bento-existing-doc');
     if (!drop || !fileInput || !itemsEl || !docField) return;
@@ -950,15 +965,15 @@ function mergeDocs(docA, docB){
       });
     }
 
-    drop.addEventListener('click', function () { fileInput.click(); });
-    drop.addEventListener('keydown', function (e) { if (e.key === 'Enter' || e.key === ' ') fileInput.click(); });
-    fileInput.addEventListener('change', function (e) { handleFiles(e.target.files); fileInput.value = ''; });
+    drop.addEventListener('click', function () { if (bentoGuardTerms()) fileInput.click(); });
+    drop.addEventListener('keydown', function (e) { if ((e.key === 'Enter' || e.key === ' ') && bentoGuardTerms()) fileInput.click(); });
+    fileInput.addEventListener('change', function (e) { if (bentoGuardTerms()) handleFiles(e.target.files); fileInput.value = ''; });
     drop.addEventListener('dragover', function (e) { e.preventDefault(); drop.classList.add('drag'); });
     drop.addEventListener('dragleave', function () { drop.classList.remove('drag'); });
     drop.addEventListener('drop', function (e) {
       e.preventDefault();
       drop.classList.remove('drag');
-      handleFiles(e.dataTransfer.files);
+      if (bentoGuardTerms()) handleFiles(e.dataTransfer.files);
     });
 
     renderItems(); // paint the seeded "Aktuell gespeichert" card (if any) immediately
@@ -986,9 +1001,13 @@ function mergeDocs(docA, docB){
     // generated deck into this SAME merge-with-✚ list, instead of keeping
     // a second, disconnected list of pending decks. Deliberately just
     // these two functions — nothing about HOW items/renderItems work
-    // internally is exposed, only "add one more, then repaint".
+    // internally is exposed, only "add one more, then repaint". guardTerms
+    // shares the SAME terms-agreement check the Demo/Import tiles above
+    // use, so bentopaste.js's own Paste tile is gated identically rather
+    // than duplicating this logic in a second file.
     window.bentoConvertApi = {
       addItem: function (item) { items.push(item); renderItems(); },
+      guardTerms: bentoGuardTerms,
     };
   });
 })();

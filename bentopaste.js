@@ -99,7 +99,10 @@
       pasteCatcher.focus();
     }
     function closeModal() { modal.classList.remove('show'); ctxMenu.style.display = 'none'; }
-    pasteTile.addEventListener('click', openModal);
+    pasteTile.addEventListener('click', function () {
+      if (window.bentoConvertApi && window.bentoConvertApi.guardTerms && !window.bentoConvertApi.guardTerms()) return;
+      openModal();
+    });
     closeBtn.addEventListener('click', closeModal);
     modal.addEventListener('click', function (e) { if (e.target === modal) closeModal(); });
 
@@ -664,15 +667,22 @@
             kind: 'image', dataUrl: node.getAttribute('src'), slideBreakBefore: pendingBreak,
             sourceUrl: node.dataset.sourceUrl, retrievedAt: node.dataset.retrievedAt,
           });
+          pendingBreak = false;
         } else {
           var text = (node.textContent || '').trim();
-          if (text) blocks.push({
-            kind: 'text', role: inZusatz ? 'longread' : 'slide', text: text,
-            longReadType: node.dataset.mbpType || 'explain',
-            slideBreakBefore: pendingBreak,
-          });
+          if (text) {
+            blocks.push({
+              kind: 'text', role: inZusatz ? 'longread' : 'slide', text: text,
+              longReadType: node.dataset.mbpType || 'explain',
+              slideBreakBefore: pendingBreak,
+            });
+            pendingBreak = false;
+          }
+          // empty (e.g. the auto-inserted blank line right after a fresh
+          // marker, never typed into) — pendingBreak stays true, deferred
+          // to whichever REAL content comes next, instead of being lost
+          // here and silently un-splitting the slide.
         }
-        pendingBreak = false;
       });
       if (blocks.length) blocks[0].slideBreakBefore = true;
       return blocks;

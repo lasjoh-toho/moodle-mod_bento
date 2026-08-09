@@ -110,6 +110,18 @@ if ($pastdue) {
     $html = preg_replace('/<body[^>]*>/', '$0' . str_replace('$', '\\$', $banner), $html, 1);
 }
 
+// Same "back" convention as the corresponding audience already gets
+// elsewhere — view.php's own teacher-facing back-link targets the course,
+// submission.php's own back-link targets view.php (the gallery) — this
+// page just never had one of its own before, regardless of which of the
+// two documents/audiences it's currently showing.
+$backtarget = $caneditmaster
+    ? course_get_url($course)
+    : new moodle_url('/mod/bento/view.php', ['id' => $cm->id]);
+$backlabel = $caneditmaster ? get_string('backtocourse', 'mod_bento') : get_string('backtogallery', 'mod_bento');
+$backlink = bento_back_link_html($backtarget, $backlabel);
+$html = preg_replace('/<body[^>]*>/', '$0' . str_replace('$', '\\$', $backlink), $html, 1);
+
 header('Content-Type: text/html; charset=utf-8');
 header('X-Frame-Options: SAMEORIGIN');
 header('Cache-Control: no-store, no-cache, must-revalidate, max-age=0');

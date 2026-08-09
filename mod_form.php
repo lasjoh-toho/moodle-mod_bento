@@ -35,6 +35,7 @@
 defined('MOODLE_INTERNAL') || die();
 
 require_once($CFG->dirroot . '/course/moodleform_mod.php');
+require_once(__DIR__ . '/lib.php');
 
 class mod_bento_mod_form extends moodleform_mod {
 
@@ -139,8 +140,9 @@ class mod_bento_mod_form extends moodleform_mod {
                 . json_encode($decoded) . '</script>';
         }
 
+        global $USER;
         return '
-            <div class="mod-bento-importer" id="mod-bento-importer" data-courseid="' . (int) $COURSE->id . '" data-cmid="' . (int) ($this->_cm->id ?? 0) . '">
+            <div class="mod-bento-importer" id="mod-bento-importer" data-courseid="' . (int) $COURSE->id . '" data-cmid="' . (int) ($this->_cm->id ?? 0) . '" data-termsagreed="' . (bento_has_agreed_current_terms((int) $USER->id) ? '1' : '0') . '">
                 <p class="form-text text-muted mod-bento-edithint">' . get_string('editusehint', 'mod_bento') . '</p>
                 ' . $seed . '
                 <div class="mod-bento-tiles">
