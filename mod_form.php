@@ -140,7 +140,7 @@ class mod_bento_mod_form extends moodleform_mod {
         }
 
         return '
-            <div class="mod-bento-importer" id="mod-bento-importer" data-courseid="' . (int) $COURSE->id . '">
+            <div class="mod-bento-importer" id="mod-bento-importer" data-courseid="' . (int) $COURSE->id . '" data-cmid="' . (int) ($this->_cm->id ?? 0) . '">
                 <p class="form-text text-muted mod-bento-edithint">' . get_string('editusehint', 'mod_bento') . '</p>
                 ' . $seed . '
                 <div class="mod-bento-tiles">

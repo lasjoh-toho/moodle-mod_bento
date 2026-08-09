@@ -81,8 +81,7 @@
   max-height: 65vh; overflow-y: auto; background: #fff; color: #1a1a1a; font-size: 14.5px; line-height: 1.65;
   outline: none;
 }
-.mod-bento-paste-doc p { margin: 0 0 1em; }
-.mod-bento-paste-doc img { max-width: 100%; border-radius: 6px; margin: 0 0 1em; display: block; }
+.mod-bento-paste-doc img { max-width: 100%; border-radius: 6px; display: block; }
 .mod-bento-paste-doc p.mbp-h1 { font-size: 1.7em; font-weight: 700; }
 .mod-bento-paste-doc p.mbp-h2 { font-size: 1.45em; font-weight: 700; }
 .mod-bento-paste-doc p.mbp-h3 { font-size: 1.25em; font-weight: 700; }
@@ -109,7 +108,14 @@
 .mod-bento-paste-ctxmenu { flex-wrap: wrap; max-width: 320px; }
 .mbp-ctx-danger { background: rgba(220,80,60,.5) !important; }
 .mbp-ctx-danger:hover { background: rgba(220,80,60,.75) !important; }
-.mod-bento-paste-doc [data-mbp] { position: relative; }
+.mod-bento-paste-doc [data-mbp] {
+  position: relative;
+  border: 1px solid #e4e7ec;
+  border-radius: 8px;
+  padding: 8px 10px;
+  margin: 0 0 10px;
+}
+.mod-bento-paste-doc [data-mbp]:hover { border-color: #c7ccd6; }
 .mod-bento-paste-doc [data-mbp].mbp-dragging { opacity: 0.4; }
 .mod-bento-paste-doc [data-mbp].mbp-dragover { outline: 2px dashed #ff9e5e; outline-offset: 2px; }
 .mbp-draghandle {
@@ -153,9 +159,20 @@
 .mod-bento-item-info { flex: 1; min-width: 0; }
 .mod-bento-item-name { font-weight: 600; font-size: 0.92rem; word-break: break-word; }
 .mod-bento-item-name em { font-weight: 400; color: #8a6d55; font-style: normal; }
+.mod-bento-item-name-clickable { cursor: pointer; }
+.mod-bento-item-name-clickable:hover { color: #ff9e5e; text-decoration: underline; }
 .mod-bento-item-meta { color: #6b7280; font-size: 0.8rem; margin-top: 2px; }
 .mod-bento-item-warnings { margin: 6px 0 0; padding-left: 18px; color: #8a6d55; font-size: 0.78rem; }
-.mod-bento-item-play, .mod-bento-item-download {
+.mod-bento-item-play {
+  border: none;
+  background: transparent;
+  color: #6b7280;
+  cursor: pointer;
+  font-size: 20px;
+  line-height: 1;
+  padding: 4px 8px;
+}
+.mod-bento-item-download {
   border: none;
   background: transparent;
   color: #6b7280;

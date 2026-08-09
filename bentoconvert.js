@@ -548,6 +548,11 @@ function mergeDocs(docA, docB){
     var drop = document.getElementById('mod-bento-drop');
     var fileInput = document.getElementById('mod-bento-file');
     var itemsEl = document.getElementById('mod-bento-items');
+    var bentoCmId = (function () {
+      var el = document.getElementById('mod-bento-importer');
+      var v = el && parseInt(el.dataset.cmid, 10);
+      return v ? v : 0;
+    })();
     var docField = document.getElementById('id_document');
     var existingScript = document.getElementById('mod-bento-existing-doc');
     if (!drop || !fileInput || !itemsEl || !docField) return;
@@ -580,6 +585,31 @@ function mergeDocs(docA, docB){
       return shellHtml.replace(re, function (m, open, _old, close) { return open + '\n' + jsonStr + '\n' + close; });
     }
 
+    /** Same request shape as the Bento editor's own moodle.ts saveToMoodle()
+     *  — calling the SAME mod_bento_save_document web service directly,
+     *  since this page (mod_form.php/submission_new.php) isn't running the
+     *  actual Bento app at all, just this importer widget. Which record it
+     *  writes to (the shared master document, or the caller's own
+     *  submission) is decided entirely server-side from the caller's own
+     *  capabilities — see that webservice's own doc comment. */
+    function saveDocToMoodle(cmid, doc) {
+      var url = M.cfg.wwwroot + '/lib/ajax/service.php?sesskey=' + encodeURIComponent(M.cfg.sesskey) + '&info=mod_bento_save_document';
+      var body = [{ index: 0, methodname: 'mod_bento_save_document', args: { cmid: cmid, document: JSON.stringify(doc) } }];
+      return fetch(url, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body),
+      }).then(function (res) {
+        return res.text().then(function (raw) {
+          var data;
+          try { data = JSON.parse(raw); } catch (e) { throw new Error('Moodle antwortete nicht mit JSON (HTTP ' + res.status + '): ' + raw.slice(0, 200)); }
+          if (!res.ok) throw new Error('HTTP ' + res.status + ': ' + JSON.stringify(data));
+          if (!Array.isArray(data)) throw new Error((data && (data.message || data.error)) || 'Speichern fehlgeschlagen (unerwartete Antwort)');
+          if (data[0] && data[0].error) throw new Error(data[0].message || (data[0].exception && data[0].exception.message) || 'Speichern fehlgeschlagen');
+        });
+      });
+    }
+
     if (existingScript) {
       try {
         var existingDoc = JSON.parse(existingScript.textContent);
@@ -609,13 +639,24 @@ function mergeDocs(docA, docB){
      *  silently keep using items[0] (the OLD existing doc) and discard the
      *  newly imported one entirely; auto-merging means the newest import
      *  is never lost just because someone saved before manually merging. */
-    function syncDocField() {
-      if (!items.length) { docField.value = ''; return; }
+    /** Whatever's currently in `items`, combined into ONE doc — auto-
+     *  merges everything left, in order, exactly like clicking every ✚
+     *  connector manually would. Shared by syncDocField() (what actually
+     *  gets saved) and the New/Play tile's own preview (so what "Play"
+     *  shows always matches what saving would actually produce, not just
+     *  the first card). */
+    function computeCombinedDoc() {
+      if (!items.length) return null;
       var combined = items[0].doc;
       for (var i = 1; i < items.length; i++) {
-        try { combined = mergeDocs(combined, items[i].doc); } catch (e) { console.error('mod_bento: auto-merge at save time failed, falling back to the first item only', e); break; }
+        try { combined = mergeDocs(combined, items[i].doc); } catch (e) { console.error('mod_bento: auto-merge failed, falling back to the first item only', e); break; }
       }
-      docField.value = JSON.stringify(combined);
+      return combined;
+    }
+
+    function syncDocField() {
+      var combined = computeCombinedDoc();
+      docField.value = combined ? JSON.stringify(combined) : '';
     }
 
     function buildItemCard(it) {
@@ -640,7 +681,28 @@ function mergeDocs(docA, docB){
         renderItems();
       });
       var playBtn = card.querySelector('.mod-bento-item-play');
-      playBtn.addEventListener('click', function () {
+      var titleEl = card.querySelector('.mod-bento-item-name');
+      /** Opening a presentation should actually be ABLE to save back into
+       *  Moodle — a detached preview tab (just the shell + doc, no
+       *  Moodle session/webservice wiring at all) never could. When a real
+       *  activity/submission already exists (bentoCmId), save the CURRENT
+       *  merged doc there first, then land in the real edit.php — which
+       *  has full save capability, since it's the actual Bento app running
+       *  with Moodle's own meta-tag config. Only falls back to a
+       *  standalone preview when there's genuinely nothing to save INTO
+       *  yet (still adding a brand new activity). */
+      var openForEditing = function () {
+        if (bentoCmId) {
+          playBtn.disabled = true;
+          saveDocToMoodle(bentoCmId, it.doc).then(function () {
+            window.location.href = M.cfg.wwwroot + '/mod/bento/edit.php?id=' + bentoCmId;
+          }).catch(function (e) {
+            console.error(e);
+            alert('Konnte nicht in Moodle speichern: ' + (e.message || e));
+            playBtn.disabled = false;
+          });
+          return;
+        }
         // Open the tab SYNCHRONOUSLY, in direct response to the click —
         // once an await happens first, some browsers no longer treat the
         // later window.open() as user-initiated and silently block it.
@@ -659,7 +721,13 @@ function mergeDocs(docA, docB){
           win.close();
           alert('Konnte die Präsentation nicht öffnen: ' + (e.message || e));
         }).finally(function () { playBtn.disabled = false; });
-      });
+      };
+      playBtn.addEventListener('click', openForEditing);
+      if (titleEl) {
+        titleEl.classList.add('mod-bento-item-name-clickable');
+        titleEl.title = 'Präsentation öffnen';
+        titleEl.addEventListener('click', openForEditing);
+      }
       card.querySelector('.mod-bento-item-download').addEventListener('click', function () {
         var btn = card.querySelector('.mod-bento-item-download');
         btn.disabled = true;
@@ -844,13 +912,24 @@ function mergeDocs(docA, docB){
     if (newBtn) {
       newBtn.addEventListener('click', function () {
         if (newBtn.dataset.hasdoc === '1') {
+          var docToPlay = computeCombinedDoc() || (existingScript ? JSON.parse(existingScript.textContent) : null);
+          if (!docToPlay) return;
+          if (bentoCmId) {
+            newBtn.disabled = true;
+            saveDocToMoodle(bentoCmId, docToPlay).then(function () {
+              window.location.href = M.cfg.wwwroot + '/mod/bento/edit.php?id=' + bentoCmId;
+            }).catch(function (e) {
+              console.error(e);
+              alert('Konnte nicht in Moodle speichern: ' + (e.message || e));
+              newBtn.disabled = false;
+            });
+            return;
+          }
           var win = window.open('', '_blank');
           if (!win) { alert('Popup blockiert — bitte Popups für diese Seite erlauben'); return; }
           win.document.write('<!doctype html><meta charset="utf-8"><title>Bento wird geladen…</title>' +
             '<body style="font-family:system-ui,sans-serif;padding:2.5rem;color:#667">Bento wird geladen…</body>');
           newBtn.disabled = true;
-          var docToPlay = items.length ? items[0].doc : (existingScript ? JSON.parse(existingScript.textContent) : null);
-          if (!docToPlay) { win.close(); newBtn.disabled = false; return; }
           getShell().then(function (shell) {
             var html = spliceDoc(shell, docToPlay);
             win.document.open();

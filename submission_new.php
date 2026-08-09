@@ -87,7 +87,7 @@ echo html_writer::start_tag('form', ['method' => 'post', 'action' => new moodle_
 echo html_writer::empty_tag('input', ['type' => 'hidden', 'name' => 'sesskey', 'value' => sesskey()]);
 
 echo '
-    <div class="mod-bento-importer" id="mod-bento-importer" data-courseid="' . (int) $course->id . '">
+    <div class="mod-bento-importer" id="mod-bento-importer" data-courseid="' . (int) $course->id . '" data-cmid="' . (int) $cm->id . '">
         <p class="form-text text-muted mod-bento-edithint">' . get_string('editusehint', 'mod_bento') . '</p>
         <div class="mod-bento-tiles">
             <button type="button" class="mod-bento-tile mod-bento-tile-new" id="mod-bento-newbtn" data-hasdoc="0">
