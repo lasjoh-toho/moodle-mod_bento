@@ -126,7 +126,7 @@ $capabilities = [
     // initiated outbound traffic under that user's action). Off entirely
     // while the plugin's own "Bildproxy aktivieren" admin setting is
     // switched off, regardless of who holds this capability.
-    'mod/bento:useimageproxy' => [
+    'mod/bento:usebentoproxy' => [
         'captype' => 'read',
         'contextlevel' => CONTEXT_MODULE,
         'archetypes' => [

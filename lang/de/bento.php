@@ -122,7 +122,7 @@ $string['bento:grade'] = 'Eine Bento-Präsentation bewerten';
 $string['bento:submit'] = 'Eine eigene Bento-Präsentation anlegen und bearbeiten';
 $string['bento:viewallsubmissions'] = 'Alle eingereichten Präsentationen ansehen, unabhängig von der Freigabe';
 $string['bento:moderatesubmissions'] = 'Eingereichte Präsentationen freigeben';
-$string['bento:useimageproxy'] = 'Bilder aus eingefügten Webseiteninhalten über den Server abrufen (Bild-Proxy) — der Moodle-Server ruft dabei selbst eine von der Nutzerin/dem Nutzer angegebene Bild-URL ab, um Sicherheitsbeschränkungen einzelner Webseiten (CORS) zu umgehen. Nur wirksam, solange der Bild-Proxy auch in den Plugin-Einstellungen aktiviert ist.';
+$string['bento:usebentoproxy'] = 'Erlaubt es, den Proxy zu nutzen, um Bilder von per Copy-Paste in Präsentationen eingefügten Webinhalten mit Quellenangaben übernehmen zu können. Umgeht dabei Sicherheitsbeschränkungen (CORS) im Browser. Nur wirksam, solange der Bild-Proxy auch in den Plugin-Einstellungen aktiviert ist.';
 
 $string['privacy:metadata'] = 'Das gemeinsame Präsentationsdokument der Lehrkraft (Tabelle bento) ist Inhalt der Aktivität, keine personenbezogenen Daten. Personenbezogen sind: manuell eingetragene Bewertungen (bento_grades) und — sobald eigene Präsentationen von Lernenden aktiviert sind — die von jeder/jedem Lernenden selbst angelegte Präsentation (bento_submissions), beide unten separat deklariert.';
 $string['privacy:metadata:bento_grades'] = 'Eine manuell eingetragene Bewertung (und optionale kurze Rückmeldung) für eine:n Schüler:in bei einer Bento-Präsentation.';
@@ -143,7 +143,7 @@ $string['privacy:submissionsubcontext'] = 'Meine Präsentation';
 $string['eventcoursemoduleviewed'] = 'Bento-Präsentation angesehen';
 
 $string['settings_imageproxyenabled'] = 'Bild-Proxy aktivieren';
-$string['settings_imageproxyenabled_desc'] = 'Erlaubt es, Bilder aus per Copy-Paste eingefügten Webseiteninhalten über den Moodle-Server selbst abzurufen (umgeht die Sicherheitsbeschränkung einzelner Webseiten, die ein direkter Abruf im Browser sonst verhindert). Wirkt nur zusätzlich zur Capability „mod/bento:useimageproxy“ — beides muss zutreffen, damit eine Person den Proxy tatsächlich nutzen kann. Standardmäßig deaktiviert.';
+$string['settings_imageproxyenabled_desc'] = 'Erlaubt es, Bilder aus per Copy-Paste eingefügten Webseiteninhalten über den Moodle-Server selbst abzurufen (umgeht die Sicherheitsbeschränkung einzelner Webseiten, die ein direkter Abruf im Browser sonst verhindert). Wirkt nur zusätzlich zur Capability „mod/bento:usebentoproxy“ — beides muss zutreffen, damit eine Person den Proxy tatsächlich nutzen kann. Wer welche Rolle diese Capability hat, wird unter Website-Administration → Nutzer/innen → Berechtigungen → Rollen definieren festgelegt (Filter nach „usebentoproxy“) — Standardmäßig deaktiviert.';
 $string['settings_termsofuse'] = 'Nutzungsbedingungen';
 $string['settings_termsofuse_desc'] = 'Wird hier ein Text eingetragen, muss jede Person diesem vor der ersten Nutzung von Bento zustimmen (auf einer eigenen Seite, bevor die eigentliche Präsentation angezeigt wird). Leer lassen, um komplett auf eine Zustimmungspflicht zu verzichten. Wird der Text hier später geändert, wird erneut um Zustimmung gebeten.';
 $string['agreetermstitle'] = 'Nutzungsbedingungen';

@@ -65,7 +65,7 @@ if ($proxy !== 'yes') {
     exit;
 }
 
-// mod/bento:useimageproxy is a CONTEXT_MODULE capability, but this
+// mod/bento:usebentoproxy is a CONTEXT_MODULE capability, but this
 // endpoint is also called from mod_form.php while ADDING a brand new
 // activity — before any course-module (or even course-module id) exists
 // yet. A course context is always available by then, though, and Moodle's
@@ -75,7 +75,7 @@ if ($proxy !== 'yes') {
 // cmid exists.
 $courseid = required_param('courseid', PARAM_INT);
 $coursecontext = context_course::instance($courseid, IGNORE_MISSING);
-if (!$coursecontext || !has_capability('mod/bento:useimageproxy', $coursecontext)) {
+if (!$coursecontext || !has_capability('mod/bento:usebentoproxy', $coursecontext)) {
     http_response_code(403);
     header('Content-Type: text/plain; charset=utf-8');
     echo 'You do not have permission to use the image proxy.';
