@@ -53,6 +53,17 @@ require(__DIR__ . '/../../config.php');
 
 require_login(null, false);
 
+// Disabled by default — set to 'yes' to re-enable. Everything below this
+// still works exactly as before; this switch is the only thing standing
+// between a request and it.
+$proxy = 'no';
+if ($proxy !== 'yes') {
+    http_response_code(403);
+    header('Content-Type: text/plain; charset=utf-8');
+    echo 'Image proxy is currently disabled.';
+    exit;
+}
+
 const MOD_BENTO_PROXY_MAX_BYTES = 15 * 1024 * 1024; // 15 MB — generous for a single image, not for abuse
 const MOD_BENTO_PROXY_TIMEOUT_SECONDS = 10;
 
