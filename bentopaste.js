@@ -40,7 +40,8 @@
 (function () {
   document.addEventListener('DOMContentLoaded', function () {
     var pasteTile = document.getElementById('mod-bento-pastetile');
-    var bentoCourseId = document.getElementById('mod-bento-importer')?.dataset.courseid || '';
+    var bentoImporterEl = document.getElementById('mod-bento-importer');
+    var bentoCourseId = (bentoImporterEl && bentoImporterEl.dataset.courseid) || '';
     if (!pasteTile) return; // this page doesn't have the importer widget at all
 
     var M = window.M || {};
@@ -114,16 +115,29 @@
       var html = cd.getData('text/html');
       var plain = cd.getData('text/plain');
       var imageFiles = [];
-      var items = cd.items || [];
-      for (var i = 0; i < items.length; i++) {
-        if (items[i].type && items[i].type.indexOf('image/') === 0) {
-          var file = items[i].getAsFile();
-          if (file) imageFiles.push(file);
+      try {
+        var items = cd.items || [];
+        for (var i = 0; i < items.length; i++) {
+          if (items[i].type && items[i].type.indexOf('image/') === 0) {
+            var file = items[i].getAsFile();
+            if (file) imageFiles.push(file);
+          }
         }
-      }
+      } catch (e) { console.warn('mod_bento: clipboard image scan failed, continuing with text only', e); }
       pasteCatcher.dataset.filled = '1';
       pasteCatcher.textContent = '\u2026';
-      parsePastedContent(html, plain, imageFiles).then(function (blocks) {
+      // Whatever fails inside here — a malformed clipboard HTML fragment,
+      // an image-proxy call that errors instead of cleanly resolving null,
+      // anything — the paste must never end up doing NOTHING: falling back
+      // to the plain-text-only path below means typing/pasting keeps
+      // working even with the image proxy fully disabled, or broken, or
+      // whatever else HTML-specific went wrong.
+      parsePastedContent(html, plain, imageFiles).catch(function (e) {
+        console.warn('mod_bento: rich paste handling failed, falling back to plain text', e);
+        if (!plain || !plain.trim()) return [];
+        return plain.split(/\n{2,}/).map(function (p) { return p.replace(/[ \t]+/g, ' ').trim(); }).filter(Boolean)
+          .map(function (text) { return { kind: 'text', html: esc(text), headingLevel: 0 }; });
+      }).then(function (blocks) {
         if (!blocks.length) {
           pasteCatcher.textContent = t('pastecatcherplaceholder');
           pasteCatcher.dataset.filled = '0';

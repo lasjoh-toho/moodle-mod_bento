@@ -601,8 +601,21 @@ function mergeDocs(docA, docB){
       });
     }
 
+    /** Whatever's currently in `items` becomes the ONE saved document —
+     *  auto-merges everything left, in order, exactly like clicking every
+     *  ✚ connector manually would. Without this, saving right after an
+     *  import (which leaves TWO cards — the existing saved doc plus the
+     *  new import — connected by a ✚ the person hasn't clicked yet) would
+     *  silently keep using items[0] (the OLD existing doc) and discard the
+     *  newly imported one entirely; auto-merging means the newest import
+     *  is never lost just because someone saved before manually merging. */
     function syncDocField() {
-      docField.value = items.length ? JSON.stringify(items[0].doc) : '';
+      if (!items.length) { docField.value = ''; return; }
+      var combined = items[0].doc;
+      for (var i = 1; i < items.length; i++) {
+        try { combined = mergeDocs(combined, items[i].doc); } catch (e) { console.error('mod_bento: auto-merge at save time failed, falling back to the first item only', e); break; }
+      }
+      docField.value = JSON.stringify(combined);
     }
 
     function buildItemCard(it) {
@@ -731,8 +744,7 @@ function mergeDocs(docA, docB){
         var w = document.createElement('p');
         w.id = 'mod-bento-multi-warn';
         w.className = 'mod-bento-warn';
-        w.textContent = 'Es liegen noch ' + items.length + ' unverbundene Präsentationen vor — gespeichert wird nur "' +
-          items[0].baseName + '". Über ✚ zusammenführen, oder überzählige mit ✕ entfernen.';
+        w.textContent = 'Es liegen noch ' + items.length + ' unverbundene Präsentationen vor — beim Speichern werden sie automatisch in dieser Reihenfolge zusammengeführt. Über ✚ vorab verbinden, um die Reihenfolge zu kontrollieren, oder überzählige mit ✕ entfernen.';
         itemsEl.parentNode.insertBefore(w, itemsEl.nextSibling);
       }
       syncDocField();
