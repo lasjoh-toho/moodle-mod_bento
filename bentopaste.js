@@ -464,7 +464,31 @@
       return b;
     }
 
-    function showCtxMenuAtCursor() {
+    /** Finds which gap between blocks a given viewport Y-coordinate falls
+     *  into — geometric, not selection-based, specifically because a click
+     *  in the visual gap BETWEEN two block-level elements resolves to an
+     *  ambiguous/inconsistent DOM position across browsers (some snap
+     *  forward to the start of the next block, some back to the end of
+     *  the previous one, especially with a contenteditable=false marker
+     *  nearby) — asking "where in PIXEL SPACE did the block layout put
+     *  this Y" sidesteps that ambiguity entirely, since it depends only
+     *  on the blocks' own rendered positions, not on how any particular
+     *  browser resolves clicking into a margin.
+     *  Returns the block to insert AFTER, or null to mean "at the very
+     *  start of the document". */
+    function findAnchorForY(clientY) {
+      var children = lrDoc.children;
+      var anchor = null;
+      for (var i = 0; i < children.length; i++) {
+        var rect = children[i].getBoundingClientRect();
+        var mid = rect.top + rect.height / 2;
+        if (clientY >= mid) anchor = children[i];
+        else break;
+      }
+      return anchor;
+    }
+
+    function showCtxMenuAtCursor(clientX, clientY) {
       var sel = window.getSelection();
       if (!sel || !sel.rangeCount || !lrDoc.contains(sel.anchorNode)) { ctxMenu.style.display = 'none'; return; }
       var range = sel.getRangeAt(0);
@@ -473,21 +497,22 @@
       if (containerNode.nodeType === 3) containerNode = containerNode.parentElement;
       while (containerNode && containerNode.parentElement !== lrDoc && containerNode !== lrDoc) containerNode = containerNode.parentElement;
       var inBlock = containerNode && containerNode.dataset && containerNode.dataset.mbp === 'text';
+      var haveCoords = typeof clientY === 'number';
 
       clearCtxMenu();
       if (collapsed && !inBlock) {
         // Tier 1: nothing selected AND the cursor isn't inside any block's
         // own text (i.e. it landed between blocks, or the document is
         // otherwise between-content) — the only meaningful action here is
-        // starting a new slide right at this point. containerNode (already
-        // computed above) is the nearest block/marker/image to the cursor —
-        // NOT splitParagraphAtCursor(), which only ever returns something
-        // useful when the cursor is INSIDE a text block (tier 2/3's case),
-        // always null here by definition, which is exactly why this used
-        // to silently fall through to inserting at the very end of the
-        // document every time instead of near the actual cursor position.
+        // starting a new slide right at this point. Prefer the GEOMETRIC
+        // anchor (real click Y vs. each block's own rendered position)
+        // over containerNode from the selection — the selection's own
+        // idea of "nearest block" is exactly what used to put the break
+        // in the wrong place (sometimes much later in the document) when
+        // a browser's own click-in-the-gap snapping didn't land where the
+        // person actually clicked.
         addCtxBtn('\u25aa Folie endet hier', function () {
-          var anchor = (containerNode && containerNode !== lrDoc) ? containerNode : null;
+          var anchor = haveCoords ? findAnchorForY(clientY) : ((containerNode && containerNode !== lrDoc) ? containerNode : null);
           insertBreakWithBlankLine(anchor, null);
         });
       } else if (collapsed && inBlock) {
@@ -535,8 +560,9 @@
 
       ctxMenu.style.display = 'flex';
       var rect = range.getClientRects()[0];
-      if (!rect) rect = containerNode ? containerNode.getBoundingClientRect() : null;
-      if (!rect || (!rect.width && !rect.height)) { ctxMenu.style.display = 'none'; return; }
+      if (!rect && containerNode && containerNode !== lrDoc) rect = containerNode.getBoundingClientRect();
+      if ((!rect || (!rect.width && !rect.height)) && haveCoords) rect = { left: clientX, top: clientY, width: 0, height: 0 };
+      if (!rect || (!rect.width && !rect.height && !haveCoords)) rect = lrDoc.getBoundingClientRect();
       var menuRect = ctxMenu.getBoundingClientRect();
       ctxMenu.style.left = Math.max(8, Math.min(rect.left, window.innerWidth - menuRect.width - 8)) + 'px';
       ctxMenu.style.top = Math.max(8, rect.top - menuRect.height - 8) + 'px';
@@ -619,7 +645,7 @@
       return total;
     }
 
-    lrDoc.addEventListener('click', showCtxMenuAtCursor);
+    lrDoc.addEventListener('click', function (ev) { showCtxMenuAtCursor(ev.clientX, ev.clientY); });
     lrDoc.addEventListener('keyup', function (ev) { if (ev.key.indexOf('Arrow') === 0) showCtxMenuAtCursor(); });
     document.addEventListener('click', function (ev) {
       if (!ctxMenu.contains(ev.target) && ev.target !== lrDoc && !lrDoc.contains(ev.target)) ctxMenu.style.display = 'none';
