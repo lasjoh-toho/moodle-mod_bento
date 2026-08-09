@@ -195,7 +195,7 @@
             if (!src) return;
             work = work.then(function () {
               return tryFetchImageAsDataUrl(src).then(function (dataUrl) {
-                if (dataUrl) blocks.push({ kind: 'image', dataUrl: dataUrl });
+                if (dataUrl) blocks.push({ kind: 'image', dataUrl: dataUrl, sourceUrl: src, retrievedAt: new Date().toISOString().slice(0, 10) });
               });
             });
             return;
@@ -252,6 +252,8 @@
           img.src = b.dataUrl;
           img.dataset.mbp = 'image';
           img.draggable = true;
+          if (b.sourceUrl) img.dataset.sourceUrl = b.sourceUrl;
+          if (b.retrievedAt) img.dataset.retrievedAt = b.retrievedAt;
           lrDoc.appendChild(img);
         } else if (b.html) {
           var p = document.createElement('p');
@@ -586,7 +588,10 @@
         if (node.dataset.mbpMarker === 'zusatz-on') { inZusatz = true; return; }
         if (node.dataset.mbpMarker === 'zusatz-off') { inZusatz = false; return; }
         if (node.dataset.mbp === 'image') {
-          blocks.push({ kind: 'image', dataUrl: node.getAttribute('src'), slideBreakBefore: pendingBreak });
+          blocks.push({
+            kind: 'image', dataUrl: node.getAttribute('src'), slideBreakBefore: pendingBreak,
+            sourceUrl: node.dataset.sourceUrl, retrievedAt: node.dataset.retrievedAt,
+          });
         } else {
           var text = (node.textContent || '').trim();
           if (text) blocks.push({
@@ -691,10 +696,18 @@
       blocks.forEach(function (block) {
         if (block.slideBreakBefore || !current) startSlide();
         if (block.kind === 'image') {
-          current.elements.push({
+          var imageEl = {
             id: uuid(), type: 'image', x: 240, y: 160, w: 800, h: 450, rotation: 0, opacity: 1,
             src: internImage(block.dataUrl), fit: 'contain', radius: 0,
-          });
+          };
+          // Only ever set when this image actually came through a traceable
+          // fetch (the proxy or a direct-CORS fetch) — a directly-pasted
+          // clipboard image file has no source URL at all, so it gets no
+          // citation object rather than one with an empty/misleading URL.
+          if (block.sourceUrl) {
+            imageEl.citation = { sourceUrl: block.sourceUrl, retrievedAt: block.retrievedAt || new Date().toISOString().slice(0, 10) };
+          }
+          current.elements.push(imageEl);
           return;
         }
         var text = block.text.trim();
