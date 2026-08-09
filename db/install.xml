@@ -77,7 +77,7 @@
         <KEY NAME="userid" TYPE="foreign" FIELDS="userid" REFTABLE="user" REFFIELDS="id"/>
       </KEYS>
       <INDEXES>
-        <INDEX NAME="userid" UNIQUE="true" FIELDS="userid" COMMENT="One agreement record per user — re-agreeing overwrites the row rather than inserting a second one"/>
+        <INDEX NAME="userid_uix" UNIQUE="true" FIELDS="userid" COMMENT="One agreement record per user — re-agreeing overwrites the row rather than inserting a second one"/>
       </INDEXES>
     </TABLE>
   </TABLES>
