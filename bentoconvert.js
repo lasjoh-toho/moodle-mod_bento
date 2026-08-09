@@ -554,6 +554,31 @@ function mergeDocs(docA, docB){
 
     var items = [];
     var draggedItem = null;
+    var shellCache = null;
+
+    /** mod_bento's own bento-shell.html — served over HTTP by Moodle
+     *  itself, so a plain same-origin fetch (no CORS concern, no need for
+     *  the standalone converter's base64-embedded-copy complexity, which
+     *  exists there specifically because that tool has no server backing
+     *  it beyond static hosting). */
+    function getShell() {
+      if (shellCache) return Promise.resolve(shellCache);
+      return fetch(M.cfg.wwwroot + '/mod/bento/asset/bento-shell.html').then(function (res) {
+        if (!res.ok) throw new Error('HTTP ' + res.status);
+        return res.text();
+      }).then(function (text) {
+        if (!/id=["']bento-doc["']/.test(text)) throw new Error('Antwort enthält keinen bento-doc-Block');
+        shellCache = text;
+        return text;
+      });
+    }
+
+    function spliceDoc(shellHtml, doc) {
+      var jsonStr = JSON.stringify(doc).replace(/</g, '\\u003c');
+      var re = /(<script[^>]*id=["']bento-doc["'][^>]*>)([\s\S]*?)(<\/script>)/;
+      if (!re.test(shellHtml)) throw new Error('bento-doc-Block nicht in der Hülle gefunden');
+      return shellHtml.replace(re, function (m, open, _old, close) { return open + '\n' + jsonStr + '\n' + close; });
+    }
 
     if (existingScript) {
       try {
@@ -591,12 +616,55 @@ function mergeDocs(docA, docB){
           '<div class="mod-bento-item-meta">' + it.slideCount + ' Folie' + (it.slideCount === 1 ? '' : 'n') + '</div>' +
           (it.warnings && it.warnings.length ? '<ul class="mod-bento-item-warnings">' + it.warnings.map(function (w) { return '<li>' + escapeHtml(w) + '</li>'; }).join('') + '</ul>' : '') +
         '</div>' +
+        '<button type="button" class="mod-bento-item-play" title="Als Präsentation starten">▶</button>' +
+        '<button type="button" class="mod-bento-item-download" title="Als .bento.html herunterladen">⬇</button>' +
         '<button type="button" class="mod-bento-item-remove" title="Entfernen">✕</button>';
 
       card.querySelector('.mod-bento-item-remove').addEventListener('click', function () {
+        if (it.existing && !confirm('Die ursprüngliche, bereits gespeicherte Präsentation wird dabei entfernt und geht beim Speichern verloren. Trotzdem entfernen?')) return;
         var i = items.indexOf(it);
         if (i >= 0) items.splice(i, 1);
         renderItems();
+      });
+      var playBtn = card.querySelector('.mod-bento-item-play');
+      playBtn.addEventListener('click', function () {
+        // Open the tab SYNCHRONOUSLY, in direct response to the click —
+        // once an await happens first, some browsers no longer treat the
+        // later window.open() as user-initiated and silently block it.
+        var win = window.open('', '_blank');
+        if (!win) { alert('Popup blockiert — bitte Popups für diese Seite erlauben'); return; }
+        win.document.write('<!doctype html><meta charset="utf-8"><title>Bento wird geladen…</title>' +
+          '<body style="font-family:system-ui,sans-serif;padding:2.5rem;color:#667">Bento wird geladen…</body>');
+        playBtn.disabled = true;
+        getShell().then(function (shell) {
+          var html = spliceDoc(shell, it.doc);
+          win.document.open();
+          win.document.write(html);
+          win.document.close();
+        }).catch(function (e) {
+          console.error(e);
+          win.close();
+          alert('Konnte die Präsentation nicht öffnen: ' + (e.message || e));
+        }).finally(function () { playBtn.disabled = false; });
+      });
+      card.querySelector('.mod-bento-item-download').addEventListener('click', function () {
+        var btn = card.querySelector('.mod-bento-item-download');
+        btn.disabled = true;
+        getShell().then(function (shell) {
+          var html = spliceDoc(shell, it.doc);
+          var blob = new Blob([html], { type: 'text/html' });
+          var url = URL.createObjectURL(blob);
+          var a = document.createElement('a');
+          a.href = url;
+          a.download = it.baseName + '.bento.html';
+          document.body.appendChild(a);
+          a.click();
+          a.remove();
+          setTimeout(function () { URL.revokeObjectURL(url); }, 2000);
+        }).catch(function (e) {
+          console.error(e);
+          alert('Konnte die Datei nicht erzeugen: ' + (e.message || e));
+        }).finally(function () { btn.disabled = false; });
       });
       card.addEventListener('dragstart', function () { draggedItem = it; card.classList.add('dragging'); });
       card.addEventListener('dragend', function () { card.classList.remove('dragging'); draggedItem = null; });
@@ -668,6 +736,19 @@ function mergeDocs(docA, docB){
         itemsEl.parentNode.insertBefore(w, itemsEl.nextSibling);
       }
       syncDocField();
+
+      // Keep the New/Play tile's label in sync — it can only ever DO one
+      // of the two things at a time (start fresh vs. open what's already
+      // there), so it relabels in place rather than showing both always.
+      var newBtnEl = document.getElementById('mod-bento-newbtn');
+      if (newBtnEl) {
+        var hasDoc = items.length > 0;
+        newBtnEl.dataset.hasdoc = hasDoc ? '1' : '0';
+        var titleEl = document.getElementById('mod-bento-newbtn-title');
+        var subEl = document.getElementById('mod-bento-newbtn-sub');
+        if (titleEl) titleEl.textContent = hasDoc ? M.util.get_string('playtile', 'mod_bento') : M.util.get_string('newtile', 'mod_bento');
+        if (subEl) subEl.textContent = hasDoc ? M.util.get_string('playtilesub', 'mod_bento') : M.util.get_string('newtilesub', 'mod_bento');
+      }
     }
 
     async function handleFile(file) {
@@ -712,6 +793,72 @@ function mergeDocs(docA, docB){
       Array.prototype.slice.call(fileList).forEach(handleFile);
     }
 
+    // ---- Demo tile: opens the bundled feature-tour deck directly in
+    // present mode, in a new tab — never touches this form's own items/
+    // document at all, purely a "look, don't touch" preview. ----
+    var demoBtn = document.getElementById('mod-bento-demobtn');
+    if (demoBtn) {
+      demoBtn.addEventListener('click', function () {
+        var win = window.open('', '_blank');
+        if (!win) { alert('Popup blockiert — bitte Popups für diese Seite erlauben'); return; }
+        win.document.write('<!doctype html><meta charset="utf-8"><title>Bento wird geladen…</title>' +
+          '<body style="font-family:system-ui,sans-serif;padding:2.5rem;color:#667">Bento wird geladen…</body>');
+        demoBtn.disabled = true;
+        Promise.all([
+          getShell(),
+          fetch(M.cfg.wwwroot + '/mod/bento/asset/demo-doc.json').then(function (res) {
+            if (!res.ok) throw new Error('HTTP ' + res.status);
+            return res.json();
+          }),
+        ]).then(function (results) {
+          var html = spliceDoc(results[0], results[1]);
+          win.document.open();
+          win.document.write(html);
+          win.document.close();
+        }).catch(function (e) {
+          console.error(e);
+          win.close();
+          alert('Konnte die Demo nicht öffnen: ' + (e.message || e));
+        }).finally(function () { demoBtn.disabled = false; });
+      });
+    }
+
+    // ---- New/Play tile: a blank presentation when there's nothing saved
+    // yet, otherwise the same "open in present mode" behaviour as a
+    // card's own ▶ button — never both at once, so relabelling in place
+    // (rather than two separate always-visible buttons) matches what the
+    // tile can actually do at any given moment. ----
+    var newBtn = document.getElementById('mod-bento-newbtn');
+    if (newBtn) {
+      newBtn.addEventListener('click', function () {
+        if (newBtn.dataset.hasdoc === '1') {
+          var win = window.open('', '_blank');
+          if (!win) { alert('Popup blockiert — bitte Popups für diese Seite erlauben'); return; }
+          win.document.write('<!doctype html><meta charset="utf-8"><title>Bento wird geladen…</title>' +
+            '<body style="font-family:system-ui,sans-serif;padding:2.5rem;color:#667">Bento wird geladen…</body>');
+          newBtn.disabled = true;
+          var docToPlay = items.length ? items[0].doc : (existingScript ? JSON.parse(existingScript.textContent) : null);
+          if (!docToPlay) { win.close(); newBtn.disabled = false; return; }
+          getShell().then(function (shell) {
+            var html = spliceDoc(shell, docToPlay);
+            win.document.open();
+            win.document.write(html);
+            win.document.close();
+          }).catch(function (e) {
+            console.error(e);
+            win.close();
+            alert('Konnte die Präsentation nicht öffnen: ' + (e.message || e));
+          }).finally(function () { newBtn.disabled = false; });
+        } else {
+          var blankDoc;
+          try { blankDoc = JSON.parse(docField.value); } catch (e) { blankDoc = null; }
+          if (!blankDoc || blankDoc.format !== 'bento/slides') return; // shouldn't happen — data_preprocessing() always seeds a blank doc server-side
+          items.push({ baseName: 'Neue-Praesentation', doc: blankDoc, slideCount: (blankDoc.slides || []).length, warnings: [], existing: false });
+          renderItems();
+        }
+      });
+    }
+
     drop.addEventListener('click', function () { fileInput.click(); });
     drop.addEventListener('keydown', function (e) { if (e.key === 'Enter' || e.key === ' ') fileInput.click(); });
     fileInput.addEventListener('change', function (e) { handleFiles(e.target.files); fileInput.value = ''; });
@@ -726,7 +873,22 @@ function mergeDocs(docA, docB){
     renderItems(); // paint the seeded "Aktuell gespeichert" card (if any) immediately
 
     var form = docField.closest('form');
-    if (form) form.addEventListener('submit', syncDocField); // belt-and-suspenders — renderItems() already keeps it current
+    if (form) {
+      form.addEventListener('submit', function (ev) {
+        // Second safety net, on top of the remove-button's own confirm():
+        // if every card is gone by the time of actually saving (however
+        // that happened) and there WAS a saved presentation before this
+        // page loaded, one more chance to back out rather than silently
+        // clearing it.
+        if (items.length === 0 && existingScript) {
+          if (!confirm('Es ist keine Präsentation mehr vorhanden — beim Speichern würde die ursprüngliche, bereits gespeicherte Präsentation entfernt. Trotzdem speichern?')) {
+            ev.preventDefault();
+            return;
+          }
+        }
+        syncDocField();
+      });
+    }
 
     // Minimal public surface for bentopaste.js (a separate script, loaded
     // AFTER this one — see mod_form.php/submission_new.php) to add its own

@@ -1,68 +1,53 @@
 .mod-bento-import { margin-bottom: 1rem; }
 
-.mod-bento-drop {
-  border: 2px dashed #c7ccd6;
-  border-radius: 12px;
-  padding: 28px 20px;
-  text-align: center;
-  cursor: pointer;
-  background: #fafbfc;
-  transition: border-color .15s ease, background .15s ease;
+.mod-bento-tiles {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  grid-template-rows: 1fr 1fr;
+  gap: 14px;
+  margin-bottom: 12px;
 }
-.mod-bento-drop:hover,
-.mod-bento-drop:focus {
-  border-color: #ff9e5e;
+.mod-bento-tile {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  border: none;
+  border-radius: 16px;
+  padding: 20px 22px;
+  text-align: left;
+  cursor: pointer;
+  min-height: 108px;
+  transition: transform .15s ease, filter .15s ease;
+  color: #fff;
+}
+.mod-bento-tile:hover, .mod-bento-tile:focus {
+  transform: translateY(-2px);
+  filter: brightness(1.06);
   outline: none;
 }
-.mod-bento-drop.drag {
-  border-color: #ff9e5e;
-  background: #fff3ec;
-}
-.mod-bento-drop.done {
-  border-color: #6fce8f;
-  border-style: solid;
-}
-.mod-bento-drop-title {
-  font-weight: 600;
-  margin: 0 0 4px;
-}
-.mod-bento-drop-sub {
-  color: #6b7280;
-  font-size: 0.85rem;
-  margin: 0;
-}
+.mod-bento-tile-title { display: block; font-weight: 700; font-size: 1.02rem; margin: 0 0 4px; }
+.mod-bento-tile-sub { display: block; font-size: 0.82rem; opacity: .88; font-weight: 500; line-height: 1.35; }
+
+/* Bento's own brand palette, one distinct tile each — a slight stagger
+   (alternating vertical offset) rather than a perfectly flat grid, per
+   feedback that this should read as "Bento branding", not Moodle's own
+   form-field look. */
+.mod-bento-tile-new { background: linear-gradient(155deg, #FFB37E, #FF9E5E); transform: translateY(-4px); }
+.mod-bento-tile-demo { background: linear-gradient(155deg, #8FA3BF, #5E7699); transform: translateY(4px); }
+.mod-bento-tile-import { background: linear-gradient(155deg, #F0EBE0, #DCD4C4); color: #16273E; transform: translateY(4px); }
+.mod-bento-tile-import .mod-bento-tile-sub { opacity: .75; }
+.mod-bento-tile-paste { background: linear-gradient(155deg, #8FCBA8, #5FAE83); transform: translateY(-4px); }
+.mod-bento-tile-new:hover { transform: translateY(-6px) scale(1.01); }
+.mod-bento-tile-demo:hover, .mod-bento-tile-import:hover { transform: translateY(2px) scale(1.01); }
+.mod-bento-tile-paste:hover { transform: translateY(-6px) scale(1.01); }
+
+.mod-bento-tile-import.drag { outline: 3px dashed #16273E; outline-offset: -3px; }
+.mod-bento-tile-import input[type="file"] { display: none; }
+
 .mod-bento-drop-status {
   margin-top: 10px;
   font-size: 0.85rem;
   min-height: 1.2em;
-}
-
-.mod-bento-pastetile {
-  display: block;
-  width: 100%;
-  margin-top: 10px;
-  border: 2px dashed #c7ccd6;
-  border-radius: 12px;
-  padding: 14px 20px;
-  text-align: left;
-  cursor: pointer;
-  background: #fafbfc;
-  transition: border-color .15s ease, background .15s ease;
-}
-.mod-bento-pastetile:hover,
-.mod-bento-pastetile:focus {
-  border-color: #ff9e5e;
-  outline: none;
-}
-.mod-bento-pastetile-title {
-  display: block;
-  font-weight: 600;
-  margin: 0 0 2px;
-}
-.mod-bento-pastetile-sub {
-  display: block;
-  color: #6b7280;
-  font-size: 0.85rem;
 }
 
 /* ————— paste-and-split modal (bentopaste.js) ————— */
@@ -164,6 +149,16 @@
 .mod-bento-item-name em { font-weight: 400; color: #8a6d55; font-style: normal; }
 .mod-bento-item-meta { color: #6b7280; font-size: 0.8rem; margin-top: 2px; }
 .mod-bento-item-warnings { margin: 6px 0 0; padding-left: 18px; color: #8a6d55; font-size: 0.78rem; }
+.mod-bento-item-play, .mod-bento-item-download {
+  border: none;
+  background: transparent;
+  color: #6b7280;
+  cursor: pointer;
+  font-size: 14px;
+  padding: 2px 6px;
+}
+.mod-bento-item-play:hover { color: #ff9e5e; }
+.mod-bento-item-download:hover { color: #16273e; }
 .mod-bento-item-remove {
   border: none;
   background: transparent;

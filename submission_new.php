@@ -74,7 +74,7 @@ $PAGE->requires->js(new moodle_url('/mod/bento/bentoconvert.js'));
 $PAGE->requires->strings_for_js([
     'pastetile', 'pastetilesub', 'pastestep1title', 'pastestep1desc', 'pastecatcherplaceholder',
     'pastestep2title', 'pastestep2desc', 'pasteviewtoggle', 'pastectxendslide', 'pastectxtogglemode',
-    'pastegeneratebtn',
+    'pastegeneratebtn', 'newtile', 'newtilesub', 'playtile', 'playtilesub',
 ], 'mod_bento');
 $PAGE->requires->js(new moodle_url('/mod/bento/bentopaste.js'));
 
@@ -87,15 +87,25 @@ echo html_writer::empty_tag('input', ['type' => 'hidden', 'name' => 'sesskey', '
 echo '
     <div class="mod-bento-importer" id="mod-bento-importer">
         <p class="form-text text-muted mod-bento-edithint">' . get_string('editusehint', 'mod_bento') . '</p>
-        <div class="mod-bento-drop" id="mod-bento-drop" tabindex="0">
-            <p class="mod-bento-drop-title">' . get_string('droppptxhere', 'mod_bento') . '</p>
-            <p class="mod-bento-drop-sub">' . get_string('droppptxsub', 'mod_bento') . '</p>
-            <input type="file" id="mod-bento-file" accept=".pptx,.ppt,.json,.html,.htm" multiple style="display:none">
+        <div class="mod-bento-tiles">
+            <button type="button" class="mod-bento-tile mod-bento-tile-new" id="mod-bento-newbtn" data-hasdoc="0">
+                <span class="mod-bento-tile-title" id="mod-bento-newbtn-title">' . get_string('newtile', 'mod_bento') . '</span>
+                <span class="mod-bento-tile-sub" id="mod-bento-newbtn-sub">' . get_string('newtilesub', 'mod_bento') . '</span>
+            </button>
+            <button type="button" class="mod-bento-tile mod-bento-tile-demo" id="mod-bento-demobtn">
+                <span class="mod-bento-tile-title">' . get_string('demotile', 'mod_bento') . '</span>
+                <span class="mod-bento-tile-sub">' . get_string('demotilesub', 'mod_bento') . '</span>
+            </button>
+            <div class="mod-bento-tile mod-bento-tile-import mod-bento-drop" id="mod-bento-drop" tabindex="0">
+                <span class="mod-bento-tile-title">' . get_string('droppptxhere', 'mod_bento') . '</span>
+                <span class="mod-bento-tile-sub">' . get_string('droppptxsub', 'mod_bento') . '</span>
+                <input type="file" id="mod-bento-file" accept=".pptx,.ppt,.json,.html,.htm" multiple style="display:none">
+            </div>
+            <button type="button" class="mod-bento-tile mod-bento-tile-paste" id="mod-bento-pastetile">
+                <span class="mod-bento-tile-title">' . get_string('pastetile', 'mod_bento') . '</span>
+                <span class="mod-bento-tile-sub">' . get_string('pastetilesub', 'mod_bento') . '</span>
+            </button>
         </div>
-        <button type="button" class="mod-bento-pastetile" id="mod-bento-pastetile">
-            <span class="mod-bento-pastetile-title">' . get_string('pastetile', 'mod_bento') . '</span>
-            <span class="mod-bento-pastetile-sub">' . get_string('pastetilesub', 'mod_bento') . '</span>
-        </button>
         <div class="mod-bento-items" id="mod-bento-items"></div>
     </div>';
 

@@ -23,7 +23,7 @@ const REPO_ROOT = import.meta.dirname
 
 // Anything in the repo root that ISN'T part of the actual Moodle plugin —
 // left out of the zip entirely.
-const EXCLUDE = new Set(['.git', '.github', '.gitignore', 'build.mjs', 'LICENSE', 'README.md', 'dist', 'node_modules'])
+const EXCLUDE = new Set(['.git', '.github', '.gitignore', 'build.mjs', 'LICENSE', 'README.md', 'dist', 'node_modules', 'scripts'])
 
 function run(cmd, cwd) {
   console.log(`$ ${cmd}`)
@@ -60,6 +60,19 @@ try {
     throw new Error('Built shell is missing the #bento-doc anchor — refusing to package something the plugin could not splice into later.')
   }
   writeFileSync(join(staged, 'asset', 'bento-shell.html'), shellHtml)
+
+  // ---- 2b. extract the starter/demo deck straight from the same source
+  // checkout — same script + convention the standalone bento-moodle-tools
+  // converter already uses for its own Demo tile. ----
+  const dumpScript = join(REPO_ROOT, 'scripts', 'dump-starter.mjs')
+  const demoSrcDir = join(bentoSrcDir, 'slides', 'src')
+  run(`npx --yes tsx "${dumpScript}" "${demoSrcDir}"`, work)
+  const demoJson = readFileSync(join(demoSrcDir, '__starter-dump.json'), 'utf8')
+  const demoDoc = JSON.parse(demoJson) // throws if dump-starter.mjs produced anything malformed
+  if (demoDoc.format !== 'bento/slides' || !Array.isArray(demoDoc.slides) || !demoDoc.slides.length) {
+    throw new Error('Extracted demo deck does not look like a valid bento/slides document — refusing to package.')
+  }
+  writeFileSync(join(staged, 'asset', 'demo-doc.json'), demoJson)
 
   // ---- 3. bump version.php to something fresh & monotonic ----
   const versionPath = join(staged, 'version.php')
