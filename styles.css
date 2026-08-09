@@ -17,29 +17,29 @@
   text-align: left;
   cursor: pointer;
   min-height: 108px;
-  transition: transform .15s ease, filter .15s ease;
+  transition: filter .15s ease, box-shadow .15s ease;
   color: #fff;
 }
 .mod-bento-tile:hover, .mod-bento-tile:focus {
-  transform: translateY(-2px);
   filter: brightness(1.06);
+  box-shadow: 0 4px 14px rgba(0,0,0,.18);
   outline: none;
 }
 .mod-bento-tile-title { display: block; font-weight: 700; font-size: 1.02rem; margin: 0 0 4px; }
 .mod-bento-tile-sub { display: block; font-size: 0.82rem; opacity: .88; font-weight: 500; line-height: 1.35; }
 
-/* Bento's own brand palette, one distinct tile each — a slight stagger
-   (alternating vertical offset) rather than a perfectly flat grid, per
-   feedback that this should read as "Bento branding", not Moodle's own
-   form-field look. */
-.mod-bento-tile-new { background: linear-gradient(155deg, #FFB37E, #FF9E5E); transform: translateY(-4px); }
-.mod-bento-tile-demo { background: linear-gradient(155deg, #8FA3BF, #5E7699); transform: translateY(4px); }
-.mod-bento-tile-import { background: linear-gradient(155deg, #F0EBE0, #DCD4C4); color: #16273E; transform: translateY(4px); }
+/* Bento's own brand palette, one distinct colour each — kept deliberately
+   free of any transform/offset styling (an earlier version staggered
+   these vertically, which combined with the hover-transform below could
+   visibly shift/jump depending on viewport width and browser) — only
+   filter/box-shadow change on hover, neither of which affects layout or
+   position at all, so nothing can ever visibly jump regardless of screen
+   size. */
+.mod-bento-tile-new { background: linear-gradient(155deg, #FFB37E, #FF9E5E); }
+.mod-bento-tile-demo { background: linear-gradient(155deg, #8FA3BF, #5E7699); }
+.mod-bento-tile-import { background: linear-gradient(155deg, #F0EBE0, #DCD4C4); color: #16273E; }
 .mod-bento-tile-import .mod-bento-tile-sub { opacity: .75; }
-.mod-bento-tile-paste { background: linear-gradient(155deg, #8FCBA8, #5FAE83); transform: translateY(-4px); }
-.mod-bento-tile-new:hover { transform: translateY(-6px) scale(1.01); }
-.mod-bento-tile-demo:hover, .mod-bento-tile-import:hover { transform: translateY(2px) scale(1.01); }
-.mod-bento-tile-paste:hover { transform: translateY(-6px) scale(1.01); }
+.mod-bento-tile-paste { background: linear-gradient(155deg, #8FCBA8, #5FAE83); }
 
 .mod-bento-tile-import.drag { outline: 3px dashed #16273E; outline-offset: -3px; }
 .mod-bento-tile-import input[type="file"] { display: none; }
@@ -109,9 +109,15 @@
 .mod-bento-paste-ctxmenu { flex-wrap: wrap; max-width: 320px; }
 .mbp-ctx-danger { background: rgba(220,80,60,.5) !important; }
 .mbp-ctx-danger:hover { background: rgba(220,80,60,.75) !important; }
-.mod-bento-paste-doc [data-mbp] { cursor: grab; }
+.mod-bento-paste-doc [data-mbp] { position: relative; }
 .mod-bento-paste-doc [data-mbp].mbp-dragging { opacity: 0.4; }
 .mod-bento-paste-doc [data-mbp].mbp-dragover { outline: 2px dashed #ff9e5e; outline-offset: 2px; }
+.mbp-draghandle {
+  position: fixed; z-index: 2200; width: 18px; height: 18px; border-radius: 5px;
+  background: #14161c; color: #fff; font-size: 12px; line-height: 18px; text-align: center;
+  cursor: grab; user-select: none;
+}
+.mbp-draghandle:active { cursor: grabbing; }
 .mod-bento-paste-preview {
   border: 1px solid #c7ccd6; border-radius: 12px; padding: 16px 20px; max-height: 50vh; overflow-y: auto;
   background: #fafbfc;

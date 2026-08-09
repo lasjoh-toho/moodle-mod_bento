@@ -251,7 +251,6 @@
           var img = document.createElement('img');
           img.src = b.dataUrl;
           img.dataset.mbp = 'image';
-          img.draggable = true;
           if (b.sourceUrl) img.dataset.sourceUrl = b.sourceUrl;
           if (b.retrievedAt) img.dataset.retrievedAt = b.retrievedAt;
           lrDoc.appendChild(img);
@@ -259,7 +258,6 @@
           var p = document.createElement('p');
           p.innerHTML = b.html;
           p.dataset.mbp = 'text';
-          p.draggable = true;
           if (b.headingLevel) p.classList.add('mbp-h' + b.headingLevel);
           lrDoc.appendChild(p);
         }
@@ -340,7 +338,6 @@
       var afterP = document.createElement('p');
       afterP.textContent = afterText;
       afterP.dataset.mbp = 'text';
-      afterP.draggable = true;
       p.textContent = beforeText;
       p.parentNode.insertBefore(afterP, p.nextSibling);
       return { before: p, after: afterP };
@@ -354,7 +351,6 @@
     function insertBreakWithBlankLine(beforeNode, afterNode) {
       var blank = document.createElement('p');
       blank.dataset.mbp = 'text';
-      blank.draggable = true;
       var marker = makeBreakMarker(1);
       var anchor = beforeNode || lrDoc.lastElementChild;
       if (anchor && anchor.parentNode) {
@@ -384,14 +380,45 @@
     // both from scanning marker positions, so relocating a node is all
     // moving it between slides/modes actually requires. ----
     var dragged = null;
+    // A floating grip, NOT draggable=true directly on the text/image
+    // blocks themselves: inside a contenteditable region, clicking and
+    // dragging on TEXT CONTENT is claimed by the browser's own text-
+    // selection behaviour first — draggable="true" on an element full of
+    // text rarely gets a real chance to start a drag via ordinary
+    // interaction with that text. The grip itself has no text at all, so
+    // there's nothing for text-selection to claim; it just tracks
+    // whichever block it's currently hovering.
+    var dragHandle = document.createElement('div');
+    dragHandle.className = 'mbp-draghandle';
+    dragHandle.textContent = '\u283f'; // ⠿
+    dragHandle.draggable = true;
+    dragHandle.hidden = true;
+    document.body.appendChild(dragHandle);
+    var handleFor = null;
+
+    function positionHandleFor(node) {
+      handleFor = node;
+      var rect = node.getBoundingClientRect();
+      dragHandle.style.left = (rect.left - 22) + 'px';
+      dragHandle.style.top = (rect.top + rect.height / 2 - 9) + 'px';
+      dragHandle.hidden = false;
+    }
+
+    dragHandle.addEventListener('dragstart', function (ev) {
+      if (!handleFor) { ev.preventDefault(); return; }
+      dragged = handleFor;
+      ev.dataTransfer.effectAllowed = 'move';
+      handleFor.classList.add('mbp-dragging');
+    });
+    dragHandle.addEventListener('dragend', function () {
+      if (handleFor) handleFor.classList.remove('mbp-dragging');
+      dragged = null;
+      dragHandle.hidden = true;
+    });
+
     function wireDragAndDrop() {
       Array.prototype.forEach.call(lrDoc.querySelectorAll('[data-mbp]'), function (node) {
-        node.ondragstart = function (ev) {
-          dragged = node;
-          ev.dataTransfer.effectAllowed = 'move';
-          node.classList.add('mbp-dragging');
-        };
-        node.ondragend = function () { node.classList.remove('mbp-dragging'); dragged = null; };
+        node.onmouseenter = function () { if (!dragged) positionHandleFor(node); };
         node.ondragover = function (ev) {
           if (!dragged || dragged === node) return;
           ev.preventDefault();
@@ -409,6 +436,7 @@
         };
       });
     }
+    lrDoc.addEventListener('mouseleave', function () { if (!dragged) dragHandle.hidden = true; });
 
     // ---- the 3-tier context menu itself ----
     function clearCtxMenu() { ctxMenu.innerHTML = ''; }
@@ -437,10 +465,16 @@
         // Tier 1: nothing selected AND the cursor isn't inside any block's
         // own text (i.e. it landed between blocks, or the document is
         // otherwise between-content) — the only meaningful action here is
-        // starting a new slide right at this point.
+        // starting a new slide right at this point. containerNode (already
+        // computed above) is the nearest block/marker/image to the cursor —
+        // NOT splitParagraphAtCursor(), which only ever returns something
+        // useful when the cursor is INSIDE a text block (tier 2/3's case),
+        // always null here by definition, which is exactly why this used
+        // to silently fall through to inserting at the very end of the
+        // document every time instead of near the actual cursor position.
         addCtxBtn('\u25aa Folie endet hier', function () {
-          var split = splitParagraphAtCursor(); // usually a no-op between blocks, harmless if so
-          insertBreakWithBlankLine(split ? split.before : null, split ? split.after : null);
+          var anchor = (containerNode && containerNode !== lrDoc) ? containerNode : null;
+          insertBreakWithBlankLine(anchor, null);
         });
       } else if (collapsed && inBlock) {
         // Tier 2: cursor inside a block, nothing selected — reclassify
@@ -534,7 +568,6 @@
       var newBlock = document.createElement('p');
       newBlock.textContent = middle;
       newBlock.dataset.mbp = 'text';
-      newBlock.draggable = true;
       if (asZusatz) newBlock.dataset.mbpType = 'explain';
 
       var afterP = null;
@@ -542,7 +575,6 @@
         afterP = document.createElement('p');
         afterP.textContent = after;
         afterP.dataset.mbp = 'text';
-        afterP.draggable = true;
       }
       container.textContent = before;
       if (!before.trim()) {

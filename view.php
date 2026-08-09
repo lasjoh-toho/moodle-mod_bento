@@ -48,7 +48,6 @@ require_capability('mod/bento:view', $context);
 if (!empty($bento->loginonly)) {
     bento_require_not_guest();
 }
-bento_require_terms_agreed(new moodle_url('/mod/bento/view.php', ['id' => $id]));
 
 bento_view($bento, $course, $cm, $context);
 

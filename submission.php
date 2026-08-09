@@ -50,7 +50,6 @@ $context = context_module::instance($cm->id);
 bento_require_current_schema();
 require_capability('mod/bento:view', $context);
 bento_require_not_guest(); // per policy: student submissions are always logged-in-only, regardless of course guest-access settings
-bento_require_terms_agreed(new moodle_url('/mod/bento/submission.php', ['id' => $id, 'submissionid' => $submissionid]));
 
 if (!$bento->allowstudentsubmissions) {
     throw new moodle_exception('submissionsnotenabled', 'mod_bento');
