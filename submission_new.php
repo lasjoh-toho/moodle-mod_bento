@@ -45,6 +45,8 @@ require_login($course, true, $cm);
 $context = context_module::instance($cm->id);
 bento_require_current_schema();
 require_capability('mod/bento:submit', $context);
+bento_require_not_guest(); // per policy: student submissions are always logged-in-only, regardless of course guest-access settings
+bento_require_terms_agreed(new moodle_url('/mod/bento/submission_new.php', ['id' => $id]));
 
 if (!$bento->allowstudentsubmissions) {
     throw new moodle_exception('submissionsnotenabled', 'mod_bento');
@@ -85,7 +87,7 @@ echo html_writer::start_tag('form', ['method' => 'post', 'action' => new moodle_
 echo html_writer::empty_tag('input', ['type' => 'hidden', 'name' => 'sesskey', 'value' => sesskey()]);
 
 echo '
-    <div class="mod-bento-importer" id="mod-bento-importer">
+    <div class="mod-bento-importer" id="mod-bento-importer" data-courseid="' . (int) $course->id . '">
         <p class="form-text text-muted mod-bento-edithint">' . get_string('editusehint', 'mod_bento') . '</p>
         <div class="mod-bento-tiles">
             <button type="button" class="mod-bento-tile mod-bento-tile-new" id="mod-bento-newbtn" data-hasdoc="0">

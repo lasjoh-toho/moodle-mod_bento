@@ -117,4 +117,23 @@ $capabilities = [
         ],
     ],
 
+    // Fetches an externally-referenced image (from pasted HTML) through
+    // this SERVER, sidestepping a browser's own CORS restriction — see
+    // image_proxy.php's own doc comment for the full mechanism. Worth
+    // being deliberate about who gets this: it makes the Moodle server
+    // itself issue an HTTP request to a URL the USER supplies (SSRF
+    // protections limit it to public addresses, but it's still server-
+    // initiated outbound traffic under that user's action). Off entirely
+    // while the plugin's own "Bildproxy aktivieren" admin setting is
+    // switched off, regardless of who holds this capability.
+    'mod/bento:useimageproxy' => [
+        'captype' => 'read',
+        'contextlevel' => CONTEXT_MODULE,
+        'archetypes' => [
+            'teacher' => CAP_ALLOW,
+            'editingteacher' => CAP_ALLOW,
+            'manager' => CAP_ALLOW,
+        ],
+    ],
+
 ];

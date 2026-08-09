@@ -55,10 +55,14 @@ bento_require_current_schema();
 $caneditmaster = has_capability('mod/bento:edit', $context);
 $pastdue = false;
 if ($caneditmaster) {
+    if (!empty($bento->loginonly)) {
+        bento_require_not_guest();
+    }
     $document = $bento->document;
     $ownerlabel = '';
 } else {
     require_capability('mod/bento:submit', $context);
+    bento_require_not_guest(); // a student's own submission is always logged-in-only, unconditionally
     if (!$bento->allowstudentsubmissions) {
         throw new moodle_exception('submissionsnotenabled', 'mod_bento');
     }
@@ -74,6 +78,8 @@ if ($caneditmaster) {
         }
     }
 }
+
+bento_require_terms_agreed(new moodle_url('/mod/bento/edit.php', ['id' => $id]));
 
 $shellpath = __DIR__ . '/asset/bento-shell.html';
 $shell = file_get_contents($shellpath);

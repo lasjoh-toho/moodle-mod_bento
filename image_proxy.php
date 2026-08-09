@@ -53,14 +53,32 @@ require(__DIR__ . '/../../config.php');
 
 require_login(null, false);
 
-// Disabled by default — set to 'yes' to re-enable. Everything below this
-// still works exactly as before; this switch is the only thing standing
-// between a request and it.
-$proxy = 'no';
+// Two independent gates, both have to allow this — see settings.php's own
+// doc comment. The admin setting is a simple global on/off; the
+// capability lets an admin additionally decide WHO gets to use it even
+// while the setting is on (e.g. teachers only, not students).
+$proxy = get_config('mod_bento', 'imageproxyenabled') ? 'yes' : 'no';
 if ($proxy !== 'yes') {
     http_response_code(403);
     header('Content-Type: text/plain; charset=utf-8');
     echo 'Image proxy is currently disabled.';
+    exit;
+}
+
+// mod/bento:useimageproxy is a CONTEXT_MODULE capability, but this
+// endpoint is also called from mod_form.php while ADDING a brand new
+// activity — before any course-module (or even course-module id) exists
+// yet. A course context is always available by then, though, and Moodle's
+// capability system checks a module-level capability against an ancestor
+// context just fine (nothing module-SPECIFIC about how this one is
+// evaluated), so the caller always sends courseid instead of assuming a
+// cmid exists.
+$courseid = required_param('courseid', PARAM_INT);
+$coursecontext = context_course::instance($courseid, IGNORE_MISSING);
+if (!$coursecontext || !has_capability('mod/bento:useimageproxy', $coursecontext)) {
+    http_response_code(403);
+    header('Content-Type: text/plain; charset=utf-8');
+    echo 'You do not have permission to use the image proxy.';
     exit;
 }
 

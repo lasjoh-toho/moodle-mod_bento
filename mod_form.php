@@ -68,6 +68,10 @@ class mod_bento_mod_form extends moodleform_mod {
         $mform->setType('document', PARAM_RAW);
         $mform->setDefault('document', $existing);
 
+        $mform->addElement('advcheckbox', 'loginonly', get_string('loginonly', 'mod_bento'));
+        $mform->setDefault('loginonly', 0);
+        $mform->addHelpButton('loginonly', 'loginonly', 'mod_bento');
+
         // ---- student submissions: each learner gets their own deck instead ----
         $mform->addElement('header', 'bentosubmissionshdr', get_string('studentsubmissions', 'mod_bento'));
 
@@ -119,6 +123,7 @@ class mod_bento_mod_form extends moodleform_mod {
      * @return string HTML
      */
     private function render_importer(string $existingjson): string {
+        global $COURSE;
         $seed = '';
         $decoded = $existingjson !== '' ? json_decode($existingjson, true) : null;
         $isrealdoc = is_array($decoded)
@@ -135,7 +140,7 @@ class mod_bento_mod_form extends moodleform_mod {
         }
 
         return '
-            <div class="mod-bento-importer" id="mod-bento-importer">
+            <div class="mod-bento-importer" id="mod-bento-importer" data-courseid="' . (int) $COURSE->id . '">
                 <p class="form-text text-muted mod-bento-edithint">' . get_string('editusehint', 'mod_bento') . '</p>
                 ' . $seed . '
                 <div class="mod-bento-tiles">

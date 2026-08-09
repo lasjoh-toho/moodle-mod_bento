@@ -122,6 +122,7 @@ $string['bento:grade'] = 'Grade a Bento presentation';
 $string['bento:submit'] = 'Create and edit one\'s own Bento presentation';
 $string['bento:viewallsubmissions'] = 'View every submitted presentation, regardless of approval';
 $string['bento:moderatesubmissions'] = 'Approve submitted presentations';
+$string['bento:useimageproxy'] = 'Fetch images from pasted webpage content through the server (image proxy) — the Moodle server itself requests a URL the user supplies, in order to bypass a specific website\'s own cross-origin (CORS) restriction. Only takes effect while the image proxy is also enabled in this plugin\'s own settings.';
 
 $string['privacy:metadata'] = 'The teacher\'s own shared presentation document (table bento) is activity content, not personal data. What IS personal data: manually-entered grades (bento_grades) and — once student presentations are enabled — each student\'s own created presentation (bento_submissions), both declared separately below.';
 $string['privacy:metadata:bento_grades'] = 'A manually-entered grade (and optional short feedback note) for one student on one Bento presentation activity.';
@@ -140,3 +141,15 @@ $string['privacy:gradesubcontext'] = 'Grade';
 $string['privacy:submissionsubcontext'] = 'My presentation';
 
 $string['eventcoursemoduleviewed'] = 'Bento presentation viewed';
+
+$string['settings_imageproxyenabled'] = 'Enable image proxy';
+$string['settings_imageproxyenabled_desc'] = 'Allows fetching images from pasted webpage content through the Moodle server itself (bypasses the cross-origin restriction a specific website\'s own server would otherwise enforce against a direct browser fetch). Only takes effect together with the "mod/bento:useimageproxy" capability — both have to allow it for a person to actually be able to use the proxy. Disabled by default.';
+$string['settings_termsofuse'] = 'Terms of use';
+$string['settings_termsofuse_desc'] = 'When set, everyone must agree to this text (on its own page, before Bento itself is shown) before using it for the first time. Leave empty to skip the agreement step entirely. Changing this text later asks everyone to agree again.';
+$string['agreetermstitle'] = 'Terms of use';
+$string['agreetermsintro'] = 'Before using Bento, please read the following terms of use and confirm that you have read and understood them.';
+$string['agreetermsbutton'] = 'I have read and agree to the terms of use';
+$string['agreetermsrequired'] = 'You must agree to the terms of use to continue.';
+$string['loginonly'] = 'Visible to logged-in members only';
+$string['loginonly_help'] = 'When enabled, this presentation is only visible to logged-in course members — even if the course itself allows guest access. Students\' own submitted presentations are always logged-in-only regardless of this setting, independently of it.';
+$string['guestaccessdenied'] = 'This presentation is only visible to logged-in course members.';

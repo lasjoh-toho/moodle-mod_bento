@@ -17,6 +17,7 @@
         <FIELD NAME="submissionvisibility" TYPE="char" LENGTH="20" NOTNULL="true" DEFAULT="auto" SEQUENCE="false" COMMENT="Only meaningful when allowstudentsubmissions=1. 'auto' = every student can see every other student's submission immediately. 'moderated' = a submission is only visible to OTHER students once a teacher approves it (see bento_submissions.status); the owner can always see/edit their own regardless."/>
         <FIELD NAME="duedate" TYPE="int" LENGTH="10" NOTNULL="true" DEFAULT="0" SEQUENCE="false" COMMENT="0 = no deadline. Once passed, a student (mod/bento:submit, no mod/bento:edit) can no longer save changes to their own submission — enforced in edit.php and the mod_bento_save_document web service, both server-side. Never restricts mod/bento:edit."/>
         <FIELD NAME="duedatevisible" TYPE="int" LENGTH="1" NOTNULL="true" DEFAULT="1" SEQUENCE="false" COMMENT="Whether the deadline itself (not just its enforcement) is shown to students on the gallery page."/>
+        <FIELD NAME="loginonly" TYPE="int" LENGTH="1" NOTNULL="true" DEFAULT="0" SEQUENCE="false" COMMENT="Restricts the TEACHER's own master presentation to logged-in users even in a course that otherwise allows guest access. Student submissions (bento_submissions) are always login-only regardless of this flag — that restriction is unconditional, enforced directly in the pages that serve them, not tied to a per-instance setting at all."/>
         <FIELD NAME="timecreated" TYPE="int" LENGTH="10" NOTNULL="true" DEFAULT="0" SEQUENCE="false"/>
         <FIELD NAME="timemodified" TYPE="int" LENGTH="10" NOTNULL="true" DEFAULT="0" SEQUENCE="false"/>
       </FIELDS>
@@ -62,6 +63,21 @@
       </KEYS>
       <INDEXES>
         <INDEX NAME="bentoid-userid" UNIQUE="true" FIELDS="bentoid, userid" COMMENT="Exactly one submission per student per instance — they keep revising the same row, never create a second one"/>
+      </INDEXES>
+    </TABLE>
+    <TABLE NAME="bento_agreements" COMMENT="Records that a user has agreed to the plugin's own terms-of-use text (see the 'termsofuse' admin setting) — site-wide, not per-course/instance, since the terms themselves are a single site-wide setting. Checked before any of view.php/edit.php/submission.php/submission_new.php serve their actual content whenever termsofuse is non-empty; skipped entirely when it's empty (no terms configured means nothing to agree to).">
+      <FIELDS>
+        <FIELD NAME="id" TYPE="int" LENGTH="10" NOTNULL="true" SEQUENCE="true"/>
+        <FIELD NAME="userid" TYPE="int" LENGTH="10" NOTNULL="true" SEQUENCE="false"/>
+        <FIELD NAME="termshash" TYPE="char" LENGTH="40" NOTNULL="true" SEQUENCE="false" COMMENT="sha1 of the termsofuse text at the moment of agreeing — if the admin later edits the wording, this stops matching the CURRENT setting's own hash and the user is asked to agree again, with no manual version number for anyone to remember to bump."/>
+        <FIELD NAME="timemodified" TYPE="int" LENGTH="10" NOTNULL="true" DEFAULT="0" SEQUENCE="false"/>
+      </FIELDS>
+      <KEYS>
+        <KEY NAME="primary" TYPE="primary" FIELDS="id"/>
+        <KEY NAME="userid" TYPE="foreign" FIELDS="userid" REFTABLE="user" REFFIELDS="id"/>
+      </KEYS>
+      <INDEXES>
+        <INDEX NAME="userid" UNIQUE="true" FIELDS="userid" COMMENT="One agreement record per user — re-agreeing overwrites the row rather than inserting a second one"/>
       </INDEXES>
     </TABLE>
   </TABLES>

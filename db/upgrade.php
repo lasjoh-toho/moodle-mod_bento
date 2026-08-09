@@ -94,5 +94,27 @@ function xmldb_bento_upgrade($oldversion) {
         $DB->set_field('bento_grades', 'published', 1, []);
     }
 
+    // ---- per-instance login-only flag: one new column on `bento` ----
+    $table = new xmldb_table('bento');
+    $field = new xmldb_field('loginonly', XMLDB_TYPE_INTEGER, '1', null, XMLDB_NOTNULL, null, '0', 'duedatevisible');
+    if (!$dbman->field_exists($table, $field)) {
+        $dbman->add_field($table, $field);
+    }
+
+    // ---- new table: site-wide terms-of-use agreement, one row per user ----
+    $table = new xmldb_table('bento_agreements');
+    if (!$dbman->table_exists($table)) {
+        $table->add_field('id', XMLDB_TYPE_INTEGER, '10', null, XMLDB_NOTNULL, XMLDB_SEQUENCE, null);
+        $table->add_field('userid', XMLDB_TYPE_INTEGER, '10', null, XMLDB_NOTNULL, null, null);
+        $table->add_field('termshash', XMLDB_TYPE_CHAR, '40', null, XMLDB_NOTNULL, null, null);
+        $table->add_field('timemodified', XMLDB_TYPE_INTEGER, '10', null, XMLDB_NOTNULL, null, '0');
+
+        $table->add_key('primary', XMLDB_KEY_PRIMARY, ['id']);
+        $table->add_key('userid', XMLDB_KEY_FOREIGN, ['userid'], 'user', ['id']);
+        $table->add_index('userid', XMLDB_INDEX_UNIQUE, ['userid']);
+
+        $dbman->create_table($table);
+    }
+
     return true;
 }

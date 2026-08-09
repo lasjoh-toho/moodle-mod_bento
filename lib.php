@@ -664,3 +664,60 @@ function bento_pluginfile($course, $cm, $context, $filearea, $args, $forcedownlo
     send_stored_file($file, null, 0, $forcedownload, $options);
     return true;
 }
+
+/**
+ * Whether the given user has already agreed to the CURRENT terms-of-use
+ * text — compares against a hash of the live setting, so editing the
+ * wording later naturally invalidates everyone's prior agreement without
+ * needing a manually-managed version number anywhere.
+ *
+ * @param int $userid
+ * @return bool
+ */
+function bento_has_agreed_current_terms(int $userid): bool {
+    global $DB;
+    $terms = trim((string) get_config('mod_bento', 'termsofuse'));
+    if ($terms === '') {
+        return true; // nothing configured — nothing to agree to
+    }
+    $currenthash = sha1($terms);
+    $agreed = $DB->get_field('bento_agreements', 'termshash', ['userid' => $userid]);
+    return $agreed === $currenthash;
+}
+
+/**
+ * Redirects to terms.php (which returns here via $returnurl once agreed)
+ * if termsofuse is configured and this user hasn't agreed to the CURRENT
+ * wording yet. Call this from every page that actually shows Bento
+ * content to a real (non-guest) user — guests are handled separately by
+ * bento_require_not_guest(), since agreeing to terms isn't meaningful for
+ * an anonymous session anyway.
+ *
+ * @param moodle_url $returnurl where to send the user back to once they agree
+ * @return void
+ */
+function bento_require_terms_agreed(moodle_url $returnurl): void {
+    global $USER;
+    if (isguestuser() || !isloggedin()) {
+        return; // guest-access pages enforce their own separate restriction
+    }
+    if (bento_has_agreed_current_terms((int) $USER->id)) {
+        return;
+    }
+    redirect(new moodle_url('/mod/bento/terms.php', ['returnurl' => $returnurl->out_as_local_url(false)]));
+}
+
+/**
+ * Blocks guest/unauthenticated access outright — used unconditionally for
+ * anything student-submission-related (per policy, always logged-in-only
+ * regardless of course guest-access settings) and conditionally for the
+ * teacher's own master presentation when that instance's own `loginonly`
+ * flag is set.
+ *
+ * @return void
+ */
+function bento_require_not_guest(): void {
+    if (isguestuser() || !isloggedin()) {
+        throw new require_login_exception(get_string('guestaccessdenied', 'mod_bento'));
+    }
+}

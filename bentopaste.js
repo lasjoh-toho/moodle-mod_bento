@@ -40,6 +40,7 @@
 (function () {
   document.addEventListener('DOMContentLoaded', function () {
     var pasteTile = document.getElementById('mod-bento-pastetile');
+    var bentoCourseId = document.getElementById('mod-bento-importer')?.dataset.courseid || '';
     if (!pasteTile) return; // this page doesn't have the importer widget at all
 
     var M = window.M || {};
@@ -153,7 +154,7 @@
      *  no reason to even attempt the CORS-restricted direct path here,
      *  since the proxy always works for any logged-in user regardless. */
     function tryFetchImageAsDataUrl(url) {
-      var proxyUrl = M.cfg.wwwroot + '/mod/bento/image_proxy.php?url=' + encodeURIComponent(url);
+      var proxyUrl = M.cfg.wwwroot + '/mod/bento/image_proxy.php?courseid=' + encodeURIComponent(bentoCourseId) + '&url=' + encodeURIComponent(url);
       return fetch(proxyUrl).then(function (res) {
         if (!res.ok) return null;
         return res.blob().then(function (blob) {
