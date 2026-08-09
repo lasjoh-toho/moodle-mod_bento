@@ -110,7 +110,6 @@ function xmldb_bento_upgrade($oldversion) {
         $table->add_field('timemodified', XMLDB_TYPE_INTEGER, '10', null, XMLDB_NOTNULL, null, '0');
 
         $table->add_key('primary', XMLDB_KEY_PRIMARY, ['id']);
-        $table->add_key('userid', XMLDB_KEY_FOREIGN, ['userid'], 'user', ['id']);
         $table->add_index('userid_uix', XMLDB_INDEX_UNIQUE, ['userid']);
 
         $dbman->create_table($table);
