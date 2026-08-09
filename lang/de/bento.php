@@ -122,7 +122,7 @@ $string['bento:grade'] = 'Eine Bento-Präsentation bewerten';
 $string['bento:submit'] = 'Eine eigene Bento-Präsentation anlegen und bearbeiten';
 $string['bento:viewallsubmissions'] = 'Alle eingereichten Präsentationen ansehen, unabhängig von der Freigabe';
 $string['bento:moderatesubmissions'] = 'Eingereichte Präsentationen freigeben';
-$string['bento:usebentoproxy'] = 'Erlaubt es, den Proxy zu nutzen, um Bilder von per Copy-Paste in Präsentationen eingefügten Webinhalten mit Quellenangaben übernehmen zu können. Umgeht dabei Sicherheitsbeschränkungen (CORS) im Browser. Nur wirksam, solange der Bild-Proxy auch in den Plugin-Einstellungen aktiviert ist.';
+$string['bento:usebentoproxy'] = 'Erlaubt es, den Proxy zu nutzen, um Bilder von per Copy-Paste in Präsentationen eingefügten Webinhalten direkt mit Quellenangaben übernehmen zu können. Die umgeht CORS (Cross-Origin Resource Sharing) Einschränkungen, die dies im Browser verhindern. Nur wirksam, solange der Bild-Proxy auch in den Plugin-Einstellungen aktiviert ist.';
 
 $string['privacy:metadata'] = 'Das gemeinsame Präsentationsdokument der Lehrkraft (Tabelle bento) ist Inhalt der Aktivität, keine personenbezogenen Daten. Personenbezogen sind: manuell eingetragene Bewertungen (bento_grades) und — sobald eigene Präsentationen von Lernenden aktiviert sind — die von jeder/jedem Lernenden selbst angelegte Präsentation (bento_submissions), beide unten separat deklariert.';
 $string['privacy:metadata:bento_grades'] = 'Eine manuell eingetragene Bewertung (und optionale kurze Rückmeldung) für eine:n Schüler:in bei einer Bento-Präsentation.';

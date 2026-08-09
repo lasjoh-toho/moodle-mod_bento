@@ -35,6 +35,7 @@ defined('MOODLE_INTERNAL') || die();
 function xmldb_bento_upgrade($oldversion) {
     global $DB;
 
+    require_once(__DIR__ . '/../lib.php');
     $dbman = $DB->get_manager();
 
     // ---- student-submission mode: two new columns on `bento` ----
@@ -113,6 +114,22 @@ function xmldb_bento_upgrade($oldversion) {
         $table->add_index('userid_uix', XMLDB_INDEX_UNIQUE, ['userid']);
 
         $dbman->create_table($table);
+    }
+
+    // ---- termsofuse used to be passed as the admin_setting's own
+    // constructor default (settings.php), which Moodle falls back to for
+    // get_config() even when nothing was ever explicitly saved — so an
+    // install that only ever saw that fallback value now needs it written
+    // as a REAL config row here, or it would silently go empty the moment
+    // that constructor default is removed (see settings.php's own doc
+    // comment on why it was removed: it also showed as raw, unrendered
+    // markup in that page's "Default: …" caption). A real config value
+    // set here or by db/install.php on a fresh install always takes
+    // priority over any constructor default regardless, so this is a
+    // no-op for anyone who already explicitly saved something (their own
+    // choice, empty or not, is left exactly as-is). ----
+    if (get_config('mod_bento', 'termsofuse') === false) {
+        set_config('termsofuse', bento_default_termsofuse(), 'mod_bento');
     }
 
     return true;
