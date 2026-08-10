@@ -155,6 +155,8 @@
 .mod-bento-item:active { cursor: grabbing; }
 .mod-bento-item.dragging { opacity: 0.4; }
 .mod-bento-item.existing { border-color: #ff9e5e; background: #fff8f4; }
+.mod-bento-item.unsaved { border-style: dashed; }
+.mod-bento-item-unsaved-tag { color: #b3261e !important; font-weight: 600 !important; }
 .mod-bento-item-grip { color: #9aa3b0; font-size: 15px; padding-top: 2px; user-select: none; }
 .mod-bento-item-info { flex: 1; min-width: 0; }
 .mod-bento-item-name { font-weight: 600; font-size: 0.92rem; word-break: break-word; }
@@ -163,6 +165,29 @@
 .mod-bento-item-name-clickable:hover { color: #ff9e5e; text-decoration: underline; }
 .mod-bento-item-meta { color: #6b7280; font-size: 0.8rem; margin-top: 2px; }
 .mod-bento-item-warnings { margin: 6px 0 0; padding-left: 18px; color: #8a6d55; font-size: 0.78rem; }
+.mod-bento-item-save {
+  border: 1px solid #ff9e5e;
+  background: #ff9e5e;
+  color: #2b120a;
+  font-weight: 700;
+  font-size: 12px;
+  cursor: pointer;
+  padding: 6px 12px;
+  border-radius: 6px;
+  white-space: nowrap;
+}
+.mod-bento-item-save:hover { background: #ffb37e; }
+.mod-bento-item-save:disabled { opacity: 0.6; cursor: default; }
+.mod-bento-item-promote {
+  border: none;
+  background: transparent;
+  color: #6b7280;
+  cursor: pointer;
+  font-size: 18px;
+  line-height: 1;
+  padding: 4px 6px;
+}
+.mod-bento-item-promote:hover { color: #ff9e5e; }
 .mod-bento-item-play {
   border: none;
   background: transparent;
@@ -191,6 +216,14 @@
   padding: 2px 4px;
 }
 .mod-bento-item-remove:hover { color: #c0392b; }
+
+.mod-bento-toast {
+  position: fixed; left: 50%; bottom: 24px; transform: translateX(-50%) translateY(20px);
+  background: #14161c; color: #fff; padding: 10px 20px; border-radius: 999px; font-size: 13px;
+  font-weight: 600; box-shadow: 0 6px 18px rgba(0,0,0,.35); z-index: 3000; opacity: 0;
+  transition: opacity .25s ease, transform .25s ease; pointer-events: none;
+}
+.mod-bento-toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
 
 .mod-bento-connector { display: flex; justify-content: center; align-items: center; height: 26px; }
 .mod-bento-connector-btn {

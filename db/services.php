@@ -33,4 +33,28 @@ $functions = [
         'ajax'        => true,
         'capabilities' => 'mod/bento:edit, mod/bento:submit',
     ],
+    'mod_bento_save_deck' => [
+        'classname'   => 'mod_bento\external\save_deck',
+        'methodname'  => 'execute',
+        'description' => 'Saves one draft deck, kept separate from the published bento.document rather than force-merged into it.',
+        'type'        => 'write',
+        'ajax'        => true,
+        'capabilities' => 'mod/bento:edit',
+    ],
+    'mod_bento_delete_deck' => [
+        'classname'   => 'mod_bento\external\delete_deck',
+        'methodname'  => 'execute',
+        'description' => 'Removes one draft deck outright.',
+        'type'        => 'write',
+        'ajax'        => true,
+        'capabilities' => 'mod/bento:edit',
+    ],
+    'mod_bento_promote_deck' => [
+        'classname'   => 'mod_bento\external\promote_deck',
+        'methodname'  => 'execute',
+        'description' => 'Swaps a draft deck into the published position (bento.document) — a genuine swap, the previously-published content becomes that same draft row\'s own new content.',
+        'type'        => 'write',
+        'ajax'        => true,
+        'capabilities' => 'mod/bento:edit',
+    ],
 ];

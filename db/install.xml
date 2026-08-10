@@ -80,5 +80,22 @@
         <INDEX NAME="userid_uix" UNIQUE="true" FIELDS="userid" COMMENT="One agreement record per user — re-agreeing overwrites the row rather than inserting a second one. No separate foreign key on this same field: Moodle's XMLDB derives the actual database index name from table+field, so a foreign key and a unique index covering the identical single field always collide there regardless of what they're named at the XML level — this index alone is what enforces the invariant that actually matters here."/>
       </INDEXES>
     </TABLE>
+    <TABLE NAME="bento_decks" COMMENT="Draft presentations for a teacher's master deck, kept SEPARATE from bento.document (the one students/anyone actually sees) rather than being force-merged into it — lets a teacher work on a next version privately while the current one stays visible. sortorder=0 is never stored here — that slot IS bento.document itself; a row here always represents sortorder&gt;=1, i.e. something behind the one that's actually shown. Reordering (promoting a draft to the front) moves its content INTO bento.document and shuffles sortorder among what's left, rather than this table ever containing the currently-shown one.">
+      <FIELDS>
+        <FIELD NAME="id" TYPE="int" LENGTH="10" NOTNULL="true" SEQUENCE="true"/>
+        <FIELD NAME="bentoid" TYPE="int" LENGTH="10" NOTNULL="true" SEQUENCE="false"/>
+        <FIELD NAME="sortorder" TYPE="int" LENGTH="10" NOTNULL="true" DEFAULT="1" SEQUENCE="false" COMMENT="1-based position behind bento.document (which is always conceptually position 0) — lower sorts first."/>
+        <FIELD NAME="name" TYPE="char" LENGTH="255" NOTNULL="false" SEQUENCE="false" COMMENT="Teacher-facing label for this draft — the importer's own baseName (e.g. the imported filename), editable."/>
+        <FIELD NAME="document" TYPE="text" NOTNULL="true" SEQUENCE="false"/>
+        <FIELD NAME="timecreated" TYPE="int" LENGTH="10" NOTNULL="true" DEFAULT="0" SEQUENCE="false"/>
+        <FIELD NAME="timemodified" TYPE="int" LENGTH="10" NOTNULL="true" DEFAULT="0" SEQUENCE="false"/>
+      </FIELDS>
+      <KEYS>
+        <KEY NAME="primary" TYPE="primary" FIELDS="id"/>
+      </KEYS>
+      <INDEXES>
+        <INDEX NAME="bentoid-sortorder" UNIQUE="false" FIELDS="bentoid, sortorder" COMMENT="Every read of a bentoid's own drafts is ordered by sortorder — no foreign key on bentoid alone, same collision reasoning as bento_agreements' own userid_uix."/>
+      </INDEXES>
+    </TABLE>
   </TABLES>
 </XMLDB>

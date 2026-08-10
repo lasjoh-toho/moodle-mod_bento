@@ -827,7 +827,7 @@
       var doc = buildDocFromBlocks(parseDocToBlocks());
       if (window.bentoConvertApi && window.bentoConvertApi.addItem) {
         window.bentoConvertApi.addItem({
-          baseName: 'Eingefuegter-Text', doc: doc, slideCount: doc.slides.length, warnings: [], existing: false,
+          baseName: 'Eingefuegter-Text', doc: doc, slideCount: doc.slides.length, warnings: [], existing: false, deckid: 0,
         });
       }
       closeModal();

@@ -129,7 +129,7 @@ class mod_bento_mod_form extends moodleform_mod {
      * @return string HTML
      */
     private function render_importer(string $existingjson): string {
-        global $COURSE;
+        global $COURSE, $DB, $USER;
         $seed = '';
         $decoded = $existingjson !== '' ? json_decode($existingjson, true) : null;
         $isrealdoc = is_array($decoded)
@@ -145,11 +145,27 @@ class mod_bento_mod_form extends moodleform_mod {
                 . json_encode($decoded) . '</script>';
         }
 
-        global $USER;
+        // Existing DRAFTS (bento_decks) — kept as their OWN separate cards,
+        // never force-merged into the seed above. Only meaningful once
+        // this activity already exists ($this->_cm set); a brand-new
+        // activity has no bentoid yet to look any up under.
+        $deckseed = '';
+        if (!empty($this->_cm)) {
+            $decks = $DB->get_records('bento_decks', ['bentoid' => $this->_cm->instance], 'sortorder ASC');
+            foreach ($decks as $deck) {
+                $deckdecoded = json_decode($deck->document, true);
+                if (!is_array($deckdecoded) || ($deckdecoded['format'] ?? null) !== 'bento/slides') {
+                    continue; // skip anything that somehow isn't valid rather than breaking the whole page over one bad row
+                }
+                $deckseed .= '<script type="application/json" class="mod-bento-deck-seed" data-deckid="' . (int) $deck->id . '" data-name="' . s($deck->name ?? '') . '">'
+                    . json_encode($deckdecoded) . '</script>';
+            }
+        }
+
         return '
-            <div class="mod-bento-importer" id="mod-bento-importer" data-courseid="' . (int) $COURSE->id . '" data-cmid="' . (int) ($this->_cm->id ?? 0) . '" data-termsagreed="' . (bento_has_agreed_current_terms((int) $USER->id) ? '1' : '0') . '">
+            <div class="mod-bento-importer" id="mod-bento-importer" data-courseid="' . (int) $COURSE->id . '" data-cmid="' . (int) ($this->_cm->id ?? 0) . '" data-candeck="1" data-termsagreed="' . (bento_has_agreed_current_terms((int) $USER->id) ? '1' : '0') . '">
                 <p class="form-text text-muted mod-bento-edithint">' . get_string('editusehint', 'mod_bento') . '</p>
-                ' . $seed . '
+                ' . $seed . $deckseed . '
                 <div class="mod-bento-tiles">
                     <button type="button" class="mod-bento-tile mod-bento-tile-new" id="mod-bento-newbtn" data-hasdoc="' . ($isrealdoc ? '1' : '0') . '">
                         <span class="mod-bento-tile-title" id="mod-bento-newbtn-title">' . ($isrealdoc ? get_string('playtile', 'mod_bento') : get_string('newtile', 'mod_bento')) . '</span>

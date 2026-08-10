@@ -139,5 +139,22 @@ function xmldb_bento_upgrade($oldversion) {
         set_config('termsofuse', bento_default_termsofuse(), 'mod_bento');
     }
 
+    // ---- new table: draft decks, kept separate from bento.document ----
+    $table = new xmldb_table('bento_decks');
+    if (!$dbman->table_exists($table)) {
+        $table->add_field('id', XMLDB_TYPE_INTEGER, '10', null, XMLDB_NOTNULL, XMLDB_SEQUENCE, null);
+        $table->add_field('bentoid', XMLDB_TYPE_INTEGER, '10', null, XMLDB_NOTNULL, null, null);
+        $table->add_field('sortorder', XMLDB_TYPE_INTEGER, '10', null, XMLDB_NOTNULL, null, '1');
+        $table->add_field('name', XMLDB_TYPE_CHAR, '255', null, null, null, null);
+        $table->add_field('document', XMLDB_TYPE_TEXT, null, null, XMLDB_NOTNULL, null, null);
+        $table->add_field('timecreated', XMLDB_TYPE_INTEGER, '10', null, XMLDB_NOTNULL, null, '0');
+        $table->add_field('timemodified', XMLDB_TYPE_INTEGER, '10', null, XMLDB_NOTNULL, null, '0');
+
+        $table->add_key('primary', XMLDB_KEY_PRIMARY, ['id']);
+        $table->add_index('bentoid-sortorder', XMLDB_INDEX_NOTUNIQUE, ['bentoid', 'sortorder']);
+
+        $dbman->create_table($table);
+    }
+
     return true;
 }

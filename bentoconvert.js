@@ -553,6 +553,16 @@ function mergeDocs(docA, docB){
       var v = el && parseInt(el.dataset.cmid, 10);
       return v ? v : 0;
     })();
+    // Draft decks (bento_decks, saved independently of the published
+    // document) need mod/bento:edit — only true on mod_form.php's own
+    // importer. submission_new.php's own students only ever have
+    // mod/bento:submit, one row (bento_submissions), no drafts concept at
+    // all — every card's own Speichern there just saves it AS the
+    // submission directly, regardless of its position in the list.
+    var bentoCanDeck = (function () {
+      var el = document.getElementById('mod-bento-importer');
+      return !!(el && el.dataset.candeck === '1');
+    })();
     /** Checked before Demo/Import/Paste can actually do anything — makes
      *  more sense to ask for agreement right here, at the point someone is
      *  about to bring content in, rather than only at whatever page they'd
@@ -607,9 +617,9 @@ function mergeDocs(docA, docB){
      *  writes to (the shared master document, or the caller's own
      *  submission) is decided entirely server-side from the caller's own
      *  capabilities — see that webservice's own doc comment. */
-    function saveDocToMoodle(cmid, doc) {
-      var url = M.cfg.wwwroot + '/lib/ajax/service.php?sesskey=' + encodeURIComponent(M.cfg.sesskey) + '&info=mod_bento_save_document';
-      var body = [{ index: 0, methodname: 'mod_bento_save_document', args: { cmid: cmid, document: JSON.stringify(doc) } }];
+    function callBentoWebservice(methodname, args) {
+      var url = M.cfg.wwwroot + '/lib/ajax/service.php?sesskey=' + encodeURIComponent(M.cfg.sesskey) + '&info=' + methodname;
+      var body = [{ index: 0, methodname: methodname, args: args }];
       return fetch(url, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -619,10 +629,28 @@ function mergeDocs(docA, docB){
           var data;
           try { data = JSON.parse(raw); } catch (e) { throw new Error('Moodle antwortete nicht mit JSON (HTTP ' + res.status + '): ' + raw.slice(0, 200)); }
           if (!res.ok) throw new Error('HTTP ' + res.status + ': ' + JSON.stringify(data));
-          if (!Array.isArray(data)) throw new Error((data && (data.message || data.error)) || 'Speichern fehlgeschlagen (unerwartete Antwort)');
-          if (data[0] && data[0].error) throw new Error(data[0].message || (data[0].exception && data[0].exception.message) || 'Speichern fehlgeschlagen');
+          if (!Array.isArray(data)) throw new Error((data && (data.message || data.error)) || 'Anfrage fehlgeschlagen (unerwartete Antwort)');
+          if (data[0] && data[0].error) throw new Error(data[0].message || (data[0].exception && data[0].exception.message) || 'Anfrage fehlgeschlagen');
+          return data[0] && data[0].data;
         });
       });
+    }
+    function saveDocToMoodle(cmid, doc) {
+      return callBentoWebservice('mod_bento_save_document', { cmid: cmid, document: JSON.stringify(doc) });
+    }
+    function saveDeckToMoodle(cmid, deckid, name, doc) {
+      return callBentoWebservice('mod_bento_save_deck', { cmid: cmid, deckid: deckid || 0, name: name || '', document: JSON.stringify(doc) });
+    }
+    function deleteDeckFromMoodle(cmid, deckid) {
+      return callBentoWebservice('mod_bento_delete_deck', { cmid: cmid, deckid: deckid });
+    }
+    function toastMsg(msg) {
+      var t = document.createElement('div');
+      t.className = 'mod-bento-toast';
+      t.textContent = msg;
+      document.body.appendChild(t);
+      setTimeout(function () { t.classList.add('show'); }, 10);
+      setTimeout(function () { t.classList.remove('show'); setTimeout(function () { t.remove(); }, 300); }, 2500);
     }
 
     if (existingScript) {
@@ -635,10 +663,30 @@ function mergeDocs(docA, docB){
             slideCount: (existingDoc.slides || []).length,
             warnings: [],
             existing: true,
+            deckid: 0,
           });
         }
       } catch (e) { console.warn('mod_bento: could not parse the existing document', e); }
     }
+
+    // Existing drafts (bento_decks) — each its OWN separate item, carrying
+    // the real deckid so buildItemCard's own Speichern/Entfernen/Nach-oben
+    // actions know which database row to act on, rather than being force-
+    // merged into the item above.
+    Array.prototype.forEach.call(document.querySelectorAll('.mod-bento-deck-seed'), function (el) {
+      try {
+        var deckDoc = JSON.parse(el.textContent);
+        if (!deckDoc || deckDoc.format !== 'bento/slides') return;
+        items.push({
+          baseName: el.dataset.name || 'Entwurf',
+          doc: deckDoc,
+          slideCount: (deckDoc.slides || []).length,
+          warnings: [],
+          existing: false,
+          deckid: parseInt(el.dataset.deckid, 10) || 0,
+        });
+      } catch (e) { console.warn('mod_bento: could not parse a draft deck', e); }
+    });
 
     function escapeHtml(s) {
       return String(s).replace(/[&<>"']/g, function (c) {
@@ -660,67 +708,91 @@ function mergeDocs(docA, docB){
      *  gets saved) and the New/Play tile's own preview (so what "Play"
      *  shows always matches what saving would actually produce, not just
      *  the first card). */
-    function computeCombinedDoc() {
-      if (!items.length) return null;
-      var combined = items[0].doc;
-      for (var i = 1; i < items.length; i++) {
-        try { combined = mergeDocs(combined, items[i].doc); } catch (e) { console.error('mod_bento: auto-merge failed, falling back to the first item only', e); break; }
-      }
-      return combined;
-    }
-
+    /** Backs the Moodle FORM's own "Speichern und anzeigen" button — the
+     *  hidden document field always mirrors items[0] (the top/published
+     *  position), nothing merged in from anywhere else. Each card ALSO has
+     *  its own explicit Speichern/Veröffentlichen button (buildItemCard)
+     *  that saves it directly via AJAX, independent of this — this is
+     *  just what makes the WHOLE-FORM submit button do the right thing
+     *  too, for anyone who never touches a per-card button at all. */
     function syncDocField() {
-      var combined = computeCombinedDoc();
-      docField.value = combined ? JSON.stringify(combined) : '';
+      docField.value = items.length ? JSON.stringify(items[0].doc) : '';
     }
 
     function buildItemCard(it) {
       var card = document.createElement('div');
-      card.className = 'mod-bento-item' + (it.existing ? ' existing' : '');
+      var isTop = items[0] === it;
+      var isPersisted = it.existing || it.deckid > 0;
+      card.className = 'mod-bento-item' + (it.existing ? ' existing' : '') + (isPersisted ? '' : ' unsaved');
       card.draggable = true;
       card.innerHTML =
         '<span class="mod-bento-item-grip" title="Ziehen zum Sortieren">⠿</span>' +
         '<div class="mod-bento-item-info">' +
-          '<div class="mod-bento-item-name">' + escapeHtml(it.baseName) + (it.existing ? ' <em>(gespeichert)</em>' : '') + '</div>' +
+          '<div class="mod-bento-item-name">' + escapeHtml(it.baseName) +
+            (it.existing ? ' <em>(veröffentlicht)</em>' : (isPersisted ? ' <em>(Entwurf, gespeichert)</em>' : ' <em class="mod-bento-item-unsaved-tag">(noch nicht gespeichert)</em>')) + '</div>' +
           '<div class="mod-bento-item-meta">' + it.slideCount + ' Folie' + (it.slideCount === 1 ? '' : 'n') + '</div>' +
           (it.warnings && it.warnings.length ? '<ul class="mod-bento-item-warnings">' + it.warnings.map(function (w) { return '<li>' + escapeHtml(w) + '</li>'; }).join('') + '</ul>' : '') +
         '</div>' +
-        '<button type="button" class="mod-bento-item-play" title="Als Präsentation starten">▶</button>' +
+        (isTop ? '' : '<button type="button" class="mod-bento-item-promote" title="Nach oben stellen (wird beim Speichern die veröffentlichte Präsentation)">⇧</button>') +
+        '<button type="button" class="mod-bento-item-save" title="Diese Karte einzeln speichern">' + (isTop ? 'Veröffentlichen' : 'Speichern') + '</button>' +
+        '<button type="button" class="mod-bento-item-play" title="Vorschau">▶</button>' +
         '<button type="button" class="mod-bento-item-download" title="Als .bento.html herunterladen">⬇</button>' +
         '<button type="button" class="mod-bento-item-remove" title="Entfernen">✕</button>';
 
       card.querySelector('.mod-bento-item-remove').addEventListener('click', function () {
-        if (it.existing && !confirm('Die ursprüngliche, bereits gespeicherte Präsentation wird dabei entfernt und geht beim Speichern verloren. Trotzdem entfernen?')) return;
-        var i = items.indexOf(it);
-        if (i >= 0) items.splice(i, 1);
-        renderItems();
+        if (it.existing) { alert('Die veröffentlichte Präsentation kann hier nicht entfernt werden — eine andere Karte nach oben stellen und speichern, um sie zu ersetzen.'); return; }
+        var doRemove = function () {
+          var i = items.indexOf(it);
+          if (i >= 0) items.splice(i, 1);
+          renderItems();
+        };
+        if (it.deckid > 0) {
+          if (!confirm('Dieser gespeicherte Entwurf wird dabei endgültig gelöscht. Fortfahren?')) return;
+          deleteDeckFromMoodle(bentoCmId, it.deckid).then(doRemove).catch(function (e) {
+            console.error(e);
+            alert('Konnte den Entwurf nicht löschen: ' + (e.message || e));
+          });
+        } else {
+          doRemove();
+        }
       });
+
+      var saveBtn = card.querySelector('.mod-bento-item-save');
+      saveBtn.addEventListener('click', function () {
+        if (!bentoCmId) { alert('Erst die Aktivität selbst anlegen (unten „Speichern und anzeigen“), bevor einzelne Karten gespeichert werden können.'); return; }
+        saveBtn.disabled = true;
+        var nowTop = items[0] === it; // re-check at click time — order may have changed since the card was built
+        var task = (!bentoCanDeck || nowTop)
+          ? saveDocToMoodle(bentoCmId, it.doc)
+          : saveDeckToMoodle(bentoCmId, it.deckid || 0, it.baseName, it.doc).then(function (res) { it.deckid = res.deckid; });
+        task.then(function () {
+          if (!bentoCanDeck || nowTop) it.existing = true;
+          toastMsg((!bentoCanDeck || nowTop) ? 'Gespeichert.' : 'Entwurf gespeichert.');
+          renderItems();
+        }).catch(function (e) {
+          console.error(e);
+          alert('Konnte nicht speichern: ' + (e.message || e));
+        }).finally(function () { saveBtn.disabled = false; });
+      });
+
+      var promoteBtn = card.querySelector('.mod-bento-item-promote');
+      if (promoteBtn) {
+        promoteBtn.addEventListener('click', function () {
+          var i = items.indexOf(it);
+          if (i <= 0) return;
+          items.splice(i, 1);
+          items.unshift(it);
+          renderItems();
+        });
+      }
+
       var playBtn = card.querySelector('.mod-bento-item-play');
       var titleEl = card.querySelector('.mod-bento-item-name');
-      /** A single card's own ▶/title is a PREVIEW only — never a save.
-       *  Saving into Moodle needs the auto-merged COMBINATION of every
-       *  card (computeCombinedDoc()), not just this one — see the New/Play
-       *  tile further down for the actual save+redirect flow. */
+      /** A plain, non-destructive preview — never saves anything. Each
+       *  card's own explicit Speichern/Veröffentlichen button (above) is
+       *  what actually persists it, to its own record, independent of
+       *  every other card. */
       var openForEditing = function () {
-        // Always the FULL auto-merged combination of every card (same
-        // computeCombinedDoc() the New/Play tile itself uses) — never just
-        // THIS card's own doc alone. That's what makes it safe to save+
-        // redirect from ANY card: whichever one gets clicked, the result
-        // is identical and always represents everything currently in the
-        // list, so nothing is ever silently discarded regardless of which
-        // card triggered it.
-        var docToOpen = computeCombinedDoc() || it.doc;
-        if (bentoCmId) {
-          playBtn.disabled = true;
-          saveDocToMoodle(bentoCmId, docToOpen).then(function () {
-            window.location.href = M.cfg.wwwroot + '/mod/bento/edit.php?id=' + bentoCmId + '&returnurl=' + encodeURIComponent(location.pathname + location.search + location.hash);
-          }).catch(function (e) {
-            console.error(e);
-            alert('Konnte nicht in Moodle speichern: ' + (e.message || e));
-            playBtn.disabled = false;
-          });
-          return;
-        }
         // Open the tab SYNCHRONOUSLY, in direct response to the click —
         // once an await happens first, some browsers no longer treat the
         // later window.open() as user-initiated and silently block it.
@@ -730,7 +802,7 @@ function mergeDocs(docA, docB){
           '<body style="font-family:system-ui,sans-serif;padding:2.5rem;color:#667">Bento wird geladen…</body>');
         playBtn.disabled = true;
         getShell().then(function (shell) {
-          var html = spliceDoc(shell, docToOpen);
+          var html = spliceDoc(shell, it.doc);
           win.document.open();
           win.document.write(html);
           win.document.close();
@@ -743,7 +815,7 @@ function mergeDocs(docA, docB){
       playBtn.addEventListener('click', openForEditing);
       if (titleEl) {
         titleEl.classList.add('mod-bento-item-name-clickable');
-        titleEl.title = 'Präsentation öffnen';
+        titleEl.title = 'Vorschau';
         titleEl.addEventListener('click', openForEditing);
       }
       card.querySelector('.mod-bento-item-download').addEventListener('click', function () {
@@ -800,6 +872,7 @@ function mergeDocs(docA, docB){
         slideCount: merged.slides.length,
         warnings: (a.warnings || []).concat(b.warnings || []),
         existing: false,
+        deckid: 0,
       });
       renderItems();
     }
@@ -830,7 +903,7 @@ function mergeDocs(docA, docB){
         var w = document.createElement('p');
         w.id = 'mod-bento-multi-warn';
         w.className = 'mod-bento-warn';
-        w.textContent = 'Es liegen noch ' + items.length + ' unverbundene Präsentationen vor — beim Speichern (auch über ▶/Titel einer Karte) werden sie automatisch in dieser Reihenfolge zusammengeführt. Über ✚ vorab verbinden, um die Reihenfolge zu kontrollieren, oder überzählige mit ✕ entfernen.';
+        w.textContent = 'Nur die oberste Karte ist die veröffentlichte Präsentation. Jede Karte einzeln über ihren eigenen Speichern-Knopf sichern — nichts wird automatisch verbunden. Über ⇧ eine Karte nach oben stellen, um sie stattdessen zu veröffentlichen.';
         itemsEl.parentNode.insertBefore(w, itemsEl.nextSibling);
       }
       syncDocField();
@@ -879,7 +952,7 @@ function mergeDocs(docA, docB){
           slideCount = (doc.slides || []).length;
           baseName = file.name.replace(/\.bento\.json$/i, '').replace(/\.json$/i, '');
         }
-        items.push({ baseName: baseName, doc: doc, slideCount: slideCount, warnings: warnings, existing: false });
+        items.push({ baseName: baseName, doc: doc, slideCount: slideCount, warnings: warnings, existing: false, deckid: 0 });
         renderItems();
       } catch (e) {
         console.error(e);
@@ -930,7 +1003,7 @@ function mergeDocs(docA, docB){
     if (newBtn) {
       newBtn.addEventListener('click', function () {
         if (newBtn.dataset.hasdoc === '1') {
-          var docToPlay = computeCombinedDoc() || (existingScript ? JSON.parse(existingScript.textContent) : null);
+          var docToPlay = items.length ? items[0].doc : (existingScript ? JSON.parse(existingScript.textContent) : null);
           if (!docToPlay) return;
           if (bentoCmId) {
             newBtn.disabled = true;
@@ -962,7 +1035,7 @@ function mergeDocs(docA, docB){
           var blankDoc;
           try { blankDoc = JSON.parse(docField.value); } catch (e) { blankDoc = null; }
           if (!blankDoc || blankDoc.format !== 'bento/slides') return; // shouldn't happen — data_preprocessing() always seeds a blank doc server-side
-          items.push({ baseName: 'Neue-Praesentation', doc: blankDoc, slideCount: (blankDoc.slides || []).length, warnings: [], existing: false });
+          items.push({ baseName: 'Neue-Praesentation', doc: blankDoc, slideCount: (blankDoc.slides || []).length, warnings: [], existing: false, deckid: 0 });
           renderItems();
         }
       });
