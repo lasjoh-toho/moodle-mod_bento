@@ -474,36 +474,56 @@
      *  already resets zusatz mode on its own, same as everywhere else
      *  this convention is used). The long-distance alternative to
      *  dragging a block across many slides by hand. */
-    /** Replaces the context menu's own content with one button per slide
-     *  (skipping `ownSlide`, since moving a block to the slide it's
-     *  already on would be a no-op) — clicking one performs the actual
-     *  move via moveBlockToSlide() and closes the menu, same as any other
-     *  context-menu action. Reuses the SAME menu element/positioning
-     *  already on screen rather than opening a second, separate popup. */
-    function showSlideNumberPicker(node, asZusatz, ownSlide) {
-      clearCtxMenu();
-      var total = totalSlideCount();
-      for (var n = 1; n <= total; n++) {
-        if (n === ownSlide) continue;
-        (function (targetSlide) {
-          addCtxBtn('Folie ' + targetSlide, function () {
-            moveBlockToSlide(node, targetSlide, asZusatz);
-          });
-        })(n);
+
+    /** Only a block that's DIRECTLY adjacent — nothing at all in between,
+     *  not even a marker — counts as a merge target. Deliberately
+     *  conservative: this means a merge can never silently cross a slide
+     *  break or a Zusatztext boundary, which would otherwise be a
+     *  confusing, easy-to-trigger-by-accident way to lose track of which
+     *  slide content actually belongs to. */
+    function previousContentSibling(node) {
+      var cur = node.previousElementSibling;
+      return (cur && cur.dataset.mbp) ? cur : null;
+    }
+    function nextContentSibling(node) {
+      var cur = node.nextElementSibling;
+      return (cur && cur.dataset.mbp) ? cur : null;
+    }
+
+    function mergeBlocks(first, second) {
+      if (!first || !second) return;
+      var firstIsImg = first.dataset.mbp === 'image';
+      var secondIsImg = second.dataset.mbp === 'image';
+      if (firstIsImg && !secondIsImg) {
+        // Image followed by text — the text becomes the image's own
+        // on-slide caption/citation rather than staying a separate block.
+        var capText = (second.textContent || '').trim();
+        if (capText) first.dataset.captionText = first.dataset.captionText ? (first.dataset.captionText + ' ' + capText) : capText;
+        second.remove();
+      } else if (!firstIsImg && secondIsImg) {
+        // Text immediately before an image — same idea, the text becomes
+        // that image's caption (a caption naturally reads BEFORE or AFTER
+        // its image depending on layout; treated the same either way).
+        var capText2 = (first.textContent || '').trim();
+        if (capText2) second.dataset.captionText = capText2 + (second.dataset.captionText ? (' ' + second.dataset.captionText) : '');
+        first.remove();
+      } else if (!firstIsImg && !secondIsImg) {
+        var firstHtml = first.innerHTML || '';
+        var secondHtml = second.innerHTML || '';
+        first.innerHTML = firstHtml && secondHtml ? (firstHtml + ' ' + secondHtml) : (firstHtml + secondHtml);
+        second.remove();
+      } else {
+        return; // two images — nothing sensible to merge them into
       }
-      if (!ctxMenu.children.length) {
-        var hint = document.createElement('span');
-        hint.style.cssText = 'color:#fff;font-size:11px;padding:6px 4px';
-        hint.textContent = 'Keine weitere Folie vorhanden';
-        ctxMenu.appendChild(hint);
-      }
-      // Re-clamp — the submenu can be a different size than whatever menu
-      // content was on screen when its position was first computed.
-      var rect = ctxMenu.getBoundingClientRect();
-      var left = Math.max(8, Math.min(rect.left, window.innerWidth - rect.width - 8));
-      var top = Math.max(8, Math.min(rect.top, window.innerHeight - rect.height - 8));
-      ctxMenu.style.left = left + 'px';
-      ctxMenu.style.top = top + 'px';
+      refreshSlideNumbers();
+      wireDragAndDrop();
+    }
+
+    function deleteBlock(node) {
+      if (!node || !node.parentNode) return;
+      node.remove();
+      refreshSlideNumbers();
+      wireDragAndDrop();
     }
 
     function moveBlockToSlide(node, targetSlideNum, asZusatz) {
@@ -602,6 +622,7 @@
         }
       }
       if (afterNode && afterNode !== blank.nextSibling) blank.parentNode.insertBefore(afterNode, blank.nextSibling);
+      refreshSlideNumbers(); // the marker above was always created with a hardcoded "Folie 1" label — this is what actually numbers it correctly
       wireDragAndDrop();
       return blank;
     }
@@ -637,12 +658,152 @@
     document.body.appendChild(dragHandle);
     var handleFor = null;
 
+    // Shows which slide (or Zusatztext of which slide) a block currently
+    // belongs to, and doubles as the trigger for relocating it — a
+    // dedicated, always-visible-on-hover control rather than another
+    // couple of entries in the already fairly full block context menu.
+    var slideBadge = document.createElement('button');
+    slideBadge.type = 'button';
+    slideBadge.className = 'mbp-slidebadge';
+    slideBadge.hidden = true;
+    slideBadge.title = 'Auf andere Folie verschieben';
+    document.body.appendChild(slideBadge);
+
+    // A circular "+" sitting in the gap between the hovered block and
+    // whatever comes right after it — merges them (or, image+text,
+    // assigns the text as that image's caption) with one click, rather
+    // than needing to open the context menu to find the same action.
+    var mergeBtn = document.createElement('button');
+    mergeBtn.type = 'button';
+    mergeBtn.className = 'mbp-mergebtn';
+    mergeBtn.hidden = true;
+    mergeBtn.title = 'Mit dem folgenden Block vereinigen';
+    mergeBtn.textContent = '+';
+    document.body.appendChild(mergeBtn);
+
+    var deleteBtn = document.createElement('button');
+    deleteBtn.type = 'button';
+    deleteBtn.className = 'mbp-deletebtn';
+    deleteBtn.hidden = true;
+    deleteBtn.title = 'Block löschen';
+    deleteBtn.textContent = '\u2715';
+    document.body.appendChild(deleteBtn);
+
+    // Shows/sets a text block's own role — "Folieninhalt" or, once in a
+    // Zusatztext range, which TYPE of Zusatztext block it is — mirroring
+    // the slide badge's position on the opposite (left) side. Moved here
+    // out of the tier-2 context menu, which had grown to hold this
+    // AND the merge/move/delete actions all at once.
+    var typeBadge = document.createElement('button');
+    typeBadge.type = 'button';
+    typeBadge.className = 'mbp-slidebadge mbp-typebadge';
+    typeBadge.hidden = true;
+    typeBadge.title = 'Blocktyp ändern';
+    document.body.appendChild(typeBadge);
+
     function positionHandleFor(node) {
       handleFor = node;
       var rect = node.getBoundingClientRect();
       dragHandle.style.left = (rect.left - 22) + 'px';
       dragHandle.style.top = (rect.top + rect.height / 2 - 9) + 'px';
       dragHandle.hidden = false;
+
+      var n = slideNumberOf(node);
+      slideBadge.textContent = (isInZusatzRange(node) ? 'Zusatztext \u00b7 ' : '') + 'Folie ' + n;
+      slideBadge.hidden = false; // must be visible before offsetWidth below reads anything meaningful
+      slideBadge.style.left = (rect.right - slideBadge.offsetWidth - 6) + 'px';
+      slideBadge.style.top = (rect.top - 11) + 'px';      slideBadge.onclick = function (ev) {
+        ev.preventDefault();
+        ev.stopPropagation();
+        var badgeRect = slideBadge.getBoundingClientRect();
+        clearCtxMenu();
+        var total = totalSlideCount();
+        var own = slideNumberOf(node);
+        for (var s = 1; s <= total; s++) {
+          if (s === own) continue;
+          (function (targetSlide) {
+            addCtxBtn('Folie ' + targetSlide, function () { moveBlockToSlide(node, targetSlide, false); });
+          })(s);
+          (function (targetSlide) {
+            addCtxBtn('\u2192 Zusatztext Folie ' + targetSlide, function () { moveBlockToSlide(node, targetSlide, true); });
+          })(s);
+        }
+        if (!ctxMenu.children.length) {
+          var hint = document.createElement('span');
+          hint.style.cssText = 'color:#fff;font-size:11px;padding:6px 4px';
+          hint.textContent = 'Keine weitere Folie vorhanden';
+          ctxMenu.appendChild(hint);
+        }
+        ctxMenu.style.display = 'flex';
+        var menuRect = ctxMenu.getBoundingClientRect();
+        ctxMenu.style.left = Math.max(8, Math.min(badgeRect.left, window.innerWidth - menuRect.width - 8)) + 'px';
+        ctxMenu.style.top = Math.max(8, badgeRect.bottom + 6) + 'px';
+      };
+
+      if (node.dataset.mbp === 'text') {
+        typeBadge.hidden = false;
+        typeBadge.textContent = isInZusatzRange(node) ? (LR_TYPE_LABELS[node.dataset.mbpType] || LR_TYPE_LABELS.explain) : 'Folieninhalt';
+        typeBadge.style.left = (rect.left + 6) + 'px';
+        typeBadge.style.top = (rect.top - 11) + 'px';
+        typeBadge.onclick = function (ev) {
+          ev.preventDefault();
+          ev.stopPropagation();
+          var badgeRect = typeBadge.getBoundingClientRect();
+          clearCtxMenu();
+          if (isInZusatzRange(node)) {
+            addCtxBtn('\u2192 Folieninhalt (kein Zusatztext)', function () {
+              toggleBlockZusatz(node, false);
+            });
+          }
+          Object.keys(LR_TYPE_LABELS).forEach(function (ty) {
+            addCtxBtn(LR_TYPE_LABELS[ty], function () {
+              if (!isInZusatzRange(node)) toggleBlockZusatz(node, true);
+              node.dataset.mbpType = ty;
+            });
+          });
+          ctxMenu.style.display = 'flex';
+          var menuRect2 = ctxMenu.getBoundingClientRect();
+          ctxMenu.style.left = Math.max(8, Math.min(badgeRect.left, window.innerWidth - menuRect2.width - 8)) + 'px';
+          ctxMenu.style.top = Math.max(8, badgeRect.bottom + 6) + 'px';
+        };
+      } else {
+        typeBadge.hidden = true;
+      }
+
+      deleteBtn.hidden = false; // must be visible before offsetWidth below reads anything meaningful
+      deleteBtn.style.left = (rect.right - slideBadge.offsetWidth - deleteBtn.offsetWidth - 14) + 'px';
+      deleteBtn.style.top = (rect.top - 11) + 'px';
+      deleteBtn.onclick = function (ev) {
+        ev.preventDefault();
+        ev.stopPropagation();
+        deleteBlock(node);
+        dragHandle.hidden = true;
+        slideBadge.hidden = true;
+        deleteBtn.hidden = true;
+        mergeBtn.hidden = true;
+        typeBadge.hidden = true;
+      };
+
+      var nb = nextContentSibling(node);
+      if (nb) {
+        mergeBtn.hidden = false;
+        mergeBtn.style.left = (rect.left + rect.width / 2 - 11) + 'px';
+        mergeBtn.style.top = (rect.bottom - 11) + 'px';
+        mergeBtn.title = nb.dataset.mbp === 'image' ? 'Als Bildunterschrift dem folgenden Bild zuordnen'
+          : (node.dataset.mbp === 'image' ? 'Folgenden Text als Bildunterschrift zuordnen' : 'Mit dem folgenden Block vereinigen');
+        mergeBtn.onclick = function (ev) {
+          ev.preventDefault();
+          ev.stopPropagation();
+          mergeBlocks(node, nb);
+          dragHandle.hidden = true;
+          slideBadge.hidden = true;
+          deleteBtn.hidden = true;
+          mergeBtn.hidden = true;
+          typeBadge.hidden = true;
+        };
+      } else {
+        mergeBtn.hidden = true;
+      }
     }
 
     dragHandle.addEventListener('dragstart', function (ev) {
@@ -655,6 +816,10 @@
       if (handleFor) handleFor.classList.remove('mbp-dragging');
       dragged = null;
       dragHandle.hidden = true;
+      slideBadge.hidden = true;
+      deleteBtn.hidden = true;
+      mergeBtn.hidden = true;
+      typeBadge.hidden = true;
     });
 
     function wireDragAndDrop() {
@@ -677,7 +842,7 @@
         };
       });
     }
-    lrDoc.addEventListener('mouseleave', function () { if (!dragged) dragHandle.hidden = true; });
+    lrDoc.addEventListener('mouseleave', function () { if (!dragged) { dragHandle.hidden = true; slideBadge.hidden = true; deleteBtn.hidden = true; mergeBtn.hidden = true; typeBadge.hidden = true; } });
 
     // ---- the 3-tier context menu itself ----
     function clearCtxMenu() { ctxMenu.innerHTML = ''; }
@@ -761,31 +926,6 @@
           if (split && split.after) placeCursorIn(split.after);
           wireDragAndDrop();
         });
-        var curInZusatz = isInZusatzRange(containerNode);
-        if (curInZusatz) {
-          addCtxBtn('\u2192 Folieninhalt', function () {
-            toggleBlockZusatz(containerNode, false);
-            delete containerNode.dataset.mbpType;
-          });
-        } else {
-          addCtxBtn('\u2192 Zusatztext', function () {
-            toggleBlockZusatz(containerNode, true);
-            containerNode.dataset.mbpType = 'explain';
-          });
-        }
-        Object.keys(LR_TYPE_LABELS).forEach(function (ty) {
-          addCtxBtn(LR_TYPE_LABELS[ty], function () {
-            if (!isInZusatzRange(containerNode)) toggleBlockZusatz(containerNode, true);
-            containerNode.dataset.mbpType = ty;
-          });
-        });
-        var myOwnSlide = slideNumberOf(containerNode);
-        addCtxBtn('\u21e2 Zu anderer Folie', function () {
-          showSlideNumberPicker(containerNode, false, myOwnSlide);
-        }, null, true);
-        addCtxBtn('\u21e2 Zu anderem Zusatztext', function () {
-          showSlideNumberPicker(containerNode, true, myOwnSlide);
-        }, null, true);
       } else {
         // Tier 3: text IS selected — the selection becomes its own new
         // block (before/after what's left of the original block keep
@@ -904,6 +1044,7 @@
           blocks.push({
             kind: 'image', dataUrl: node.getAttribute('src'), slideBreakBefore: pendingBreak,
             sourceUrl: node.dataset.sourceUrl, retrievedAt: node.dataset.retrievedAt,
+            captionText: node.dataset.captionText,
           });
           pendingBreak = false;
         } else {
@@ -1021,11 +1162,14 @@
             src: internImage(block.dataUrl), fit: 'contain', radius: 0,
           };
           // Only ever set when this image actually came through a traceable
-          // fetch (the proxy or a direct-CORS fetch) — a directly-pasted
-          // clipboard image file has no source URL at all, so it gets no
-          // citation object rather than one with an empty/misleading URL.
-          if (block.sourceUrl) {
-            imageEl.citation = { sourceUrl: block.sourceUrl, retrievedAt: block.retrievedAt || new Date().toISOString().slice(0, 10) };
+          // fetch (the proxy or a direct-CORS fetch) OR the teacher
+          // explicitly assigned a caption via the merge tool — a directly-
+          // pasted clipboard image with no caption assigned gets no
+          // citation object at all, rather than one with empty/misleading
+          // fields.
+          if (block.sourceUrl || block.captionText) {
+            imageEl.citation = { sourceUrl: block.sourceUrl || '', retrievedAt: block.retrievedAt || new Date().toISOString().slice(0, 10) };
+            if (block.captionText) imageEl.citation.author = block.captionText;
           }
           current.elements.push(imageEl);
           return;
