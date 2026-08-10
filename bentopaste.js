@@ -212,7 +212,7 @@
       var slots = [];
       if (html && html.trim()) {
         var doc = new DOMParser().parseFromString(html, 'text/html');
-        var nodes = doc.body ? doc.body.querySelectorAll('h1,h2,h3,h4,h5,h6,p,li,blockquote,img') : [];
+        var nodes = doc.body ? doc.body.querySelectorAll('h1,h2,h3,h4,h5,h6,p,li,blockquote,figcaption,img') : [];
         Array.prototype.forEach.call(nodes, function (node) {
           var tag = node.tagName.toLowerCase();
           if (tag === 'img') {

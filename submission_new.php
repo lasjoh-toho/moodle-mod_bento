@@ -86,6 +86,14 @@ echo $OUTPUT->heading(format_string($bento->name) . ' — ' . get_string('create
 echo html_writer::start_tag('form', ['method' => 'post', 'action' => new moodle_url('/mod/bento/submission_new.php', ['id' => $cm->id])]);
 echo html_writer::empty_tag('input', ['type' => 'hidden', 'name' => 'sesskey', 'value' => sesskey()]);
 
+$pastetilehtml = $bento->allowstudentpaste
+    ? '
+            <button type="button" class="mod-bento-tile mod-bento-tile-paste" id="mod-bento-pastetile">
+                <span class="mod-bento-tile-title">' . get_string('pastetile', 'mod_bento') . '</span>
+                <span class="mod-bento-tile-sub">' . get_string('pastetilesub', 'mod_bento') . '</span>
+            </button>'
+    : '';
+
 echo '
     <div class="mod-bento-importer" id="mod-bento-importer" data-courseid="' . (int) $course->id . '" data-cmid="' . (int) $cm->id . '" data-termsagreed="' . (bento_has_agreed_current_terms((int) $USER->id) ? '1' : '0') . '">
         <p class="form-text text-muted mod-bento-edithint">' . get_string('editusehint', 'mod_bento') . '</p>
@@ -102,11 +110,7 @@ echo '
                 <span class="mod-bento-tile-title">' . get_string('droppptxhere', 'mod_bento') . '</span>
                 <span class="mod-bento-tile-sub">' . get_string('droppptxsub', 'mod_bento') . '</span>
                 <input type="file" id="mod-bento-file" accept=".pptx,.ppt,.json,.html,.htm" multiple style="display:none">
-            </div>
-            <button type="button" class="mod-bento-tile mod-bento-tile-paste" id="mod-bento-pastetile">
-                <span class="mod-bento-tile-title">' . get_string('pastetile', 'mod_bento') . '</span>
-                <span class="mod-bento-tile-sub">' . get_string('pastetilesub', 'mod_bento') . '</span>
-            </button>
+            </div>' . $pastetilehtml . '
         </div>
         <div class="mod-bento-items" id="mod-bento-items"></div>
     </div>';

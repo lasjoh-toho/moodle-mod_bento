@@ -102,6 +102,13 @@ function xmldb_bento_upgrade($oldversion) {
         $dbman->add_field($table, $field);
     }
 
+    // ---- per-instance student-paste-tile flag: one new column on `bento` ----
+    $table = new xmldb_table('bento');
+    $field = new xmldb_field('allowstudentpaste', XMLDB_TYPE_INTEGER, '1', null, XMLDB_NOTNULL, null, '0', 'loginonly');
+    if (!$dbman->field_exists($table, $field)) {
+        $dbman->add_field($table, $field);
+    }
+
     // ---- new table: site-wide terms-of-use agreement, one row per user ----
     $table = new xmldb_table('bento_agreements');
     if (!$dbman->table_exists($table)) {

@@ -99,6 +99,11 @@ class mod_bento_mod_form extends moodleform_mod {
         $mform->addHelpButton('submissionvisibility', 'submissionvisibility', 'mod_bento');
         $mform->hideIf('submissionvisibility', 'allowstudentsubmissions', 'notchecked');
 
+        $mform->addElement('advcheckbox', 'allowstudentpaste', get_string('allowstudentpaste', 'mod_bento'));
+        $mform->setDefault('allowstudentpaste', 0);
+        $mform->addHelpButton('allowstudentpaste', 'allowstudentpaste', 'mod_bento');
+        $mform->hideIf('allowstudentpaste', 'allowstudentsubmissions', 'notchecked');
+
         // ---- grading, availability, common module settings ----
         $this->standard_grading_coursemodule_elements();
         $this->standard_coursemodule_elements();

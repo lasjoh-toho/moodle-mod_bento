@@ -51,7 +51,8 @@ if (!empty($bento->loginonly)) {
 
 bento_view($bento, $course, $cm, $context);
 
-if (!$bento->allowstudentsubmissions) {
+$showmaster = optional_param('master', 0, PARAM_BOOL);
+if (!$bento->allowstudentsubmissions || $showmaster) {
     // ---- classic single-document present mode (v1 behaviour) ----
     $shellpath = __DIR__ . '/asset/bento-shell.html';
     $shell = file_get_contents($shellpath);
@@ -95,7 +96,9 @@ if (!$bento->allowstudentsubmissions) {
     $headinject = $caneditmaster ? bento_moodle_config_meta((int) $cm->id) . $bootstrap : $bootstrap;
     $html = preg_replace('/<head[^>]*>/', '$0' . str_replace('$', '\\$', $headinject), $html, 1);
 
-    $backlink = bento_back_link_html(course_get_url($course), get_string('backtocourse', 'mod_bento'));
+    $backtarget = $showmaster ? new moodle_url('/mod/bento/view.php', ['id' => $cm->id]) : course_get_url($course);
+    $backlabel = $showmaster ? get_string('backtogallery', 'mod_bento') : get_string('backtocourse', 'mod_bento');
+    $backlink = bento_back_link_html($backtarget, $backlabel);
     $html = preg_replace('/<body[^>]*>/', '$0' . str_replace('$', '\\$', $backlink), $html, 1);
 
     header('Content-Type: text/html; charset=utf-8');
@@ -132,6 +135,17 @@ if ($bento->duedatevisible && $bento->duedate > 0) {
         $pastdue ? 'warning' : 'info'
     );
 }
+
+echo html_writer::start_div('mod-bento-master card mb-4');
+echo html_writer::start_div('card-body');
+echo html_writer::tag('h5', format_string($bento->name), ['class' => 'card-title']);
+echo html_writer::link(
+    new moodle_url('/mod/bento/view.php', ['id' => $cm->id, 'master' => 1]),
+    get_string('presentmasterpresentation', 'mod_bento'),
+    ['class' => 'btn btn-primary']
+);
+echo html_writer::end_div();
+echo html_writer::end_div();
 
 if ($cansubmit) {
     echo html_writer::start_div('mod-bento-mine card mb-4');
