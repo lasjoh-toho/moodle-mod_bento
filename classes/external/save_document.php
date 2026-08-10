@@ -39,15 +39,21 @@ use invalid_parameter_exception;
  * mod_bento_save_document — called by Bento's own Save button (editor/
  * moodle.ts) whenever it detects a mod/bento context.
  *
- * WHICH document this writes to is decided entirely server-side from the
- * calling user's OWN capabilities — never from anything the client sends —
- * exactly mirroring edit.php's own branch (see that file's comment):
+ * WHICH document this writes to is decided from the calling user's OWN
+ * capabilities plus the optional deckid, exactly mirroring edit.php's own
+ * branch (see that file's comment):
  *
- *  - mod/bento:edit → the shared master document (bento.document).
- *  - otherwise, mod/bento:submit + allowstudentsubmissions on → the
- *    caller's OWN row in bento_submissions, found via (bentoid, userid) —
- *    never a client-supplied submission id, so there's no way for one
- *    student's request to end up writing into another student's row.
+ *  - deckid > 0 (requires mod/bento:edit) → that specific draft's own row
+ *    in bento_decks — a client-supplied deckid is safe here precisely
+ *    because get_record() below also filters on bentoid, so a request
+ *    naming another activity's deck simply 404s rather than writing
+ *    somewhere it shouldn't.
+ *  - deckid = 0 and mod/bento:edit → the shared master document
+ *    (bento.document).
+ *  - deckid = 0 and mod/bento:submit only → the caller's OWN row in
+ *    bento_submissions, found via (bentoid, userid) — never a client-
+ *    supplied submission id, so there's no way for one student's request
+ *    to end up writing into another student's row.
  *
  * @package     mod_bento
  * @copyright   2026 The Bento authors
@@ -59,6 +65,7 @@ class save_document extends external_api {
         return new external_function_parameters([
             'cmid' => new external_value(PARAM_INT, 'course module id'),
             'document' => new external_value(PARAM_RAW, 'the full bento/slides JSON document'),
+            'deckid' => new external_value(PARAM_INT, '0 for the published document, or a specific draft\'s own id', VALUE_DEFAULT, 0),
         ]);
     }
 
@@ -72,14 +79,16 @@ class save_document extends external_api {
     /**
      * @param int $cmid
      * @param string $document raw JSON
+     * @param int $deckid
      * @return array
      */
-    public static function execute($cmid, $document): array {
+    public static function execute($cmid, $document, $deckid = 0): array {
         global $DB, $USER;
 
         $params = self::validate_parameters(self::execute_parameters(), [
             'cmid' => $cmid,
             'document' => $document,
+            'deckid' => $deckid,
         ]);
 
         $cm = get_coursemodule_from_id('bento', $params['cmid'], 0, false, MUST_EXIST);
@@ -100,6 +109,17 @@ class save_document extends external_api {
         unset($decoded['readonly']);
         $now = time();
         $cleandocument = json_encode($decoded);
+
+        if ($params['deckid'] > 0) {
+            require_capability('mod/bento:edit', $context);
+            $deck = $DB->get_record('bento_decks', ['id' => $params['deckid'], 'bentoid' => $cm->instance], '*', MUST_EXIST);
+            $DB->update_record('bento_decks', (object) [
+                'id' => $deck->id,
+                'document' => $cleandocument,
+                'timemodified' => $now,
+            ]);
+            return ['ok' => true, 'timemodified' => $now];
+        }
 
         if (has_capability('mod/bento:edit', $context)) {
             $DB->update_record('bento', (object) [

@@ -735,7 +735,7 @@ function mergeDocs(docA, docB){
         '</div>' +
         (isTop ? '' : '<button type="button" class="mod-bento-item-promote" title="Nach oben stellen (wird beim Speichern die veröffentlichte Präsentation)">⇧</button>') +
         '<button type="button" class="mod-bento-item-save" title="Diese Karte einzeln speichern">' + (isTop ? 'Veröffentlichen' : 'Speichern') + '</button>' +
-        '<button type="button" class="mod-bento-item-play" title="Vorschau">▶</button>' +
+        '<button type="button" class="mod-bento-item-play" title="Öffnen (im vollen Editor, mit Speichern)">▶</button>' +
         '<button type="button" class="mod-bento-item-download" title="Als .bento.html herunterladen">⬇</button>' +
         '<button type="button" class="mod-bento-item-remove" title="Entfernen">✕</button>';
 
@@ -793,29 +793,61 @@ function mergeDocs(docA, docB){
        *  what actually persists it, to its own record, independent of
        *  every other card. */
       var openForEditing = function () {
-        // Open the tab SYNCHRONOUSLY, in direct response to the click —
-        // once an await happens first, some browsers no longer treat the
-        // later window.open() as user-initiated and silently block it.
-        var win = window.open('', '_blank');
-        if (!win) { alert('Popup blockiert — bitte Popups für diese Seite erlauben'); return; }
-        win.document.write('<!doctype html><meta charset="utf-8"><title>Bento wird geladen…</title>' +
-          '<body style="font-family:system-ui,sans-serif;padding:2.5rem;color:#667">Bento wird geladen…</body>');
+        if (!bentoCmId) {
+          // Nothing to open INTO yet (still adding a brand new activity) —
+          // a plain, non-destructive preview is all that's possible.
+          var win = window.open('', '_blank');
+          if (!win) { alert('Popup blockiert — bitte Popups für diese Seite erlauben'); return; }
+          win.document.write('<!doctype html><meta charset="utf-8"><title>Bento wird geladen…</title>' +
+            '<body style="font-family:system-ui,sans-serif;padding:2.5rem;color:#667">Bento wird geladen…</body>');
+          playBtn.disabled = true;
+          getShell().then(function (shell) {
+            var html = spliceDoc(shell, it.doc);
+            win.document.open();
+            win.document.write(html);
+            win.document.close();
+          }).catch(function (e) {
+            console.error(e);
+            win.close();
+            alert('Konnte die Präsentation nicht öffnen: ' + (e.message || e));
+          }).finally(function () { playBtn.disabled = false; });
+          return;
+        }
+
+        var nowTop = items[0] === it;
+        var goToEditor = function (deckid) {
+          var url = M.cfg.wwwroot + '/mod/bento/edit.php?id=' + bentoCmId
+            + (deckid ? '&deckid=' + deckid : '')
+            + '&returnurl=' + encodeURIComponent(location.pathname + location.search + location.hash);
+          window.location.href = url;
+        };
+        var alreadyPersisted = (!bentoCanDeck && it.existing) || (bentoCanDeck && ((nowTop && it.existing) || it.deckid > 0));
+        if (alreadyPersisted) {
+          // Already in the database exactly as shown — no need to save
+          // anything first, straight to the real editor (full save-back
+          // and back-button capability there).
+          goToEditor(bentoCanDeck && !nowTop ? it.deckid : 0);
+          return;
+        }
+        // Not yet persisted — save it where it currently belongs, THEN
+        // open the real editor on exactly what was just saved.
         playBtn.disabled = true;
-        getShell().then(function (shell) {
-          var html = spliceDoc(shell, it.doc);
-          win.document.open();
-          win.document.write(html);
-          win.document.close();
+        var task = (!bentoCanDeck || nowTop)
+          ? saveDocToMoodle(bentoCmId, it.doc)
+          : saveDeckToMoodle(bentoCmId, it.deckid || 0, it.baseName, it.doc).then(function (res) { it.deckid = res.deckid; });
+        task.then(function () {
+          if (!bentoCanDeck || nowTop) it.existing = true;
+          goToEditor(bentoCanDeck && !nowTop ? it.deckid : 0);
         }).catch(function (e) {
           console.error(e);
-          win.close();
-          alert('Konnte die Präsentation nicht öffnen: ' + (e.message || e));
-        }).finally(function () { playBtn.disabled = false; });
+          alert('Konnte nicht speichern: ' + (e.message || e));
+          playBtn.disabled = false;
+        });
       };
       playBtn.addEventListener('click', openForEditing);
       if (titleEl) {
         titleEl.classList.add('mod-bento-item-name-clickable');
-        titleEl.title = 'Vorschau';
+        titleEl.title = 'Öffnen';
         titleEl.addEventListener('click', openForEditing);
       }
       card.querySelector('.mod-bento-item-download').addEventListener('click', function () {

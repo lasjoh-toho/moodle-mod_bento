@@ -43,6 +43,7 @@ require(__DIR__ . '/../../config.php');
 require_once(__DIR__ . '/lib.php');
 
 $id = required_param('id', PARAM_INT);
+$deckid = optional_param('deckid', 0, PARAM_INT);
 
 $cm = get_coursemodule_from_id('bento', $id, 0, false, MUST_EXIST);
 $course = get_course($cm->course);
@@ -54,7 +55,19 @@ bento_require_current_schema();
 
 $caneditmaster = has_capability('mod/bento:edit', $context);
 $pastdue = false;
-if ($caneditmaster) {
+$deck = null;
+if ($deckid > 0) {
+    // Drafts are a teacher/master-document concept only — a student's own
+    // bento_submissions row has no equivalent, so this branch requires
+    // exactly the same capability the published document itself does.
+    require_capability('mod/bento:edit', $context);
+    if (!empty($bento->loginonly)) {
+        bento_require_not_guest();
+    }
+    $deck = $DB->get_record('bento_decks', ['id' => $deckid, 'bentoid' => $cm->instance], '*', MUST_EXIST);
+    $document = $deck->document;
+    $ownerlabel = ' — ' . get_string('draftlabel', 'mod_bento', $deck->name ?: get_string('untitleddraft', 'mod_bento'));
+} else if ($caneditmaster) {
     if (!empty($bento->loginonly)) {
         bento_require_not_guest();
     }
@@ -81,6 +94,9 @@ if ($caneditmaster) {
 
 $returnurlraw = optional_param('returnurl', '', PARAM_LOCALURL);
 $editparams = ['id' => $id];
+if ($deckid > 0) {
+    $editparams['deckid'] = $deckid;
+}
 if ($returnurlraw !== '') {
     $editparams['returnurl'] = $returnurlraw;
 }
@@ -103,7 +119,7 @@ $html = preg_replace(
 
 $title = format_string($bento->name) . $ownerlabel;
 
-$configmeta = $pastdue ? '' : bento_moodle_config_meta((int) $cm->id);
+$configmeta = $pastdue ? '' : bento_moodle_config_meta((int) $cm->id, $deckid);
 
 $jstitle = json_encode($title . ' — Bearbeiten');
 $titlescript = '<script>document.title = ' . str_replace('$', '\\$', $jstitle) . ';</script>';
@@ -127,6 +143,9 @@ if ($pastdue) {
 // $returnurlraw already read above, before the terms gate.
 if ($returnurlraw !== '') {
     $backtarget = new moodle_url($returnurlraw);
+    $backlabel = get_string('backtoactivitysettings', 'mod_bento');
+} else if ($deckid > 0) {
+    $backtarget = new moodle_url('/course/modedit.php', ['update' => $cm->id, 'return' => 0]);
     $backlabel = get_string('backtoactivitysettings', 'mod_bento');
 } else {
     $backtarget = $caneditmaster

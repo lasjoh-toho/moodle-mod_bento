@@ -255,13 +255,16 @@ function bento_require_current_schema(): void {
  * @param int $cmid
  * @return string
  */
-function bento_moodle_config_meta(int $cmid): string {
+function bento_moodle_config_meta(int $cmid, int $deckid = 0): string {
     global $CFG;
     $moodleconfig = [
         'cmid' => $cmid,
         'sesskey' => sesskey(),
         'wwwroot' => $CFG->wwwroot,
     ];
+    if ($deckid > 0) {
+        $moodleconfig['deckid'] = $deckid;
+    }
     // json_encode's default escaping already turns '<' into '\u003c' inside
     // string values — safe to drop straight into an HTML attribute — but the
     // attribute itself still needs its own quotes escaped, and any literal
