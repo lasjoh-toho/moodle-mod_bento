@@ -200,8 +200,16 @@
      *  auto-deciding slide/Zusatztext, that stays a manual, cursor-menu
      *  choice made in the continuous document further down. */
     function parsePastedContent(html, plain, imageFiles) {
-      var blocks = [];
-      var work = Promise.resolve();
+      // One entry per node, in ORIGINAL document order — text fills in
+      // immediately (synchronous), an image is a PROMISE that resolves to
+      // its own block (or null on failure) later. Building the final
+      // array by INDEX (not by push-whenever-it-resolves) is what keeps
+      // the original interleaving of images and text intact regardless of
+      // how long any individual image fetch takes — previously, every
+      // text block (always synchronous) ended up before every image block
+      // (always resolved later), even when the image appeared BEFORE that
+      // text in the actual source document.
+      var slots = [];
       if (html && html.trim()) {
         var doc = new DOMParser().parseFromString(html, 'text/html');
         var nodes = doc.body ? doc.body.querySelectorAll('h1,h2,h3,h4,h5,h6,p,li,blockquote,img') : [];
@@ -210,30 +218,35 @@
           if (tag === 'img') {
             var src = node.getAttribute('src');
             if (!src) return;
-            work = work.then(function () {
-              return tryFetchImageAsDataUrl(src).then(function (dataUrl) {
-                if (dataUrl) blocks.push({ kind: 'image', dataUrl: dataUrl, sourceUrl: src, retrievedAt: new Date().toISOString().slice(0, 10) });
-              });
-            });
+            slots.push(tryFetchImageAsDataUrl(src).then(function (dataUrl) {
+              return dataUrl ? { kind: 'image', dataUrl: dataUrl, sourceUrl: src, retrievedAt: new Date().toISOString().slice(0, 10) } : null;
+            }));
             return;
           }
           var innerHtml = sanitizeInlineHtml(node);
           if (!innerHtml.trim()) return;
           var level = /^h([1-6])$/.exec(tag);
-          blocks.push({ kind: 'text', html: innerHtml, headingLevel: level ? +level[1] : 0 });
+          slots.push({ kind: 'text', html: innerHtml, headingLevel: level ? +level[1] : 0 });
         });
       } else if (plain && plain.trim()) {
         var paragraphs = plain.split(/\n{2,}/).map(function (p) { return p.replace(/[ \t]+/g, ' ').trim(); }).filter(Boolean);
-        paragraphs.forEach(function (text) { blocks.push({ kind: 'text', html: esc(text), headingLevel: 0 }); });
+        paragraphs.forEach(function (text) { slots.push({ kind: 'text', html: esc(text), headingLevel: 0 }); });
       }
       imageFiles.forEach(function (file) {
-        work = work.then(function () {
-          return fileToDataUrl(file).catch(function () { return null; }).then(function (dataUrl) {
-            if (dataUrl) blocks.push({ kind: 'image', dataUrl: dataUrl });
-          });
-        });
+        slots.push(fileToDataUrl(file).catch(function () { return null; }).then(function (dataUrl) {
+          return dataUrl ? { kind: 'image', dataUrl: dataUrl } : null;
+        }));
       });
-      return work.then(function () { return blocks; });
+      // Every image fetch runs CONCURRENTLY now (Promise.all over the
+      // whole slots array — a plain value resolves through Promise.all
+      // immediately, same as a real promise would) rather than one
+      // sequential chain where document N's fetch didn't even START until
+      // every document before it had already finished, failed, or timed
+      // out — the dominant cause of a paste with several images visibly
+      // taking a long time / looking stuck.
+      return Promise.all(slots).then(function (resolved) {
+        return resolved.filter(Boolean);
+      });
     }
 
     // ---- continuous document: markers, cursor menu, mode shading ----

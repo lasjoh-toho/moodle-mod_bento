@@ -702,20 +702,35 @@ function mergeDocs(docA, docB){
        *  card (computeCombinedDoc()), not just this one — see the New/Play
        *  tile further down for the actual save+redirect flow. */
       var openForEditing = function () {
-        // Deliberately ALWAYS a standalone preview, never a save — this
-        // card is only ONE piece of what might be a multi-card
-        // composition (an existing presentation plus a new unmerged
-        // import, say); saving just THIS card's own doc would silently
-        // overwrite/discard everything else. Only the top-level New/Play
-        // tile (which uses the auto-merged COMBINATION of every card, see
-        // computeCombinedDoc()) is safe to actually save+redirect from.
+        // Always the FULL auto-merged combination of every card (same
+        // computeCombinedDoc() the New/Play tile itself uses) — never just
+        // THIS card's own doc alone. That's what makes it safe to save+
+        // redirect from ANY card: whichever one gets clicked, the result
+        // is identical and always represents everything currently in the
+        // list, so nothing is ever silently discarded regardless of which
+        // card triggered it.
+        var docToOpen = computeCombinedDoc() || it.doc;
+        if (bentoCmId) {
+          playBtn.disabled = true;
+          saveDocToMoodle(bentoCmId, docToOpen).then(function () {
+            window.location.href = M.cfg.wwwroot + '/mod/bento/edit.php?id=' + bentoCmId + '&returnurl=' + encodeURIComponent(location.pathname + location.search + location.hash);
+          }).catch(function (e) {
+            console.error(e);
+            alert('Konnte nicht in Moodle speichern: ' + (e.message || e));
+            playBtn.disabled = false;
+          });
+          return;
+        }
+        // Open the tab SYNCHRONOUSLY, in direct response to the click —
+        // once an await happens first, some browsers no longer treat the
+        // later window.open() as user-initiated and silently block it.
         var win = window.open('', '_blank');
         if (!win) { alert('Popup blockiert — bitte Popups für diese Seite erlauben'); return; }
         win.document.write('<!doctype html><meta charset="utf-8"><title>Bento wird geladen…</title>' +
           '<body style="font-family:system-ui,sans-serif;padding:2.5rem;color:#667">Bento wird geladen…</body>');
         playBtn.disabled = true;
         getShell().then(function (shell) {
-          var html = spliceDoc(shell, it.doc);
+          var html = spliceDoc(shell, docToOpen);
           win.document.open();
           win.document.write(html);
           win.document.close();
@@ -815,7 +830,7 @@ function mergeDocs(docA, docB){
         var w = document.createElement('p');
         w.id = 'mod-bento-multi-warn';
         w.className = 'mod-bento-warn';
-        w.textContent = 'Es liegen noch ' + items.length + ' unverbundene Präsentationen vor — beim Speichern werden sie automatisch in dieser Reihenfolge zusammengeführt. Über ✚ vorab verbinden, um die Reihenfolge zu kontrollieren, oder überzählige mit ✕ entfernen.';
+        w.textContent = 'Es liegen noch ' + items.length + ' unverbundene Präsentationen vor — beim Speichern (auch über ▶/Titel einer Karte) werden sie automatisch in dieser Reihenfolge zusammengeführt. Über ✚ vorab verbinden, um die Reihenfolge zu kontrollieren, oder überzählige mit ✕ entfernen.';
         itemsEl.parentNode.insertBefore(w, itemsEl.nextSibling);
       }
       syncDocField();
