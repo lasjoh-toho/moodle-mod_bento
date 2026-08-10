@@ -90,6 +90,23 @@
       return String(s || '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
     }
 
+    /** Walks up from any node to the nearest ancestor that's a DIRECT
+     *  CHILD of lrDoc (a block, marker, or image) — or null if `node`
+     *  isn't inside lrDoc at all, or IS lrDoc itself. The single, shared
+     *  implementation for this — three separate call sites used to each
+     *  reimplement it slightly differently, one of them missing the
+     *  "stop at lrDoc itself" safety the other two had, which could walk
+     *  PAST lrDoc into the surrounding modal chrome in an edge case and
+     *  return something in a completely different part of the page,
+     *  silently disagreeing with whatever tier-detection had already
+     *  decided for the exact same cursor position. */
+    function findLrDocChild(node) {
+      if (!node) return null;
+      if (node.nodeType === 3) node = node.parentElement;
+      while (node && node !== lrDoc && node.parentElement !== lrDoc) node = node.parentElement;
+      return (node && node !== lrDoc) ? node : null;
+    }
+
     function openModal() {
       step1.style.display = '';
       step2.style.display = 'none';
@@ -232,6 +249,29 @@
         var paragraphs = plain.split(/\n{2,}/).map(function (p) { return p.replace(/[ \t]+/g, ' ').trim(); }).filter(Boolean);
         paragraphs.forEach(function (text) { slots.push({ kind: 'text', html: esc(text), headingLevel: 0 }); });
       }
+      // Safety net for a still-unexplained quirk: on some browsers, the
+      // FIRST synchronous read of clipboardData's 'text/html' format
+      // within a page session comes back suspiciously incomplete (missing
+      // paragraphs/captions that ARE present on a second, identical
+      // paste) — almost certainly the browser not having fully populated
+      // that specific clipboard format synchronously yet, not anything
+      // about this parsing logic itself. Can't reliably "wait" for more
+      // within the same paste event, so instead: compare how much TEXT
+      // the html pass actually extracted against what the SAME clipboard
+      // payload's plain-text format has — if html gave noticeably less,
+      // fall back to plain text's own paragraph split for the text
+      // portion (keeping any images the html pass DID find, since plain
+      // text can never carry those at all).
+      if (html && html.trim() && plain && plain.trim()) {
+        var htmlTextLen = slots.reduce(function (sum, s) {
+          return sum + (s && s.kind === 'text' ? (s.html || '').replace(/<[^>]+>/g, '').length : 0);
+        }, 0);
+        if (htmlTextLen < plain.trim().length * 0.5) {
+          var fallbackParagraphs = plain.split(/\n{2,}/).map(function (p) { return p.replace(/[ \t]+/g, ' ').trim(); }).filter(Boolean);
+          slots = slots.filter(function (s) { return !(s && s.kind === 'text'); }); // keep only images from the html pass
+          fallbackParagraphs.forEach(function (text) { slots.push({ kind: 'text', html: esc(text), headingLevel: 0 }); });
+        }
+      }
       imageFiles.forEach(function (file) {
         slots.push(fileToDataUrl(file).catch(function () { return null; }).then(function (dataUrl) {
           return dataUrl ? { kind: 'image', dataUrl: dataUrl } : null;
@@ -351,9 +391,7 @@
       if (!sel || !sel.rangeCount) return null;
       var range = sel.getRangeAt(0);
       if (!lrDoc.contains(range.startContainer)) return null;
-      var p = range.startContainer;
-      if (p.nodeType === 3) p = p.parentElement;
-      while (p && p.parentElement !== lrDoc) p = p.parentElement;
+      var p = findLrDocChild(range.startContainer);
       if (!p || p.dataset.mbp !== 'text') return null;
 
       var beforeRange = document.createRange();
@@ -378,19 +416,24 @@
      *  surrounding text, per feedback. `after` may be null (cursor was at
      *  the very end of the document) — an empty paragraph still gets
      *  created so there's somewhere to keep typing. */
-    function insertBreakWithBlankLine(beforeNode, afterNode) {
+    function insertBreakWithBlankLine(beforeNode, afterNode, atStart) {
       var blank = document.createElement('p');
       blank.dataset.mbp = 'text';
       var marker = makeBreakMarker(1);
-      var anchor = beforeNode || lrDoc.lastElementChild;
-      if (anchor && anchor.parentNode) {
-        anchor.parentNode.insertBefore(marker, anchor.nextSibling);
-        marker.parentNode.insertBefore(blank, marker.nextSibling);
+      if (atStart) {
+        lrDoc.insertBefore(blank, lrDoc.firstChild);
+        lrDoc.insertBefore(marker, blank);
       } else {
-        lrDoc.appendChild(marker);
-        lrDoc.appendChild(blank);
+        var anchor = beforeNode || lrDoc.lastElementChild;
+        if (anchor && anchor.parentNode) {
+          anchor.parentNode.insertBefore(marker, anchor.nextSibling);
+          marker.parentNode.insertBefore(blank, marker.nextSibling);
+        } else {
+          lrDoc.appendChild(marker);
+          lrDoc.appendChild(blank);
+        }
       }
-      if (afterNode) blank.parentNode.insertBefore(afterNode, blank.nextSibling);
+      if (afterNode && afterNode !== blank.nextSibling) blank.parentNode.insertBefore(afterNode, blank.nextSibling);
       wireDragAndDrop();
       return blank;
     }
@@ -509,9 +552,7 @@
       if (!sel || !sel.rangeCount || !lrDoc.contains(sel.anchorNode)) { ctxMenu.style.display = 'none'; return; }
       var range = sel.getRangeAt(0);
       var collapsed = range.collapsed;
-      var containerNode = range.startContainer;
-      if (containerNode.nodeType === 3) containerNode = containerNode.parentElement;
-      while (containerNode && containerNode.parentElement !== lrDoc && containerNode !== lrDoc) containerNode = containerNode.parentElement;
+      var containerNode = findLrDocChild(range.startContainer);
       var inBlock = containerNode && containerNode.dataset && containerNode.dataset.mbp === 'text';
       var haveCoords = typeof clientY === 'number';
 
@@ -528,12 +569,21 @@
         // a browser's own click-in-the-gap snapping didn't land where the
         // person actually clicked.
         addCtxBtn('\u25aa Folie endet hier', function () {
-          var anchor = haveCoords ? findAnchorForY(clientY) : ((containerNode && containerNode !== lrDoc) ? containerNode : null);
-          insertBreakWithBlankLine(anchor, null);
+          var anchor = haveCoords ? findAnchorForY(clientY) : containerNode;
+          insertBreakWithBlankLine(anchor, null, !anchor);
         });
       } else if (collapsed && inBlock) {
         // Tier 2: cursor inside a block, nothing selected — reclassify
-        // the WHOLE current block directly, or split it in two first.
+        // the WHOLE current block directly, split it, or ALSO end a slide
+        // right here (splits first, exactly like tier 1's own geometric
+        // fallback would, so this option is available regardless of
+        // whether the cursor landed precisely between blocks or inside
+        // one — no need to guess which tier will show up first).
+        addCtxBtn('\u25aa Folie endet hier', function () {
+          var split = splitParagraphAtCursor();
+          var atVeryStart = split && !split.before && !containerNode.previousElementSibling;
+          insertBreakWithBlankLine(split ? split.before : containerNode.previousElementSibling, split ? split.after : containerNode, atVeryStart);
+        });
         addCtxBtn('\u2702 Block teilen', function () {
           var split = splitParagraphAtCursor();
           if (split && split.after) placeCursorIn(split.after);
@@ -576,7 +626,7 @@
 
       ctxMenu.style.display = 'flex';
       var rect = range.getClientRects()[0];
-      if (!rect && containerNode && containerNode !== lrDoc) rect = containerNode.getBoundingClientRect();
+      if (!rect && containerNode) rect = containerNode.getBoundingClientRect();
       if ((!rect || (!rect.width && !rect.height)) && haveCoords) rect = { left: clientX, top: clientY, width: 0, height: 0 };
       if (!rect || (!rect.width && !rect.height && !haveCoords)) rect = lrDoc.getBoundingClientRect();
       var menuRect = ctxMenu.getBoundingClientRect();
@@ -610,8 +660,7 @@
       // selected text from its home paragraph and insert a fresh block
       // in its place, keeping whatever's left before/after as-is.
       void split; // (not used directly — see below)
-      var container = range.startContainer.nodeType === 3 ? range.startContainer.parentElement : range.startContainer;
-      while (container && container.parentElement !== lrDoc && container !== lrDoc) container = container.parentElement;
+      var container = findLrDocChild(range.startContainer);
       if (!container || container.dataset.mbp !== 'text') return;
 
       var fullText = container.textContent;
