@@ -268,8 +268,29 @@
         }, 0);
         if (htmlTextLen < plain.trim().length * 0.5) {
           var fallbackParagraphs = plain.split(/\n{2,}/).map(function (p) { return p.replace(/[ \t]+/g, ' ').trim(); }).filter(Boolean);
-          slots = slots.filter(function (s) { return !(s && s.kind === 'text'); }); // keep only images from the html pass
-          fallbackParagraphs.forEach(function (text) { slots.push({ kind: 'text', html: esc(text), headingLevel: 0 }); });
+          var fallbackIdx = 0;
+          // Walk the EXISTING slots in their original order and replace
+          // each text position (in order) with the corresponding fallback
+          // paragraph — images stay exactly where they already were. Once
+          // fallback paragraphs run out, any REMAINING original text slot
+          // is dropped (it would be exactly the incomplete html-extracted
+          // text this whole fallback exists to replace); any fallback
+          // paragraphs left over once every original text slot has been
+          // replaced get appended at the end. Restores a sensible
+          // interleaving instead of the earlier "strip every text slot
+          // out, bolt all of it onto the end" approach, which collapsed
+          // the whole document into "every image first, then every
+          // paragraph" regardless of how they were actually arranged.
+          slots = slots.map(function (s) {
+            if (!(s && s.kind === 'text')) return s;
+            if (fallbackIdx < fallbackParagraphs.length) {
+              return { kind: 'text', html: esc(fallbackParagraphs[fallbackIdx++]), headingLevel: 0 };
+            }
+            return null; // no fallback left to replace this original text slot with
+          }).filter(Boolean);
+          for (; fallbackIdx < fallbackParagraphs.length; fallbackIdx++) {
+            slots.push({ kind: 'text', html: esc(fallbackParagraphs[fallbackIdx]), headingLevel: 0 });
+          }
         }
       }
       imageFiles.forEach(function (file) {
@@ -363,6 +384,92 @@
         if (child === node || (child.contains && child.contains(node))) return slideNum;
       }
       return slideNum;
+    }
+
+    function totalSlideCount() {
+      var n = 0;
+      Array.prototype.forEach.call(lrDoc.children, function (node) {
+        if (node.dataset.mbpMarker === 'break') n++;
+      });
+      return n;
+    }
+
+    /** Every 'break' marker, in document order — markers[i] is slide i+1's
+     *  own starting marker. */
+    function breakMarkers() {
+      var out = [];
+      Array.prototype.forEach.call(lrDoc.children, function (node) {
+        if (node.dataset.mbpMarker === 'break') out.push(node);
+      });
+      return out;
+    }
+
+    /** Relocates `node` to slide `targetSlideNum` — either as ordinary
+     *  slide content (right after that slide's own break marker, before
+     *  anything else already there) or into that slide's Zusatztext range
+     *  (right after an existing zusatz-on marker there, or a newly
+     *  created one immediately before the NEXT slide's own break marker
+     *  — no matching zusatz-off needed in that case, since a break marker
+     *  already resets zusatz mode on its own, same as everywhere else
+     *  this convention is used). The long-distance alternative to
+     *  dragging a block across many slides by hand. */
+    /** Replaces the context menu's own content with one button per slide
+     *  (skipping `ownSlide`, since moving a block to the slide it's
+     *  already on would be a no-op) — clicking one performs the actual
+     *  move via moveBlockToSlide() and closes the menu, same as any other
+     *  context-menu action. Reuses the SAME menu element/positioning
+     *  already on screen rather than opening a second, separate popup. */
+    function showSlideNumberPicker(node, asZusatz, ownSlide) {
+      clearCtxMenu();
+      var total = totalSlideCount();
+      for (var n = 1; n <= total; n++) {
+        if (n === ownSlide) continue;
+        (function (targetSlide) {
+          addCtxBtn('Folie ' + targetSlide, function () {
+            moveBlockToSlide(node, targetSlide, asZusatz);
+          });
+        })(n);
+      }
+      if (!ctxMenu.children.length) {
+        var hint = document.createElement('span');
+        hint.style.cssText = 'color:#fff;font-size:11px;padding:6px 4px';
+        hint.textContent = 'Keine weitere Folie vorhanden';
+        ctxMenu.appendChild(hint);
+      }
+      // Re-clamp — the submenu can be a different size than whatever menu
+      // content was on screen when its position was first computed.
+      var rect = ctxMenu.getBoundingClientRect();
+      var left = Math.max(8, Math.min(rect.left, window.innerWidth - rect.width - 8));
+      var top = Math.max(8, Math.min(rect.top, window.innerHeight - rect.height - 8));
+      ctxMenu.style.left = left + 'px';
+      ctxMenu.style.top = top + 'px';
+    }
+
+    function moveBlockToSlide(node, targetSlideNum, asZusatz) {
+      var markers = breakMarkers();
+      var targetMarker = markers[targetSlideNum - 1];
+      if (!targetMarker) return;
+      var nextMarker = markers[targetSlideNum] || null; // null = target is the last slide, range extends to end of doc
+      if (!asZusatz) {
+        lrDoc.insertBefore(node, targetMarker.nextSibling);
+        refreshSlideNumbers();
+        wireDragAndDrop();
+        return;
+      }
+      var cursor = targetMarker.nextSibling;
+      var zusatzOn = null;
+      while (cursor && cursor !== nextMarker) {
+        if (cursor.dataset.mbpMarker === 'zusatz-on') { zusatzOn = cursor; break; }
+        cursor = cursor.nextSibling;
+      }
+      if (zusatzOn) {
+        lrDoc.insertBefore(node, zusatzOn.nextSibling);
+      } else {
+        lrDoc.insertBefore(makeModeMarker(true), nextMarker);
+        lrDoc.insertBefore(node, nextMarker);
+      }
+      refreshSlideNumbers();
+      wireDragAndDrop();
     }
 
     /** Whether `node` currently falls inside a Zusatztext (on/off marker)
@@ -513,12 +620,16 @@
 
     // ---- the 3-tier context menu itself ----
     function clearCtxMenu() { ctxMenu.innerHTML = ''; }
-    function addCtxBtn(label, onClick, cssClass) {
+    function addCtxBtn(label, onClick, cssClass, keepOpen) {
       var b = document.createElement('button');
       b.type = 'button';
       if (cssClass) b.className = cssClass;
       b.textContent = label;
-      b.addEventListener('mousedown', function (ev) { ev.preventDefault(); onClick(); ctxMenu.style.display = 'none'; });
+      b.addEventListener('mousedown', function (ev) {
+        ev.preventDefault();
+        onClick();
+        if (!keepOpen) ctxMenu.style.display = 'none';
+      });
       ctxMenu.appendChild(b);
       return b;
     }
@@ -607,6 +718,13 @@
             containerNode.dataset.mbpType = ty;
           });
         });
+        var myOwnSlide = slideNumberOf(containerNode);
+        addCtxBtn('\u21e2 Zu anderer Folie', function () {
+          showSlideNumberPicker(containerNode, false, myOwnSlide);
+        }, null, true);
+        addCtxBtn('\u21e2 Zu anderem Zusatztext', function () {
+          showSlideNumberPicker(containerNode, true, myOwnSlide);
+        }, null, true);
       } else {
         // Tier 3: text IS selected — the selection becomes its own new
         // block (before/after what's left of the original block keep
