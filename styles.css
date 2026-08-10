@@ -97,23 +97,23 @@
   color: #B8860B; background: #FFF3D6; padding: 2px 8px; border-radius: 999px;
 }
 .mod-bento-paste-ctxmenu {
-  position: fixed; z-index: 2100; display: flex; gap: 4px; padding: 5px; background: #14161c;
+  position: fixed; z-index: 2100; display: flex; gap: 5px; padding: 6px; background: #14161c;
   border-radius: 8px; box-shadow: 0 6px 18px rgba(0,0,0,.35);
 }
 .mod-bento-paste-ctxmenu button {
-  border: none; background: rgba(255,255,255,.1); color: #fff; font-size: 11.5px; padding: 6px 10px;
+  border: none; background: #f2f3f5; color: #14161c; font-size: 11.5px; font-weight: 600; padding: 6px 10px;
   border-radius: 6px; cursor: pointer; white-space: nowrap;
 }
-.mod-bento-paste-ctxmenu button:hover { background: rgba(255,255,255,.22); }
+.mod-bento-paste-ctxmenu button:hover { background: #ffffff; }
 .mod-bento-paste-ctxmenu { flex-wrap: wrap; max-width: 320px; }
-.mbp-ctx-danger { background: rgba(220,80,60,.5) !important; }
-.mbp-ctx-danger:hover { background: rgba(220,80,60,.75) !important; }
+.mbp-ctx-danger { background: #f6c9c0 !important; color: #7a2015 !important; }
+.mbp-ctx-danger:hover { background: #f2ab9d !important; }
 .mod-bento-paste-doc [data-mbp] {
   position: relative;
   border: 1px solid #e4e7ec;
   border-radius: 8px;
   padding: 8px 10px;
-  margin: 0 0 10px;
+  margin: 0 0 22px;
 }
 .mod-bento-paste-doc [data-mbp]:hover { border-color: #c7ccd6; }
 .mod-bento-paste-doc [data-mbp].mbp-dragging { opacity: 0.4; }

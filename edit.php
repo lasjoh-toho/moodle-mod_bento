@@ -79,7 +79,12 @@ if ($caneditmaster) {
     }
 }
 
-bento_require_terms_agreed(new moodle_url('/mod/bento/edit.php', ['id' => $id]));
+$returnurlraw = optional_param('returnurl', '', PARAM_LOCALURL);
+$editparams = ['id' => $id];
+if ($returnurlraw !== '') {
+    $editparams['returnurl'] = $returnurlraw;
+}
+bento_require_terms_agreed(new moodle_url('/mod/bento/edit.php', $editparams));
 
 $shellpath = __DIR__ . '/asset/bento-shell.html';
 $shell = file_get_contents($shellpath);
@@ -114,11 +119,21 @@ if ($pastdue) {
 // elsewhere — view.php's own teacher-facing back-link targets the course,
 // submission.php's own back-link targets view.php (the gallery) — this
 // page just never had one of its own before, regardless of which of the
-// two documents/audiences it's currently showing.
-$backtarget = $caneditmaster
-    ? course_get_url($course)
-    : new moodle_url('/mod/bento/view.php', ['id' => $cm->id]);
-$backlabel = $caneditmaster ? get_string('backtocourse', 'mod_bento') : get_string('backtogallery', 'mod_bento');
+// two documents/audiences it's currently showing. An explicit returnurl
+// (set by mod_form.php's own New/Play tile when it saves-then-redirects
+// here) takes priority over both: someone who started from the activity
+// SETTINGS form should return to editing those settings, not jump
+// straight to the course page or gallery instead.
+// $returnurlraw already read above, before the terms gate.
+if ($returnurlraw !== '') {
+    $backtarget = new moodle_url($returnurlraw);
+    $backlabel = get_string('backtoactivitysettings', 'mod_bento');
+} else {
+    $backtarget = $caneditmaster
+        ? course_get_url($course)
+        : new moodle_url('/mod/bento/view.php', ['id' => $cm->id]);
+    $backlabel = $caneditmaster ? get_string('backtocourse', 'mod_bento') : get_string('backtogallery', 'mod_bento');
+}
 $backlink = bento_back_link_html($backtarget, $backlabel);
 $html = preg_replace('/<body[^>]*>/', '$0' . str_replace('$', '\\$', $backlink), $html, 1);
 

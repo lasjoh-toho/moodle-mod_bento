@@ -697,30 +697,18 @@ function mergeDocs(docA, docB){
       });
       var playBtn = card.querySelector('.mod-bento-item-play');
       var titleEl = card.querySelector('.mod-bento-item-name');
-      /** Opening a presentation should actually be ABLE to save back into
-       *  Moodle — a detached preview tab (just the shell + doc, no
-       *  Moodle session/webservice wiring at all) never could. When a real
-       *  activity/submission already exists (bentoCmId), save the CURRENT
-       *  merged doc there first, then land in the real edit.php — which
-       *  has full save capability, since it's the actual Bento app running
-       *  with Moodle's own meta-tag config. Only falls back to a
-       *  standalone preview when there's genuinely nothing to save INTO
-       *  yet (still adding a brand new activity). */
+      /** A single card's own ▶/title is a PREVIEW only — never a save.
+       *  Saving into Moodle needs the auto-merged COMBINATION of every
+       *  card (computeCombinedDoc()), not just this one — see the New/Play
+       *  tile further down for the actual save+redirect flow. */
       var openForEditing = function () {
-        if (bentoCmId) {
-          playBtn.disabled = true;
-          saveDocToMoodle(bentoCmId, it.doc).then(function () {
-            window.location.href = M.cfg.wwwroot + '/mod/bento/edit.php?id=' + bentoCmId;
-          }).catch(function (e) {
-            console.error(e);
-            alert('Konnte nicht in Moodle speichern: ' + (e.message || e));
-            playBtn.disabled = false;
-          });
-          return;
-        }
-        // Open the tab SYNCHRONOUSLY, in direct response to the click —
-        // once an await happens first, some browsers no longer treat the
-        // later window.open() as user-initiated and silently block it.
+        // Deliberately ALWAYS a standalone preview, never a save — this
+        // card is only ONE piece of what might be a multi-card
+        // composition (an existing presentation plus a new unmerged
+        // import, say); saving just THIS card's own doc would silently
+        // overwrite/discard everything else. Only the top-level New/Play
+        // tile (which uses the auto-merged COMBINATION of every card, see
+        // computeCombinedDoc()) is safe to actually save+redirect from.
         var win = window.open('', '_blank');
         if (!win) { alert('Popup blockiert — bitte Popups für diese Seite erlauben'); return; }
         win.document.write('<!doctype html><meta charset="utf-8"><title>Bento wird geladen…</title>' +
@@ -932,7 +920,7 @@ function mergeDocs(docA, docB){
           if (bentoCmId) {
             newBtn.disabled = true;
             saveDocToMoodle(bentoCmId, docToPlay).then(function () {
-              window.location.href = M.cfg.wwwroot + '/mod/bento/edit.php?id=' + bentoCmId;
+              window.location.href = M.cfg.wwwroot + '/mod/bento/edit.php?id=' + bentoCmId + '&returnurl=' + encodeURIComponent(location.pathname + location.search + location.hash);
             }).catch(function (e) {
               console.error(e);
               alert('Konnte nicht in Moodle speichern: ' + (e.message || e));

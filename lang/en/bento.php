@@ -60,6 +60,7 @@ $string['gradepresentation'] = 'Grade';
 $string['backtoview'] = 'Back to presentation';
 $string['backtogallery'] = 'Back to overview';
 $string['backtocourse'] = 'Back to course';
+$string['backtoactivitysettings'] = 'Back to activity settings';
 $string['savetomoodle'] = '💾 Save to Moodle';
 $string['saving'] = 'Saving…';
 $string['saved'] = '✓ Saved';

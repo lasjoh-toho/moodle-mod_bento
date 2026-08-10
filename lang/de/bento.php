@@ -60,6 +60,7 @@ $string['gradepresentation'] = 'Bewerten';
 $string['backtoview'] = 'Zurück zur Präsentation';
 $string['backtogallery'] = 'Zurück zur Übersicht';
 $string['backtocourse'] = 'Zurück zum Kurs';
+$string['backtoactivitysettings'] = 'Zurück zu den Aktivitätseinstellungen';
 $string['savetomoodle'] = '💾 In Moodle speichern';
 $string['saving'] = 'Speichert…';
 $string['saved'] = '✓ Gespeichert';
