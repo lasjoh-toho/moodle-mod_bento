@@ -198,6 +198,50 @@
       }).catch(function () { return null; });
     }
 
+    var BLOCK_TAGS = { h1: 1, h2: 1, h3: 1, h4: 1, h5: 1, h6: 1, p: 1, li: 1, blockquote: 1, figcaption: 1 };
+
+    /** Collects block-level content nodes in document order, recursively —
+     *  NOT a flat querySelectorAll('p,h1,...') the way this used to work.
+     *  That flat approach silently missed entire documents' worth of text
+     *  from sources (Google Docs' own clipboard export is the common one)
+     *  that wrap actual paragraph content in nested <div>s with EMPTY <p>
+     *  tags used purely as visual line-break spacers — none of the real
+     *  text ever sits inside a semantic <p>/<h1-6>/<li>/<blockquote> at
+     *  all in that structure, so the old selector found only the <img>
+     *  tags and nothing else (confirmed live: 14 <p> elements, all but
+     *  one completely empty, while the actual text lived in <div> siblings
+     *  right next to them).
+     *
+     *  A <div> is only ever treated as its OWN block when it has no
+     *  block-level descendant of its own (a "leaf" div, wrapping only
+     *  inline content/spans/text) — a <div> that DOES contain nested
+     *  divs/headings/paragraphs is just a wrapper, and gets recursed into
+     *  instead of being pushed as one giant block (which would otherwise
+     *  duplicate everything nested inside it). Non-div/non-block wrapper
+     *  tags (span, a, center, etc.) are recursed into as well, in case
+     *  block-level content sits nested inside one of those instead. */
+    function collectBlocks(root) {
+      var blocks = [];
+      function hasBlockDescendant(el) {
+        return !!el.querySelector('h1,h2,h3,h4,h5,h6,p,li,blockquote,figcaption,div,img');
+      }
+      function walk(el) {
+        Array.prototype.forEach.call(el.children, function (child) {
+          var tag = child.tagName.toLowerCase();
+          if (tag === 'img') { blocks.push(child); return; }
+          if (BLOCK_TAGS[tag]) { blocks.push(child); return; }
+          if (tag === 'div') {
+            if (hasBlockDescendant(child)) walk(child);
+            else blocks.push(child);
+            return;
+          }
+          walk(child); // span/a/center/etc. — look for block content nested deeper
+        });
+      }
+      walk(root);
+      return blocks;
+    }
+
     function sanitizeInlineHtml(node) {
       var ALLOWED = { b: 1, strong: 1, i: 1, em: 1, u: 1 };
       var SKIP = { script: 1, style: 1 };
@@ -229,7 +273,7 @@
       var slots = [];
       if (html && html.trim()) {
         var doc = new DOMParser().parseFromString(html, 'text/html');
-        var nodes = doc.body ? doc.body.querySelectorAll('h1,h2,h3,h4,h5,h6,p,li,blockquote,figcaption,img') : [];
+        var nodes = doc.body ? collectBlocks(doc.body) : [];
         Array.prototype.forEach.call(nodes, function (node) {
           var tag = node.tagName.toLowerCase();
           if (tag === 'img') {
@@ -241,9 +285,20 @@
             return;
           }
           var innerHtml = sanitizeInlineHtml(node);
-          if (!innerHtml.trim()) return;
           var level = /^h([1-6])$/.exec(tag);
-          slots.push({ kind: 'text', html: innerHtml, headingLevel: level ? +level[1] : 0 });
+          // Empty paragraphs still get a slot — marked, not discarded.
+          // Live debugging on an actual paste showed most <p> tags in the
+          // clipboard HTML come back with EMPTY text content even though
+          // they sit in the CORRECT position (a caption or paragraph that
+          // clearly should be there — confirmed by comparing tag COUNTS
+          // against the same clipboard payload's own plain-text length).
+          // Dropping them outright, as before, threw away exactly the
+          // position information the safety net below needs to restore
+          // fallback text into the right spots; keeping an (empty) slot
+          // means there's a real position to fill back in, rather than
+          // everything recovered getting bolted onto the end because
+          // there was nowhere else left to put it.
+          slots.push({ kind: 'text', html: innerHtml, headingLevel: level ? +level[1] : 0, empty: !innerHtml.trim() });
         });
       } else if (plain && plain.trim()) {
         var paragraphs = plain.split(/\n{2,}/).map(function (p) { return p.replace(/[ \t]+/g, ' ').trim(); }).filter(Boolean);
@@ -306,7 +361,13 @@
       // out — the dominant cause of a paste with several images visibly
       // taking a long time / looking stuck.
       return Promise.all(slots).then(function (resolved) {
-        return resolved.filter(Boolean);
+        // Drop any text slot still marked empty — either the safety net
+        // never fired at all (html's own text was fine), or it fired but
+        // ran out of fallback paragraphs before reaching this one. Either
+        // way, an empty placeholder slot has done its job (holding this
+        // position open in case something needed to fill it) and doesn't
+        // belong in the final result.
+        return resolved.filter(function (s) { return s && !(s.kind === 'text' && s.empty); });
       });
     }
 
