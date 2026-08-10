@@ -568,7 +568,7 @@
         // in the wrong place (sometimes much later in the document) when
         // a browser's own click-in-the-gap snapping didn't land where the
         // person actually clicked.
-        addCtxBtn('\u25aa Folie endet hier', function () {
+        addCtxBtn('\u25aa Folie hier teilen', function () {
           var anchor = haveCoords ? findAnchorForY(clientY) : containerNode;
           insertBreakWithBlankLine(anchor, null, !anchor);
         });
@@ -579,7 +579,7 @@
         // fallback would, so this option is available regardless of
         // whether the cursor landed precisely between blocks or inside
         // one — no need to guess which tier will show up first).
-        addCtxBtn('\u25aa Folie endet hier', function () {
+        addCtxBtn('\u25aa Folie hier teilen', function () {
           var split = splitParagraphAtCursor();
           var atVeryStart = split && !split.before && !containerNode.previousElementSibling;
           insertBreakWithBlankLine(split ? split.before : containerNode.previousElementSibling, split ? split.after : containerNode, atVeryStart);
@@ -654,12 +654,9 @@
       var range = sel.getRangeAt(0);
       var text = range.toString();
       if (!text.trim()) return;
-      var split = splitParagraphAtCursor(); // cursor is at range.startContainer here — but we need BOTH ends split
-      // splitParagraphAtCursor only splits at the CURRENT collapsed
-      // position, so for a real selection we do it manually: delete the
-      // selected text from its home paragraph and insert a fresh block
-      // in its place, keeping whatever's left before/after as-is.
-      void split; // (not used directly — see below)
+      // Deletes the selected text from its home paragraph and inserts a
+      // fresh block in its place, keeping whatever's left before/after as
+      // its own separate paragraph.
       var container = findLrDocChild(range.startContainer);
       if (!container || container.dataset.mbp !== 'text') return;
 
