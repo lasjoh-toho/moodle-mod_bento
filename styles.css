@@ -2,11 +2,23 @@
 
 .mod-bento-tiles {
   display: grid;
-  grid-template-columns: 1fr 1fr;
+  grid-template-columns: 1fr 1.5fr;
   grid-template-rows: 1fr 1fr;
   gap: 14px;
   margin-bottom: 12px;
 }
+.mod-bento-tile-new { grid-column: 1; grid-row: 1; }
+.mod-bento-tile-demo { grid-column: 1; grid-row: 2; }
+/* Import fills BOTH rows on the right by default — when there's no Paste
+   tile to share that column with (submission_new.php with the student-
+   paste setting off), the grid still comes out a clean rectangle instead
+   of leaving an empty cell. Paste, when it IS present, gets the second
+   row back and Import shrinks to just the first — see the has-paste
+   modifier further down, added server-side exactly when that tile
+   actually gets rendered. */
+.mod-bento-tile-import { grid-column: 2; grid-row: 1 / span 2; }
+.mod-bento-tiles.has-paste .mod-bento-tile-import { grid-row: 1; }
+.mod-bento-tile-paste { grid-column: 2; grid-row: 2; }
 .mod-bento-tile {
   display: flex;
   flex-direction: column;

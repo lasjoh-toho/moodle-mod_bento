@@ -209,6 +209,29 @@ if (empty($others)) {
             get_string('present', 'mod_bento'),
             ['class' => 'btn btn-sm btn-outline-primary']
         );
+        if ($caneditmaster) {
+            // Brings this submission into the teacher's OWN activity
+            // settings as a separate draft tile — same bento_decks
+            // mechanism an imported .pptx becomes, so a teacher can
+            // combine student work into a shared presentation the same
+            // way they'd combine several imports. The document travels
+            // as an inline script tag (this student list is normally a
+            // handful of names, not thousands — embedding it directly
+            // here is simpler than a whole extra read endpoint just for
+            // this one button) and the button posts it via the SAME
+            // mod_bento_save_deck webservice the importer's own per-card
+            // Speichern button already uses.
+            echo html_writer::tag(
+                'script',
+                json_encode($s->document),
+                ['type' => 'application/json', 'class' => 'mod-bento-subdoc-json', 'data-submissionid' => $s->id]
+            );
+            echo html_writer::tag(
+                'button',
+                get_string('addassubmissiontile', 'mod_bento'),
+                ['type' => 'button', 'class' => 'btn btn-sm btn-outline-secondary ml-1 mod-bento-addtile-btn', 'data-submissionid' => $s->id, 'data-cmid' => $cm->id]
+            );
+        }
         echo html_writer::tag('div',
             get_string('lastmodified', 'mod_bento') . ': ' . userdate($s->timemodified),
             ['class' => 'text-muted small mt-2']
@@ -218,6 +241,10 @@ if (empty($others)) {
         echo html_writer::end_tag('div');
     }
     echo html_writer::end_tag('div');
+}
+
+if ($caneditmaster) {
+    $PAGE->requires->js(new moodle_url('/mod/bento/addsubmissiontile.js'));
 }
 
 echo $OUTPUT->footer();
