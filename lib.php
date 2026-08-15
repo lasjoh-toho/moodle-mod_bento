@@ -116,7 +116,21 @@ function bento_update_instance(stdClass $bento, $mform = null) {
 
     $bento->timemodified = time();
     $bento->id = $bento->instance;
-    if (isset($bento->document)) {
+    if (isset($bento->document) && $bento->document === '__bento_saved_via_ajax__') {
+        // Set by bentoconvert.js's own submit handler for the common case:
+        // the document was already saved via the mod_bento_save_document
+        // web service, in the same submit, before this form POST even
+        // happened (see mod_form.php's own comment on this field for the
+        // full flow). Unsetting rather than assigning the sentinel through
+        // means update_record() below never touches this column at all,
+        // leaving whatever the AJAX save (or an untouched previous value)
+        // already wrote in place. A genuinely empty string is different —
+        // that's someone deliberately clearing every slide (bentoconvert.js
+        // confirms that specific case before ever submitting) — and still
+        // goes through bento_validate_document() normally below, which is
+        // what turns an actually-empty value into a fresh blank document.
+        unset($bento->document);
+    } else if (isset($bento->document)) {
         $bento->document = bento_validate_document($bento->document);
     }
 

@@ -62,8 +62,20 @@ class mod_bento_mod_form extends moodleform_mod {
         // Holds the JSON the widget produces (whichever single card remains
         // after any merging) — a plain textarea kept visually hidden rather
         // than type="hidden" so there's no practical length limit in any
-        // browser. bentoconvert.js keeps this in sync on every change and again
-        // right before submit.
+        // browser.
+        //
+        // Left EMPTY on submit for the common case (an existing activity):
+        // bentoconvert.js's own submit handler saves the document via the
+        // mod_bento_save_document web service directly — the same AJAX
+        // path every per-card Save button already uses — before letting
+        // the rest of this form submit normally, rather than embedding a
+        // large, image-heavy presentation a second time inside this form's
+        // own POST body on every single settings save. Still falls back to
+        // filling this field the old way (syncDocField(), right before
+        // submit) when there's no cmid yet — a brand-new activity being
+        // created for the first time has nothing to save a document
+        // AGAINST yet, so the AJAX path isn't available until after this
+        // first save creates the activity row.
         $mform->addElement('textarea', 'document', get_string('document', 'mod_bento'),
             ['rows' => 3, 'style' => 'display:none']);
         $mform->setType('document', PARAM_RAW);

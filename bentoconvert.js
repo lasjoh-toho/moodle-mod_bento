@@ -1183,6 +1183,7 @@ function mergeDocs(docA, docB){
 
     var form = docField.closest('form');
     if (form) {
+      var bentoDocAlreadySaved = false;
       form.addEventListener('submit', function (ev) {
         // Second safety net, on top of the remove-button's own confirm():
         // if every card is gone by the time of actually saving (however
@@ -1195,7 +1196,60 @@ function mergeDocs(docA, docB){
             return;
           }
         }
-        syncDocField();
+        // The published document used to be written into docField (a
+        // visually-hidden but otherwise perfectly normal <textarea>) and
+        // carried along inside this SAME standard HTML form submission —
+        // meaning a large, image-heavy presentation (tens of megabytes
+        // once base64-embedded images are counted) got embedded a SECOND
+        // time in the page right as the person hit Save (on top of the
+        // separate <script id="mod-bento-existing-doc"> copy the card
+        // display itself already reads from), then sent as part of one
+        // enormous synchronous POST alongside every other field on this
+        // page. For a large enough presentation this froze the tab
+        // outright — even simple JS evaluation in it stopped responding —
+        // and could fail the underlying request itself with a
+        // NetworkError rather than a clean server response.
+        //
+        // Every card already has its own explicit Speichern button that
+        // saves it directly via the mod_bento_save_document/mod_bento_
+        // save_deck web services (see saveDocToMoodle/saveDeckToMoodle
+        // above) — reusing that SAME path here means the document never
+        // has to travel through this form's own POST body at all. Skips
+        // straight to the normal submit when there's no cmid yet (a
+        // brand-new activity being created for the first time has
+        // nothing to save a document AGAINST yet), nothing to save, or
+        // this is the second pass after already saving (below).
+        if (!bentoDocAlreadySaved && bentoCmId && items.length && items[0].doc) {
+          ev.preventDefault()
+          // A specific sentinel, not '' — an actually-empty value is a
+          // real, distinct case too (every slide deliberately removed,
+          // confirmed above), and lib.php's own bento_update_instance()
+          // needs to tell "leave the stored document alone, it's already
+          // saved" apart from "this document really is meant to be blank
+          // now."
+          docField.value = '__bento_saved_via_ajax__'
+          saveDocToMoodle(bentoCmId, items[0].doc).then(function () {
+            bentoDocAlreadySaved = true
+            // requestSubmit() (not submit()) re-triggers this SAME handler
+            // — but the flag above makes that second pass fall through to
+            // the plain syncDocField()+submit path below instead of
+            // trying to AJAX-save a second time. Deliberately NOT
+            // submit(), which would skip the browser's own native
+            // validation (required fields etc.) entirely.
+            form.requestSubmit()
+          }, function (err) {
+            alert('Konnte die Präsentation nicht speichern: ' + (err && err.message ? err.message : err) + '\n\nDie übrigen Einstellungen wurden noch nicht gespeichert — bitte erneut versuchen.')
+          })
+          return
+        }
+        // The flagged second pass (after a successful AJAX save above)
+        // must NOT reach syncDocField() — that would refill this field
+        // with the full document again right before the real submit,
+        // undoing the entire point of saving it via AJAX in the first
+        // place. The sentinel set above is already exactly what should go
+        // out on that submit, untouched.
+        if (bentoDocAlreadySaved) return
+        syncDocField()
       });
     }
 
