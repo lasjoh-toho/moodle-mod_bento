@@ -156,5 +156,17 @@ function xmldb_bento_upgrade($oldversion) {
         $dbman->create_table($table);
     }
 
+    // ---- per-instance max document size (MB): one new column on `bento` ----
+    // Existing rows get 20 (install.xml's own default), matching the
+    // absolutemaxdocumentsize admin setting's own constructor default —
+    // this is a fresh field with nothing sensible to backfill it from, so
+    // "whatever a brand-new activity would already start at" is the least
+    // surprising choice for anyone upgrading.
+    $table = new xmldb_table('bento');
+    $field = new xmldb_field('maxdocumentsize', XMLDB_TYPE_INTEGER, '10', null, XMLDB_NOTNULL, null, '20', 'allowstudentpaste');
+    if (!$dbman->field_exists($table, $field)) {
+        $dbman->add_field($table, $field);
+    }
+
     return true;
 }

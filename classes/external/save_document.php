@@ -96,12 +96,18 @@ class save_document extends external_api {
         self::validate_context($context);
         bento_require_current_schema();
 
+        // Fetched here (not just in the student branch further down, as
+        // before) — the size ceiling below is per-activity, so this is
+        // needed regardless of which branch actually ends up writing.
+        $bento = $DB->get_record('bento', ['id' => $cm->instance], '*', MUST_EXIST);
+
         $decoded = json_decode($params['document'], true);
         if (!is_array($decoded) || ($decoded['format'] ?? null) !== 'bento/slides' || empty($decoded['slides'])) {
             throw new invalid_parameter_exception('Not a valid bento/slides document.');
         }
-        if (strlen($params['document']) > BENTO_MAX_DOCUMENT_BYTES) {
-            throw new invalid_parameter_exception('Document too large.');
+        $maxbytes = bento_effective_max_document_bytes($bento);
+        if (strlen($params['document']) > $maxbytes) {
+            throw new invalid_parameter_exception('Document too large (max ' . round($maxbytes / 1024 / 1024, 1) . ' MB for this activity).');
         }
         // See lib.php's bento_validate_document() for why: a Moodle-hosted
         // activity must always open in the full editor, never Bento's
@@ -131,7 +137,6 @@ class save_document extends external_api {
         }
 
         require_capability('mod/bento:submit', $context);
-        $bento = $DB->get_record('bento', ['id' => $cm->instance], '*', MUST_EXIST);
         if (!$bento->allowstudentsubmissions) {
             throw new \moodle_exception('submissionsnotenabled', 'mod_bento');
         }

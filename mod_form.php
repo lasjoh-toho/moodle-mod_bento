@@ -104,6 +104,19 @@ class mod_bento_mod_form extends moodleform_mod {
         $mform->addHelpButton('allowstudentpaste', 'allowstudentpaste', 'mod_bento');
         $mform->hideIf('allowstudentpaste', 'allowstudentsubmissions', 'notchecked');
 
+        // Not gated behind allowstudentsubmissions — applies to the teacher's
+        // own presentation too, not just student submissions. Defaults to the
+        // admin's own absolute ceiling (settings.php), so a fresh activity
+        // starts already at the site-wide value rather than some separate
+        // hardcoded default the two could silently drift apart from. A
+        // teacher can only ever set this LOWER than the admin's own limit,
+        // never higher — bento_effective_max_document_bytes() in lib.php
+        // always takes the smaller of the two, enforced on every save.
+        $mform->addElement('text', 'maxdocumentsize', get_string('maxdocumentsize', 'mod_bento'));
+        $mform->setType('maxdocumentsize', PARAM_INT);
+        $mform->setDefault('maxdocumentsize', (int) (get_config('mod_bento', 'absolutemaxdocumentsize') ?: 20));
+        $mform->addHelpButton('maxdocumentsize', 'maxdocumentsize', 'mod_bento');
+
         // ---- grading, availability, common module settings ----
         $this->standard_grading_coursemodule_elements();
         $this->standard_coursemodule_elements();
@@ -194,5 +207,18 @@ class mod_bento_mod_form extends moodleform_mod {
         if (empty($defaultvalues['document'])) {
             $defaultvalues['document'] = bento_blank_document();
         }
+    }
+
+    public function validation($data, $files) {
+        $errors = parent::validation($data, $files);
+        $absolutemax = (int) (get_config('mod_bento', 'absolutemaxdocumentsize') ?: 20);
+        if (isset($data['maxdocumentsize'])) {
+            if ($data['maxdocumentsize'] < 1) {
+                $errors['maxdocumentsize'] = get_string('maxdocumentsize_toosmall', 'mod_bento');
+            } else if ($data['maxdocumentsize'] > $absolutemax) {
+                $errors['maxdocumentsize'] = get_string('maxdocumentsize_exceedsabsolute', 'mod_bento', $absolutemax);
+            }
+        }
+        return $errors;
     }
 }

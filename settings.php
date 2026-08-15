@@ -42,6 +42,17 @@
  *    bento_default_termsofuse() in lib.php, set once via db/install.php
  *    instead, which has no such display side effect.
  *
+ *  - absolutemaxdocumentsize: a hard site-wide ceiling (megabytes) no
+ *    individual activity's own "Maximale Dokumentgröße" setting (mod_
+ *    form.php) can exceed, regardless of what a teacher sets there —
+ *    see bento_effective_max_document_bytes() in lib.php, which is what
+ *    actually enforces this (both bounds, together) on every save.
+ *  - savetimeout: how long (seconds) the EDITOR's own client-side save
+ *    request waits for Moodle to respond before giving up and showing a
+ *    timeout error, rather than hanging indefinitely with no feedback —
+ *    read by edit.php into the same bento-moodle-config meta tag the
+ *    cmid/sesskey/wwwroot already travel in, consumed by moodle.ts.
+ *
  * @package     mod_bento
  * @copyright   2026 The Bento authors
  * @license     http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
@@ -62,5 +73,21 @@ if ($ADMIN->fulltree) {
         get_string('settings_termsofuse', 'mod_bento'),
         get_string('settings_termsofuse_desc', 'mod_bento'),
         ''
+    ));
+
+    $settings->add(new admin_setting_configtext(
+        'mod_bento/absolutemaxdocumentsize',
+        get_string('settings_absolutemaxdocumentsize', 'mod_bento'),
+        get_string('settings_absolutemaxdocumentsize_desc', 'mod_bento'),
+        20,
+        PARAM_INT
+    ));
+
+    $settings->add(new admin_setting_configtext(
+        'mod_bento/savetimeout',
+        get_string('settings_savetimeout', 'mod_bento'),
+        get_string('settings_savetimeout_desc', 'mod_bento'),
+        20,
+        PARAM_INT
     ));
 }

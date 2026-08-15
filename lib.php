@@ -33,6 +33,27 @@ defined('MOODLE_INTERNAL') || die();
 define('BENTO_MAX_DOCUMENT_BYTES', 60 * 1024 * 1024);
 
 /**
+ * The actual size ceiling (bytes) that applies to ONE activity's saves —
+ * the smaller of its own maxdocumentsize (mod_form.php, megabytes) and the
+ * site-wide absolutemaxdocumentsize admin setting (settings.php), so a
+ * teacher raising their own activity's limit can never exceed what the
+ * admin allows site-wide, only ever tighten it further. Falls back to the
+ * admin's own value alone if the activity row somehow doesn't have its own
+ * (a pre-upgrade row db/upgrade.php hasn't backfilled yet, say) — never to
+ * BENTO_MAX_DOCUMENT_BYTES itself, which stays a separate, unconditional
+ * outer safety cap regardless of either setting.
+ *
+ * @param object $bento a full `bento` table row (needs ->maxdocumentsize)
+ * @return int effective ceiling in bytes
+ */
+function bento_effective_max_document_bytes(object $bento): int {
+    $absolutemb = (int) (get_config('mod_bento', 'absolutemaxdocumentsize') ?: 20);
+    $ownmb = (int) ($bento->maxdocumentsize ?? $absolutemb);
+    $effectivemb = ($ownmb > 0) ? min($ownmb, $absolutemb) : $absolutemb;
+    return $effectivemb * 1024 * 1024;
+}
+
+/**
  * Declares optional features this module supports.
  *
  * @param string $feature FEATURE_xx constant
@@ -261,6 +282,7 @@ function bento_moodle_config_meta(int $cmid, int $deckid = 0): string {
         'cmid' => $cmid,
         'sesskey' => sesskey(),
         'wwwroot' => $CFG->wwwroot,
+        'savetimeout' => (int) (get_config('mod_bento', 'savetimeout') ?: 20),
     ];
     if ($deckid > 0) {
         $moodleconfig['deckid'] = $deckid;

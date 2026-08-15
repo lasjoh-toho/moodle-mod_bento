@@ -86,12 +86,15 @@ class save_deck extends external_api {
         bento_require_current_schema();
         require_capability('mod/bento:edit', $context);
 
+        $bento = $DB->get_record('bento', ['id' => $cm->instance], '*', MUST_EXIST);
+
         $decoded = json_decode($params['document'], true);
         if (!is_array($decoded) || ($decoded['format'] ?? null) !== 'bento/slides' || empty($decoded['slides'])) {
             throw new invalid_parameter_exception('Not a valid bento/slides document.');
         }
-        if (strlen($params['document']) > BENTO_MAX_DOCUMENT_BYTES) {
-            throw new invalid_parameter_exception('Document too large.');
+        $maxbytes = bento_effective_max_document_bytes($bento);
+        if (strlen($params['document']) > $maxbytes) {
+            throw new invalid_parameter_exception('Document too large (max ' . round($maxbytes / 1024 / 1024, 1) . ' MB for this activity).');
         }
         unset($decoded['readonly']);
         $now = time();
