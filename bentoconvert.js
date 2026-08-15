@@ -59,6 +59,46 @@ function parseThemeColors(themeXmlDoc){
   return map;
 }
 
+// A run's own <a:latin typeface="…"/> very often isn't a real font name at
+// all — it's a theme PLACEHOLDER ("+mj-lt"/"+mn-lt", "major"/"minor" latin),
+// meaning "whatever this theme's own major/minor font is". Most real-world
+// text never sets an explicit typeface per run at all — it just inherits
+// the theme's own default, which is exactly this placeholder path. Without
+// resolving it, that's the overwhelming majority of text in a typical
+// presentation silently falling through to the generic fallback further
+// down, which read as "fonts are never carried over" even though the XML
+// technically did name one — just indirectly, via the theme.
+function parseThemeFonts(themeXmlDoc){
+  const map = { major: null, minor: null };
+  if (!themeXmlDoc) return map;
+  const scheme = first(themeXmlDoc, 'a:fontScheme');
+  if (!scheme) return map;
+  const majorFont = first(scheme, 'a:majorFont');
+  const minorFont = first(scheme, 'a:minorFont');
+  const majorLatin = majorFont ? first(majorFont, 'a:latin') : null;
+  const minorLatin = minorFont ? first(minorFont, 'a:latin') : null;
+  if (majorLatin && majorLatin.getAttribute('typeface')) map.major = majorLatin.getAttribute('typeface');
+  if (minorLatin && minorLatin.getAttribute('typeface')) map.minor = minorLatin.getAttribute('typeface');
+  return map;
+}
+
+// Resolves a raw typeface value (whatever a:latin's own typeface attribute
+// held) against the theme's own major/minor fonts. "+mj-lt"/"+mj-ea"/
+// "+mj-cs" all mean "the theme's own major latin font" for our purposes
+// (east-asian/complex-script variants aren't tracked separately here);
+// same idea for "+mn-*" and minor. "Calibri Light"/PowerPoint's own
+// "(Headings)"/"(Body)" labels for the theme fonts pass through unresolved
+// (fine — the ACTUAL typeface name for those already IS the theme's own,
+// this only needs to handle the "+mj-lt" placeholder shorthand itself).
+// Returns null (not the generic fallback) when nothing usable was found,
+// so the CALLER decides what a sensible final fallback looks like.
+function resolveFontFamily(raw, themeFonts){
+  if (!raw) return null;
+  if (/^\+mj-/.test(raw)) return themeFonts.major || null;
+  if (/^\+mn-/.test(raw)) return themeFonts.minor || null;
+  return raw;
+}
+
 function resolveColor(fillParent, themeColors, fallback){
   if (!fillParent) return fallback;
   const solid = first(fillParent, 'a:solidFill');
@@ -119,22 +159,33 @@ function fallbackFrame(phType, slideW, slideH){
 }
 
 // Build inline html for a txBody, applying per-run b/i/u and paragraph-level align/color/size from first run
-function extractText(txBody, themeColors){
+function extractText(txBody, themeColors, themeFonts){
   const paras = all(txBody, 'a:p');
   if (!paras.length) return null;
   let html = [];
   let style = { fontSize: 32, color: '#111111', bold: false, align: 'left', fontFamily: null };
-  let styleSet = false;
+  let align = null;
+  // Every run's own style, alongside how much text it actually carries —
+  // the LONGEST one (not just the first one seen) becomes the whole box's
+  // style, since bento/slides only carries one style per text element. A
+  // short, differently-formatted word right at the start (a drop cap, an
+  // inline label) would otherwise dictate the entire box's colour/size
+  // even though it's a small minority of the actual content.
+  const candidates = []
   let any = false;
 
   for (const p of paras){
     const pPr = first(p, 'a:pPr');
-    if (pPr && !styleSet){
+    if (pPr && align === null){
       const algn = pPr.getAttribute('algn');
-      if (algn === 'ctr') style.align = 'center';
-      else if (algn === 'r') style.align = 'right';
-      else style.align = 'left';
+      if (algn === 'ctr') align = 'center';
+      else if (algn === 'r') align = 'right';
+      else align = 'left';
     }
+    // Paragraph-level default run properties — what a run inherits when it
+    // has none of its own. Used below as the fallback for a run that omits
+    // an attribute entirely, rather than only ever reading rPr's own.
+    const defRPr = pPr ? first(pPr, 'a:defRPr') : null;
     const runs = all(p, 'a:r');
     let line = '';
     for (const r of runs){
@@ -144,22 +195,30 @@ function extractText(txBody, themeColors){
       any = true;
       const rPr = first(r, 'a:rPr');
       let seg = esc(text);
-      let bold = false, italic = false, underline = false;
-      if (rPr){
-        bold = rPr.getAttribute('b') === '1';
-        italic = rPr.getAttribute('i') === '1';
-        underline = (rPr.getAttribute('u')||'none') !== 'none';
-        if (!styleSet){
-          const sz = rPr.getAttribute('sz');
-          if (sz) style.fontSize = ptToPx(parseInt(sz,10)/100);
-          const col = resolveColor(rPr, themeColors, null);
-          if (col) style.color = col;
-          const latin = first(rPr, 'a:latin');
-          if (latin && latin.getAttribute('typeface')) style.fontFamily = latin.getAttribute('typeface');
-          style.bold = bold;
-          styleSet = true;
-        }
-      }
+      const bold = (rPr && rPr.getAttribute('b')) === '1';
+      const italic = (rPr && rPr.getAttribute('i')) === '1';
+      const underline = (rPr ? (rPr.getAttribute('u')||'none') : 'none') !== 'none';
+
+      const sz = (rPr && rPr.getAttribute('sz')) || (defRPr && defRPr.getAttribute('sz'));
+      const col = resolveColor(rPr, themeColors, null) || (defRPr ? resolveColor(defRPr, themeColors, null) : null);
+      const latinNode = (rPr && first(rPr, 'a:latin')) || (defRPr && first(defRPr, 'a:latin'));
+      const rawTypeface = latinNode ? latinNode.getAttribute('typeface') : null;
+      // No <a:latin> at all (the overwhelmingly common case — most runs
+      // never repeat an explicit typeface, they just inherit the theme's
+      // own body font) falls back to the theme's own minor font, same as
+      // an unresolved "+mn-lt" placeholder would.
+      const fontFamily = resolveFontFamily(rawTypeface, themeFonts) || themeFonts.minor || null;
+
+      candidates.push({
+        len: text.length,
+        style: {
+          fontSize: sz ? ptToPx(parseInt(sz,10)/100) : null,
+          color: col,
+          bold,
+          fontFamily,
+        },
+      });
+
       if (bold) seg = '<b>'+seg+'</b>';
       if (italic) seg = '<i>'+seg+'</i>';
       if (underline) seg = '<u>'+seg+'</u>';
@@ -168,6 +227,14 @@ function extractText(txBody, themeColors){
     html.push(line);
   }
   if (!any) return null;
+  if (align) style.align = align;
+  if (candidates.length){
+    const dominant = candidates.reduce((best, c) => c.len > best.len ? c : best);
+    if (dominant.style.fontSize) style.fontSize = dominant.style.fontSize;
+    if (dominant.style.color) style.color = dominant.style.color;
+    if (dominant.style.fontFamily) style.fontFamily = dominant.style.fontFamily;
+    style.bold = dominant.style.bold;
+  }
   return { html: html.join('<br>'), style };
 }
 
@@ -178,7 +245,7 @@ const GEOM_MAP = {
   rect: 'rect'
 };
 
-async function loadImageAsset(zip, embedId, relsMap, slideDir, assets, assetCounter){
+async function loadImageAsset(zip, embedId, relsMap, slideDir, assets, assetCounter, pathToKey){
   const target = relsMap[embedId];
   if (!target) return null;
   // resolve relative path against slideDir (e.g. ../media/image1.png against ppt/slides/)
@@ -190,6 +257,10 @@ async function loadImageAsset(zip, embedId, relsMap, slideDir, assets, assetCoun
     else stack.push(part);
   }
   const path = stack.join('/');
+  // Same underlying file already loaded once (a logo/background reused
+  // across several slides is common) — reuse the existing key rather than
+  // re-reading and re-base64-encoding an identical copy under a new one.
+  if (pathToKey.has(path)) return pathToKey.get(path);
   const file = zip.file(path);
   if (!file) return null;
   const ext = (path.split('.').pop()||'png').toLowerCase();
@@ -201,6 +272,7 @@ async function loadImageAsset(zip, embedId, relsMap, slideDir, assets, assetCoun
   const base64 = await file.async('base64');
   const key = 'img' + (assetCounter.n++);
   assets[key] = 'data:'+mime+';base64,'+base64;
+  pathToKey.set(path, key);
   return key;
 }
 
@@ -232,11 +304,13 @@ async function convertPptx(file, log){
 
   // theme (best effort — usually one theme file shared by the default master)
   let themeColors = {};
+  let themeFonts = { major: null, minor: null };
   const themeFile = zip.file(/ppt\/theme\/theme1\.xml/i)[0];
   if (themeFile){
     const themeText = await themeFile.async('string');
     const themeDoc = new DOMParser().parseFromString(themeText, 'application/xml');
     themeColors = parseThemeColors(themeDoc);
+    themeFonts = parseThemeFonts(themeDoc);
   }
 
   // title from core properties
@@ -251,6 +325,15 @@ async function convertPptx(file, log){
 
   const assets = {};
   const assetCounter = { n: 1 };
+  // Shared across every slide in this presentation (not reset per-slide) —
+  // a logo or recurring background referenced from several different
+  // slides needs to be recognised as "the same picture" regardless of
+  // which slide it's first encountered on.
+  const imagePathToKey = new Map();
+  // The FIRST element id ever created for a given asset key becomes that
+  // key's morphId for every SUBSEQUENT frame using the same picture — see
+  // where this gets read, in the p:pic branch below.
+  const imageKeyToMorphId = new Map();
   const slides = [];
   const warnings = new Set();
 
@@ -303,7 +386,7 @@ async function convertPptx(file, log){
           const noFill = spPr ? hasNoFill(spPr) : true;
 
           const txBody = first(node, 'p:txBody');
-          const textInfo = txBody ? extractText(txBody, themeColors) : null;
+          const textInfo = txBody ? extractText(txBody, themeColors, themeFonts) : null;
 
           const emitsShape = (geomPrst && geomPrst !== 'rect' ) ? true : (!noFill && shapeFill);
 
@@ -353,13 +436,25 @@ async function convertPptx(file, log){
           const blip = blipFill ? first(blipFill, 'a:blip') : null;
           const embedId = blip ? blip.getAttribute('r:embed') : null;
           if (embedId){
-            const key = await loadImageAsset(zip, embedId, relsMap, slideDir, assets, assetCounter);
+            const key = await loadImageAsset(zip, embedId, relsMap, slideDir, assets, assetCounter, imagePathToKey);
             if (key){
+              // Frames using the SAME underlying picture (a logo, a
+              // recurring background) share one morph identity — the
+              // element continues smoothly across slides during a morph
+              // transition instead of disappearing and a fresh copy
+              // fading in. First occurrence of a given asset key stays
+              // without an explicit morphId at all (its own id already
+              // IS its morph key — see model.ts's own morphKey()
+              // fallback); every later frame using that same key points
+              // its morphId back at that first element instead.
+              const morphId = imageKeyToMorphId.get(key);
+              if (!morphId) imageKeyToMorphId.set(key, elId);
               elements.push({
                 id: elId, type: 'image',
                 x: frame.x, y: frame.y, w: frame.w, h: frame.h,
                 rotation: frame.rotation, opacity: 1,
-                src: 'asset:' + key, fit: 'cover', radius: 0
+                src: 'asset:' + key, fit: 'cover', radius: 0,
+                ...(morphId ? { morphId } : {}),
               });
             } else {
               warnings.add('Ein Bild in einem nicht unterstützten Format (z.B. WMF/EMF) wurde übersprungen.');
@@ -410,7 +505,7 @@ async function convertPptx(file, log){
       background: themeColors.lt1 || '#FFFFFF',
       color: themeColors.dk1 || '#111111',
       accent: themeColors.accent1 || '#FF9E5E',
-      fontFamily: 'system-ui, sans-serif'
+      fontFamily: themeFonts.minor || 'system-ui, sans-serif'
     },
     slides,
     modified: new Date().toISOString()
