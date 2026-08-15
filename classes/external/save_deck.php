@@ -96,9 +96,17 @@ class save_deck extends external_api {
         if (strlen($params['document']) > $maxbytes) {
             throw new invalid_parameter_exception('Document too large (max ' . round($maxbytes / 1024 / 1024, 1) . ' MB for this activity).');
         }
-        unset($decoded['readonly']);
+        // Only re-encoding when there's actually something to strip (see
+        // save_document.php's own comment on this exact pattern) avoids
+        // json_encode() on the full document a second time for the common
+        // case where readonly was never set at all.
         $now = time();
-        $cleandocument = json_encode($decoded);
+        if (array_key_exists('readonly', $decoded)) {
+            unset($decoded['readonly']);
+            $cleandocument = json_encode($decoded);
+        } else {
+            $cleandocument = $params['document'];
+        }
         $cleanname = trim($params['name']) !== '' ? trim($params['name']) : null;
 
         if ($params['deckid'] > 0) {

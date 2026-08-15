@@ -325,7 +325,7 @@ function bento_back_link_html(moodle_url $target, string $label): string {
     // present mode already has its own exit gesture, and this link isn't
     // meant to appear there at all, only once back in the actual editor).
     return '<a href="' . $href . '" id="mod-bento-backlink" style="position:fixed;top:14px;left:14px;z-index:2147483647;'
-        . 'font:600 13px system-ui,-apple-system,sans-serif;color:#14161c;background:rgba(255,255,255,.85);'
+        . 'font:600 13px system-ui, -apple-system, sans-serif;color:#14161c;background:rgba(255,255,255,.85);'
         . 'backdrop-filter:blur(10px);padding:7px 14px;border-radius:999px;text-decoration:none;'
         . 'box-shadow:0 2px 10px rgba(0,0,0,.25);">&larr; ' . $safelabel . '</a>'
         . '<script>(function(){var l=document.getElementById("mod-bento-backlink");'
@@ -346,7 +346,7 @@ function bento_deadline_passed_banner_html(int $duedate): string {
     $when = userdate($duedate);
     $text = get_string('deadlinepassednotice', 'mod_bento', $when);
     return '<div style="position:fixed;top:14px;left:50%;transform:translateX(-50%);z-index:2147483647;'
-        . 'font:600 13px system-ui,-apple-system,sans-serif;color:#5c3a00;background:rgba(255,236,196,.95);'
+        . 'font:600 13px system-ui, -apple-system, sans-serif;color:#5c3a00;background:rgba(255,236,196,.95);'
         . 'backdrop-filter:blur(10px);padding:8px 16px;border-radius:999px;'
         . 'box-shadow:0 2px 10px rgba(0,0,0,.25);">' . s($text) . '</div>';
 }

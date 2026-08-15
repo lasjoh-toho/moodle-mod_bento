@@ -111,10 +111,19 @@ class save_document extends external_api {
         }
         // See lib.php's bento_validate_document() for why: a Moodle-hosted
         // activity must always open in the full editor, never Bento's
-        // minimal read-only player card.
-        unset($decoded['readonly']);
+        // minimal read-only player card. Only re-encoding when there's
+        // actually something to strip (the common case never sets this at
+        // all) avoids paying for json_encode() on the full document a
+        // second time, on top of the json_decode() just above, purely to
+        // reproduce a string that would otherwise come out byte-identical
+        // to what was already validated.
         $now = time();
-        $cleandocument = json_encode($decoded);
+        if (array_key_exists('readonly', $decoded)) {
+            unset($decoded['readonly']);
+            $cleandocument = json_encode($decoded);
+        } else {
+            $cleandocument = $params['document'];
+        }
 
         if ($params['deckid'] > 0) {
             require_capability('mod/bento:edit', $context);
