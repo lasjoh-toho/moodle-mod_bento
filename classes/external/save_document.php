@@ -73,6 +73,16 @@ class save_document extends external_api {
         return new external_single_structure([
             'ok' => new external_value(PARAM_BOOL, 'true if saved'),
             'timemodified' => new external_value(PARAM_INT, 'server timestamp of the save'),
+            // Diagnostic only — see the timing instrumentation throughout
+            // execute() below. Only meaningfully populated when this
+            // request actually completes within whatever timeout the
+            // CALLER itself enforces; a request slow enough to be aborted
+            // client-side never gets this far regardless of what it's
+            // set to, which is exactly the case this is meant to help
+            // diagnose — see also the error_log() calls throughout
+            // execute(), which land in the PHP error log independently
+            // of whether the client ever received a response at all.
+            'debugtimingms' => new external_value(PARAM_RAW, 'JSON-encoded per-step timing breakdown, ms', VALUE_DEFAULT, ''),
         ]);
     }
 
@@ -85,23 +95,48 @@ class save_document extends external_api {
     public static function execute($cmid, $document, $deckid = 0): array {
         global $DB, $USER;
 
+        // Per-step timing, logged to the PHP error log AS EACH STEP
+        // COMPLETES (not batched at the end) — a request slow enough to
+        // get aborted client-side (see moodle.ts's own 20s-default
+        // AbortController) never sends a response back at all, so this
+        // is the only way to see how far execute() actually got and
+        // which specific step it was on when time ran out. Also
+        // collected into $timing and returned in debugtimingms for the
+        // (rarer, at the sizes prompting this) case where the request
+        // does complete before the client gives up.
+        $t0 = microtime(true);
+        $timing = [];
+        $mark = function (string $step) use (&$timing, &$t0) {
+            $now = microtime(true);
+            $ms = (int) round(($now - $t0) * 1000);
+            $timing[$step] = $ms;
+            error_log('[bento/save_document] ' . $step . ': ' . $ms . 'ms (cumulative)');
+            $t0 = $now;
+        };
+
         $params = self::validate_parameters(self::execute_parameters(), [
             'cmid' => $cmid,
             'document' => $document,
             'deckid' => $deckid,
         ]);
+        $mark('validate_parameters');
 
         $cm = get_coursemodule_from_id('bento', $params['cmid'], 0, false, MUST_EXIST);
+        $mark('get_coursemodule_from_id');
         $context = context_module::instance($cm->id);
         self::validate_context($context);
+        $mark('validate_context');
         bento_require_current_schema();
+        $mark('require_current_schema');
 
         // Fetched here (not just in the student branch further down, as
         // before) — the size ceiling below is per-activity, so this is
         // needed regardless of which branch actually ends up writing.
         $bento = $DB->get_record('bento', ['id' => $cm->instance], '*', MUST_EXIST);
+        $mark('get_record_bento');
 
         $decoded = json_decode($params['document'], true);
+        $mark('json_decode');
         if (!is_array($decoded) || ($decoded['format'] ?? null) !== 'bento/slides' || empty($decoded['slides'])) {
             throw new invalid_parameter_exception('Not a valid bento/slides document.');
         }
@@ -121,6 +156,7 @@ class save_document extends external_api {
         if (array_key_exists('readonly', $decoded)) {
             unset($decoded['readonly']);
             $cleandocument = json_encode($decoded);
+            $mark('json_encode_stripped_readonly');
         } else {
             $cleandocument = $params['document'];
         }
@@ -128,21 +164,25 @@ class save_document extends external_api {
         if ($params['deckid'] > 0) {
             require_capability('mod/bento:edit', $context);
             $deck = $DB->get_record('bento_decks', ['id' => $params['deckid'], 'bentoid' => $cm->instance], '*', MUST_EXIST);
+            $mark('get_record_deck');
             $DB->update_record('bento_decks', (object) [
                 'id' => $deck->id,
                 'document' => $cleandocument,
                 'timemodified' => $now,
             ]);
-            return ['ok' => true, 'timemodified' => $now];
+            $mark('update_record_deck');
+            return ['ok' => true, 'timemodified' => $now, 'debugtimingms' => json_encode($timing)];
         }
 
         if (has_capability('mod/bento:edit', $context)) {
+            $mark('has_capability_edit');
             $DB->update_record('bento', (object) [
                 'id' => $cm->instance,
                 'document' => $cleandocument,
                 'timemodified' => $now,
             ]);
-            return ['ok' => true, 'timemodified' => $now];
+            $mark('update_record_bento');
+            return ['ok' => true, 'timemodified' => $now, 'debugtimingms' => json_encode($timing)];
         }
 
         require_capability('mod/bento:submit', $context);
@@ -158,6 +198,7 @@ class save_document extends external_api {
         }
 
         $existing = $DB->get_record('bento_submissions', ['bentoid' => $bento->id, 'userid' => $USER->id]);
+        $mark('get_record_submission');
         if ($existing) {
             $DB->update_record('bento_submissions', (object) [
                 'id' => $existing->id,
@@ -174,7 +215,8 @@ class save_document extends external_api {
                 'timemodified' => $now,
             ]);
         }
+        $mark('write_submission');
 
-        return ['ok' => true, 'timemodified' => $now];
+        return ['ok' => true, 'timemodified' => $now, 'debugtimingms' => json_encode($timing)];
     }
 }
