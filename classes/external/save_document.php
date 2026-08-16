@@ -176,9 +176,22 @@ class save_document extends external_api {
 
         if (has_capability('mod/bento:edit', $context)) {
             $mark('has_capability_edit');
+            // Moodle's File API, not the `document` text column — see
+            // lib.php's own bento_get_document()/bento_put_document() for
+            // the full read/write scheme this is part of. The text column
+            // is deliberately left as-is from here on (not synced to
+            // match, not cleared) rather than dual-written on every save:
+            // writing it too would mean still paying for one full-size
+            // text UPDATE per save, undoing the entire point of moving off
+            // it. It stays a static fallback for bento_get_document() to
+            // fall through to if the file itself ever goes missing —
+            // frozen at whatever this row's content was the moment it
+            // first saved through this path, not kept current after that.
+            bento_put_document($context, $cm->instance, $cleandocument);
+            $mark('bento_put_document');
             $DB->update_record('bento', (object) [
                 'id' => $cm->instance,
-                'document' => $cleandocument,
+                'documentinfilestore' => 1,
                 'timemodified' => $now,
             ]);
             $mark('update_record_bento');

@@ -168,5 +168,52 @@ function xmldb_bento_upgrade($oldversion) {
         $dbman->add_field($table, $field);
     }
 
+    // ---- document storage: File API instead of the `document` text
+    // column, for the `bento` table's own published document ----
+    // See lib.php's own bento_get_document()/bento_put_document() for the
+    // read/write scheme this flag drives. New column first, THEN the
+    // actual migration below — every existing row's own document text
+    // gets written into file storage and the flag flipped, so a fresh
+    // install and an upgraded one both end up reading through the exact
+    // same path from here on (no permanent split between "old" and "new"
+    // rows going forward).
+    $table = new xmldb_table('bento');
+    $field = new xmldb_field('documentinfilestore', XMLDB_TYPE_INTEGER, '1', null, XMLDB_NOTNULL, null, '0', 'document');
+    if (!$dbman->field_exists($table, $field)) {
+        $dbman->add_field($table, $field);
+    }
+
+    // Batched via get_recordset (not get_records — this table can hold
+    // rows in the tens of megabytes each, per this plugin's own recent
+    // history; loading every one into memory at once to migrate would
+    // repeat exactly the kind of large-payload problem this migration
+    // exists to move away from) — one row's content in memory at a time,
+    // never the whole table.
+    $modulerecord = $DB->get_record('modules', ['name' => 'bento']);
+    if ($modulerecord) {
+        $rs = $DB->get_recordset_select(
+            'bento',
+            'documentinfilestore = 0 AND document IS NOT NULL AND ' . $DB->sql_compare_text('document') . " != ''"
+        );
+        foreach ($rs as $row) {
+            $cm = $DB->get_record('course_modules', ['module' => $modulerecord->id, 'instance' => $row->id]);
+            if (!$cm) {
+                // An orphaned bento row with no course_modules entry at all
+                // (a leftover from a previously botched deletion, say) —
+                // nothing sensible to migrate this into; leave it on the
+                // legacy text column, bento_get_document() still reads it
+                // fine either way.
+                continue;
+            }
+            $context = context_module::instance($cm->id, IGNORE_MISSING);
+            if (!$context) {
+                continue;
+            }
+            bento_put_document($context, $row->id, $row->document);
+            $DB->set_field('bento', 'documentinfilestore', 1, ['id' => $row->id]);
+        }
+        $rs->close();
+    }
+
     return true;
 }

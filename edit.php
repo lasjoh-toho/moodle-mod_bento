@@ -71,7 +71,7 @@ if ($deckid > 0) {
     if (!empty($bento->loginonly)) {
         bento_require_not_guest();
     }
-    $document = $bento->document;
+    $document = bento_get_document($context, (bool) $bento->documentinfilestore, $bento->id, $bento->document);
     $ownerlabel = '';
 } else {
     require_capability('mod/bento:submit', $context);

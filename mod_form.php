@@ -57,6 +57,9 @@ class mod_bento_mod_form extends moodleform_mod {
         $mform->setExpanded('bentocontenthdr', true);
 
         $existing = isset($this->current->document) ? $this->current->document : '';
+        if (!empty($this->current->documentinfilestore) && !empty($this->current->id)) {
+            $existing = bento_get_document($this->context, true, (int) $this->current->id, $existing);
+        }
         $mform->addElement('html', $this->render_importer($existing));
 
         // Holds the JSON the widget produces (whichever single card remains

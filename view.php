@@ -69,6 +69,7 @@ if (!$bento->allowstudentsubmissions || $showmaster) {
     // a live editor with no Moodle save wiring (see submission.php for the
     // full reasoning on that half).
     $caneditmaster = has_capability('mod/bento:edit', $context);
+    $bento->document = bento_get_document($context, (bool) $bento->documentinfilestore, $bento->id, $bento->document);
     if (!$caneditmaster) {
         $decoded = json_decode($bento->document, true);
         if (is_array($decoded)) {

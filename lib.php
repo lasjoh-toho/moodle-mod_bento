@@ -122,16 +122,23 @@ function bento_update_instance(stdClass $bento, $mform = null) {
         // web service, in the same submit, before this form POST even
         // happened (see mod_form.php's own comment on this field for the
         // full flow). Unsetting rather than assigning the sentinel through
-        // means update_record() below never touches this column at all,
-        // leaving whatever the AJAX save (or an untouched previous value)
-        // already wrote in place. A genuinely empty string is different —
-        // that's someone deliberately clearing every slide (bentoconvert.js
-        // confirms that specific case before ever submitting) — and still
-        // goes through bento_validate_document() normally below, which is
-        // what turns an actually-empty value into a fresh blank document.
+        // means update_record() below never touches `document` at all,
+        // leaving whatever the AJAX save already wrote — into file storage,
+        // per save_document.php's own teacher-edit branch — in place.
         unset($bento->document);
     } else if (isset($bento->document)) {
+        // A genuine document arrived here directly (bentoconvert.js's own
+        // AJAX-first path didn't run — its fallback branch, or a JS
+        // failure) — must go into file storage too, not just the text
+        // column, whenever this row already has (or is gaining) content
+        // there. Otherwise bento_get_document() would keep preferring a
+        // now-stale file over this fresh write, silently discarding
+        // whatever the person just saved through this path.
         $bento->document = bento_validate_document($bento->document);
+        $cm = get_coursemodule_from_instance('bento', $bento->id, 0, false, MUST_EXIST);
+        $context = context_module::instance($cm->id);
+        bento_put_document($context, $bento->id, $bento->document);
+        $bento->documentinfilestore = 1;
     }
 
     $DB->update_record('bento', $bento);
@@ -671,9 +678,93 @@ function bento_view(stdClass $bento, stdClass $course, $cm, context_module $cont
 }
 
 /**
- * Serves the introduction's embedded files (standard mod_intro pattern) —
- * the presentation document itself is never served this way, it's inlined
- * directly by view.php/edit.php.
+ * File-storage details for a stored bento document — one shared component/
+ * filearea for every row, itemid is what actually distinguishes them (see
+ * bento_get_document()'s own doc comment for the full read/write scheme).
+ */
+define('BENTO_DOCUMENT_COMPONENT', 'mod_bento');
+define('BENTO_DOCUMENT_FILEAREA', 'document');
+/** The single filename every document's own stored_file uses — content
+ *  type/identity is entirely carried by (component, filearea, itemid), not
+ *  the filename, so this never needs to vary. */
+define('BENTO_DOCUMENT_FILENAME', 'document.json');
+
+/**
+ * Reads a row's current document content — from its file-storage entry if
+ * `$infilestore` is set (the current, post-migration path every fresh save
+ * now writes through), falling back to the legacy `$legacytext` column
+ * otherwise (a row db/upgrade.php's own migration step hasn't touched yet,
+ * or one that predates this whole mechanism). The ONE place that decides
+ * which of the two a caller actually reads from — every other function in
+ * this plugin should call this rather than reading `document`/
+ * `documentinfilestore` off a row directly, so the fallback logic only
+ * ever needs to exist once.
+ *
+ * @param context $context this activity's own module context
+ * @param bool $infilestore the row's own documentinfilestore column
+ * @param int $itemid the row's own id — see bento_put_document()'s own doc
+ *   comment for why this doubles as the file-storage itemid directly,
+ *   with nothing separate to look up
+ * @param string|null $legacytext the row's own (legacy) document column
+ * @return string the document JSON — '' if genuinely empty/missing either way
+ */
+function bento_get_document(context $context, bool $infilestore, int $itemid, ?string $legacytext): string {
+    if ($infilestore) {
+        $fs = get_file_storage();
+        $file = $fs->get_file($context->id, BENTO_DOCUMENT_COMPONENT, BENTO_DOCUMENT_FILEAREA, $itemid, '/', BENTO_DOCUMENT_FILENAME);
+        if ($file) {
+            return $file->get_content();
+        }
+        // Flag set but the file itself is somehow gone (manually deleted
+        // file storage, a botched migration) — fall through to whatever
+        // legacy text is still there rather than returning nothing at all.
+    }
+    return $legacytext ?? '';
+}
+
+/**
+ * Writes `$content` as a row's current document, via Moodle's File API —
+ * every FRESH save (as opposed to a row db/upgrade.php's migration step
+ * touches) goes through this, never the legacy text column directly.
+ *
+ * Moodle's stored files are content-addressed and immutable: there is no
+ * "edit this file's bytes in place" — updating means deleting the old
+ * stored_file for this itemid (if any) and creating a new one.
+ *
+ * @param context $context this activity's own module context
+ * @param int $itemid a stable identifier for WHICH document this is within
+ *   this context — for `bento` rows, the row's own id (predictable,
+ *   already unique — (contextid, component, filearea, itemid) together is
+ *   what Moodle's file storage actually keys on, and contextid alone
+ *   already uniquely identifies one activity, so there's never a
+ *   collision risk here worth generating a random id to avoid)
+ * @param string $content the document JSON to store
+ */
+function bento_put_document(context $context, int $itemid, string $content): void {
+    $fs = get_file_storage();
+    $existing = $fs->get_file($context->id, BENTO_DOCUMENT_COMPONENT, BENTO_DOCUMENT_FILEAREA, $itemid, '/', BENTO_DOCUMENT_FILENAME);
+    if ($existing) {
+        $existing->delete();
+    }
+    $fs->create_file_from_string([
+        'contextid' => $context->id,
+        'component' => BENTO_DOCUMENT_COMPONENT,
+        'filearea' => BENTO_DOCUMENT_FILEAREA,
+        'itemid' => $itemid,
+        'filepath' => '/',
+        'filename' => BENTO_DOCUMENT_FILENAME,
+    ], $content);
+}
+
+/**
+ * Serves the introduction's embedded files (standard mod_intro pattern).
+ *
+ * The presentation document's own file-storage entries (BENTO_DOCUMENT_
+ * FILEAREA, written by bento_put_document()) are NOT served through this
+ * callback at all — view.php/edit.php read them directly via
+ * bento_get_document() and inline the content server-side, same as they
+ * always did with the legacy text column. This stays the intro-attachments
+ * path it always was.
  *
  * @param stdClass $course
  * @param cm_info $cm
