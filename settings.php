@@ -87,7 +87,7 @@ if ($ADMIN->fulltree) {
         'mod_bento/savetimeout',
         get_string('settings_savetimeout', 'mod_bento'),
         get_string('settings_savetimeout_desc', 'mod_bento'),
-        20,
+        600,
         PARAM_INT
     ));
 }

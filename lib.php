@@ -327,7 +327,7 @@ function bento_moodle_config_meta(int $cmid, int $deckid = 0): string {
         'cmid' => $cmid,
         'sesskey' => sesskey(),
         'wwwroot' => $CFG->wwwroot,
-        'savetimeout' => (int) (get_config('mod_bento', 'savetimeout') ?: 20),
+        'savetimeout' => (int) (get_config('mod_bento', 'savetimeout') ?: 600),
     ];
     if ($deckid > 0) {
         $moodleconfig['deckid'] = $deckid;
