@@ -4,7 +4,12 @@ name: Build & release mod_bento
 # branch (see build.mjs), so triggering it is a deliberate "cut a new
 # release" action.
 on:
-  workflow_dispatch: {}
+  workflow_dispatch:
+    inputs:
+      bento_branch:
+        description: 'bento fork branch/tag to build from (leave default for a normal release)'
+        required: false
+        default: 'moodle-and-editor-enhancements'
 
 permissions:
   contents: write # needed to create the release + upload the asset
@@ -24,6 +29,8 @@ jobs:
       # the job stops HERE. No release gets created, so nothing changes for
       # anyone already using the last working zip.
       - name: Build mod_bento.zip from the bento fork
+        env:
+          BENTO_BRANCH: ${{ github.event.inputs.bento_branch }}
         run: node build.mjs
 
       - name: Verify the zip actually contains a real plugin
@@ -44,5 +51,5 @@ jobs:
           name: mod_bento ${{ steps.ver.outputs.version }}
           files: dist/mod_bento.zip
           body: |
-            Built automatically from `lasjoh-toho/bento` (branch `moodle-and-editor-enhancements`).
+            Built automatically from `lasjoh-toho/bento` (branch/tag `${{ github.event.inputs.bento_branch }}`).
             Install via Site administration → Plugins → Install plugins.
