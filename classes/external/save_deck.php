@@ -89,7 +89,7 @@ class save_deck extends external_api {
         $bento = $DB->get_record('bento', ['id' => $cm->instance], '*', MUST_EXIST);
 
         $decoded = json_decode($params['document'], true);
-        if (!is_array($decoded) || ($decoded['format'] ?? null) !== 'bento/slides' || empty($decoded['slides'])) {
+        if (!bento_document_has_valid_structure($decoded)) {
             throw new invalid_parameter_exception('Not a valid bento/slides document.');
         }
         $maxbytes = bento_effective_max_document_bytes($bento);

@@ -137,7 +137,7 @@ class save_document extends external_api {
 
         $decoded = json_decode($params['document'], true);
         $mark('json_decode');
-        if (!is_array($decoded) || ($decoded['format'] ?? null) !== 'bento/slides' || empty($decoded['slides'])) {
+        if (!bento_document_has_valid_structure($decoded)) {
             throw new invalid_parameter_exception('Not a valid bento/slides document.');
         }
         $maxbytes = bento_effective_max_document_bytes($bento);

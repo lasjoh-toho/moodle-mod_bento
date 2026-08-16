@@ -198,6 +198,30 @@ function bento_update_calendar(stdClass $bento): void {
 }
 
 /**
+ * Whether a decoded document has the minimum structure every consumer
+ * downstream assumes without checking again — format/slides (already
+ * checked everywhere this mattered) AND size (wasn't, until a document
+ * missing it got through this exact gap, got stored, and crashed the
+ * editor entirely on next open with "This file could not start" — size
+ * isn't optional in bento/slides' own type, but nothing server-side was
+ * actually enforcing that before this). The one place every document-
+ * structure check across this plugin (both save webservices, plus
+ * bento_validate_document() right below) now goes through, so a future
+ * gap like this only ever needs fixing once.
+ *
+ * @param mixed $decoded json_decode()'d document, or anything else
+ * @return bool
+ */
+function bento_document_has_valid_structure($decoded): bool {
+    return is_array($decoded)
+        && ($decoded['format'] ?? null) === 'bento/slides'
+        && !empty($decoded['slides'])
+        && isset($decoded['size']['width'], $decoded['size']['height'])
+        && is_numeric($decoded['size']['width'])
+        && is_numeric($decoded['size']['height']);
+}
+
+/**
  * Validates/normalises a submitted bento/slides document before storage.
  * Falls back to a single-slide blank deck if the JSON is missing or malformed
  * — this can happen if a teacher saves the form before ever opening the
@@ -212,7 +236,7 @@ function bento_validate_document(string $json): string {
         return bento_blank_document();
     }
     $decoded = json_decode($json, true);
-    if (!is_array($decoded) || ($decoded['format'] ?? null) !== 'bento/slides' || empty($decoded['slides'])) {
+    if (!bento_document_has_valid_structure($decoded)) {
         return bento_blank_document();
     }
     // A Moodle-hosted activity is always meant to be editable in edit.php —
