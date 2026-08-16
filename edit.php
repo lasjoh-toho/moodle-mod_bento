@@ -153,7 +153,7 @@ if ($returnurlraw !== '') {
         : new moodle_url('/mod/bento/view.php', ['id' => $cm->id]);
     $backlabel = $caneditmaster ? get_string('backtocourse', 'mod_bento') : get_string('backtogallery', 'mod_bento');
 }
-$backlink = bento_back_link_html($backtarget, $backlabel);
+$backlink = bento_toolbar_html($backtarget, $backlabel, (int) $cm->id, $caneditmaster);
 $html = preg_replace('/<body[^>]*>/', '$0' . str_replace('$', '\\$', $backlink), $html, 1);
 
 header('Content-Type: text/html; charset=utf-8');

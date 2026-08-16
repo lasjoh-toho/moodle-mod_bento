@@ -148,73 +148,19 @@ class mod_bento_mod_form extends moodleform_mod {
     }
 
     /**
-     * The import/merge widget markup. The EXISTING document (if there is a
-     * genuine one — not just the single-blank-slide default) is embedded as
-     * a JSON &lt;script&gt; block so bentoconvert.js can seed it as the first
-     * card, mergeable with anything newly dropped here.
+     * Thin wrapper around bento_render_importer() (lib.php) — the shared
+     * version manage.php's own standalone page now uses too, so this
+     * markup only ever needs maintaining in one place.
      *
      * @param string $existingjson raw JSON from the `document` field, or ''
      * @return string HTML
      */
     private function render_importer(string $existingjson): string {
-        global $COURSE, $DB, $USER;
-        $seed = '';
-        $decoded = $existingjson !== '' ? json_decode($existingjson, true) : null;
-        $isrealdoc = is_array($decoded)
-            && ($decoded['format'] ?? null) === 'bento/slides'
-            && !empty($decoded['slides'])
-            && !(count($decoded['slides']) === 1 && empty($decoded['slides'][0]['elements']));
-        if ($isrealdoc) {
-            // json_encode it back out (rather than reusing $existingjson
-            // verbatim) purely to guarantee well-formed JSON reaches the
-            // <script> block even if the stored value ever had trailing
-            // whitespace or similar — the parsed/re-encoded form is safe.
-            $seed = '<script type="application/json" id="mod-bento-existing-doc">'
-                . json_encode($decoded) . '</script>';
-        }
-
-        // Existing DRAFTS (bento_decks) — kept as their OWN separate cards,
-        // never force-merged into the seed above. Only meaningful once
-        // this activity already exists ($this->_cm set); a brand-new
-        // activity has no bentoid yet to look any up under.
-        $deckseed = '';
-        if (!empty($this->_cm)) {
-            $decks = $DB->get_records('bento_decks', ['bentoid' => $this->_cm->instance], 'sortorder ASC');
-            foreach ($decks as $deck) {
-                $deckdecoded = json_decode($deck->document, true);
-                if (!is_array($deckdecoded) || ($deckdecoded['format'] ?? null) !== 'bento/slides') {
-                    continue; // skip anything that somehow isn't valid rather than breaking the whole page over one bad row
-                }
-                $deckseed .= '<script type="application/json" class="mod-bento-deck-seed" data-deckid="' . (int) $deck->id . '" data-name="' . s($deck->name ?? '') . '">'
-                    . json_encode($deckdecoded) . '</script>';
-            }
-        }
-
-        return '
-            <div class="mod-bento-importer" id="mod-bento-importer" data-courseid="' . (int) $COURSE->id . '" data-cmid="' . (int) ($this->_cm->id ?? 0) . '" data-candeck="1" data-termsagreed="' . (bento_has_agreed_current_terms((int) $USER->id) ? '1' : '0') . '">
-                <p class="form-text text-muted mod-bento-edithint">' . get_string('editusehint', 'mod_bento') . '</p>
-                ' . $seed . $deckseed . '
-                <div class="mod-bento-tiles has-paste">
-                    <button type="button" class="mod-bento-tile mod-bento-tile-new" id="mod-bento-newbtn" data-hasdoc="' . ($isrealdoc ? '1' : '0') . '">
-                        <span class="mod-bento-tile-title" id="mod-bento-newbtn-title">' . ($isrealdoc ? get_string('playtile', 'mod_bento') : get_string('newtile', 'mod_bento')) . '</span>
-                        <span class="mod-bento-tile-sub" id="mod-bento-newbtn-sub">' . ($isrealdoc ? get_string('playtilesub', 'mod_bento') : get_string('newtilesub', 'mod_bento')) . '</span>
-                    </button>
-                    <button type="button" class="mod-bento-tile mod-bento-tile-demo" id="mod-bento-demobtn">
-                        <span class="mod-bento-tile-title">' . get_string('demotile', 'mod_bento') . '</span>
-                        <span class="mod-bento-tile-sub">' . get_string('demotilesub', 'mod_bento') . '</span>
-                    </button>
-                    <div class="mod-bento-tile mod-bento-tile-import mod-bento-drop" id="mod-bento-drop" tabindex="0">
-                        <span class="mod-bento-tile-title">' . get_string('droppptxhere', 'mod_bento') . '</span>
-                        <span class="mod-bento-tile-sub">' . get_string('droppptxsub', 'mod_bento') . '</span>
-                        <input type="file" id="mod-bento-file" accept=".pptx,.ppt,.json,.html,.htm" multiple style="display:none">
-                    </div>
-                    <button type="button" class="mod-bento-tile mod-bento-tile-paste" id="mod-bento-pastetile">
-                        <span class="mod-bento-tile-title">' . get_string('pastetile', 'mod_bento') . '</span>
-                        <span class="mod-bento-tile-sub">' . get_string('pastetilesub', 'mod_bento') . '</span>
-                    </button>
-                </div>
-                <div class="mod-bento-items" id="mod-bento-items"></div>
-            </div>';
+        global $COURSE, $DB;
+        $decks = !empty($this->_cm)
+            ? $DB->get_records('bento_decks', ['bentoid' => $this->_cm->instance], 'sortorder ASC')
+            : [];
+        return bento_render_importer($existingjson, (int) $COURSE->id, (int) ($this->_cm->id ?? 0), $decks);
     }
 
     public function data_preprocessing(&$defaultvalues) {

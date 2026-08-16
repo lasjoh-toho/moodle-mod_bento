@@ -170,6 +170,7 @@ class save_document extends external_api {
                 'document' => $cleandocument,
                 'timemodified' => $now,
             ]);
+            bento_touch_coursemodule($cm->id);
             $mark('update_record_deck');
             return ['ok' => true, 'timemodified' => $now, 'debugtimingms' => json_encode($timing)];
         }
@@ -194,6 +195,7 @@ class save_document extends external_api {
                 'documentinfilestore' => 1,
                 'timemodified' => $now,
             ]);
+            bento_touch_coursemodule($cm->id);
             $mark('update_record_bento');
             return ['ok' => true, 'timemodified' => $now, 'debugtimingms' => json_encode($timing)];
         }

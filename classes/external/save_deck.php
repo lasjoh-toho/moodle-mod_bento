@@ -117,6 +117,7 @@ class save_deck extends external_api {
                 'document' => $cleandocument,
                 'timemodified' => $now,
             ]);
+            bento_touch_coursemodule($cm->id);
             return ['ok' => true, 'deckid' => (int) $existing->id, 'timemodified' => $now];
         }
 
@@ -132,6 +133,7 @@ class save_deck extends external_api {
             'timecreated' => $now,
             'timemodified' => $now,
         ]);
+        bento_touch_coursemodule($cm->id);
 
         return ['ok' => true, 'deckid' => (int) $newid, 'timemodified' => $now];
     }

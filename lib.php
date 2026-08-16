@@ -343,37 +343,45 @@ function bento_moodle_config_meta(int $cmid, int $deckid = 0): string {
 }
 
 /**
- * A small, fixed-position "back" link injected directly into the raw page
- * (view.php/submission.php splice the whole Bento app in as one page, no
- * Moodle navigation chrome at all — Escape from present mode there lands
- * in Bento's own minimal read-only player, which has no way back to the
- * Moodle activity built in). z-index deliberately far above anything
- * Bento's own present-mode overlay uses, so it stays visible and
- * clickable through present mode too, not just the player card.
+ * A small, fixed-position toolbar injected directly into the raw page
+ * (view.php/edit.php/submission.php splice the whole Bento app in as one
+ * page, no Moodle navigation chrome at all — Escape from present mode
+ * there previously landed in Bento's own minimal read-only player, or the
+ * live editor, with no way back to anything Moodle-side built in: not the
+ * course, not the activity's own settings, and no visible way to switch
+ * between viewing the presentation and editing it without already knowing
+ * the two URLs differ only by whether #present is in the hash). z-index
+ * deliberately far above anything Bento's own present-mode overlay uses,
+ * so it stays visible and clickable through present mode too, not just
+ * the player card/editor.
  *
- * @param moodle_url $target
- * @param string $label
+ * @param moodle_url $backtarget where "← Back" points
+ * @param string $backlabel its own label
+ * @param int $cmid this activity's own course-module id
+ * @param bool $caneditmaster whether Settings should show at all — a
+ *   student viewing the classic single document has no use for it
  * @return string
  */
-/**
- * @param moodle_url $target
- * @param string $label
- * @return string
- */
-function bento_back_link_html(moodle_url $target, string $label): string {
-    $href = $target->out(false);
-    $safelabel = s($label);
-    // Top-LEFT, not top-right — Bento's own Save button lives in its
-    // toolbar's right-hand group, so top-right is exactly where this used
-    // to collide with it. Hidden automatically while present mode's own
-    // overlay is showing (a lightweight poll for .bento-present-overlay —
-    // present mode already has its own exit gesture, and this link isn't
-    // meant to appear there at all, only once back in the actual editor).
-    return '<a href="' . $href . '" id="mod-bento-backlink" style="position:fixed;top:14px;left:14px;z-index:2147483647;'
-        . 'font:600 13px system-ui, -apple-system, sans-serif;color:#14161c;background:rgba(255,255,255,.85);'
+function bento_toolbar_html(moodle_url $backtarget, string $backlabel, int $cmid, bool $caneditmaster): string {
+    $pillstyle = 'font:600 13px system-ui, -apple-system, sans-serif;color:#14161c;background:rgba(255,255,255,.85);'
         . 'backdrop-filter:blur(10px);padding:7px 14px;border-radius:999px;text-decoration:none;'
-        . 'box-shadow:0 2px 10px rgba(0,0,0,.25);">&larr; ' . $safelabel . '</a>'
-        . '<script>(function(){var l=document.getElementById("mod-bento-backlink");'
+        . 'box-shadow:0 2px 10px rgba(0,0,0,.25);display:inline-block;';
+    $wrapstyle = 'position:fixed;top:14px;left:14px;z-index:2147483647;display:flex;gap:8px;align-items:center;';
+
+    $buttons = '<a href="' . s($backtarget->out(false)) . '" style="' . $pillstyle . '">&larr; ' . s($backlabel) . '</a>';
+
+    if ($caneditmaster) {
+        $settingsurl = new moodle_url('/course/modedit.php', ['update' => $cmid, 'return' => 1]);
+        $buttons .= '<a href="' . s($settingsurl->out(false)) . '" style="' . $pillstyle . '">'
+            . s(get_string('editsettings')) . '</a>';
+    }
+
+    // Hidden automatically while present mode's own overlay is showing (a
+    // lightweight poll for .bento-present-overlay — present mode already
+    // has its own exit gesture, and this toolbar isn't meant to appear
+    // there at all, only once back in the actual editor/viewer).
+    return '<div id="mod-bento-toolbar" style="' . $wrapstyle . '">' . $buttons . '</div>'
+        . '<script>(function(){var l=document.getElementById("mod-bento-toolbar");'
         . 'setInterval(function(){l.style.display=document.querySelector(".bento-present-overlay")?"none":"";},250);'
         . '})();</script>';
 }
@@ -381,7 +389,7 @@ function bento_back_link_html(moodle_url $target, string $label): string {
 /**
  * A small fixed banner telling a student their submission is now
  * read-only because bento.duedate has passed — injected the same way as
- * bento_back_link_html(), for the same reason (edit.php splices the whole
+ * bento_toolbar_html(), for the same reason (edit.php splices the whole
  * app in as one raw page, no Moodle chrome to hang a notification off of).
  *
  * @param int $duedate
@@ -620,11 +628,21 @@ function bento_set_grade_visibility(stdClass $bento, int $userid, bool $publishe
 }
 
 /**
- * Adds "Bearbeiten" (edit.php) and "Bewerten" (grade.php) links to the
- * activity's settings/gear menu — this IS the "open a new Moodle page from
- * edit mode" entry point teachers use; view.php itself always stays the
- * plain immersive present-mode page every user (including teachers,
- * previewing) lands on.
+ * Adds "Bearbeiten" (manage.php — the tile importer, not the bare slide
+ * editor directly) and "Bewerten" (grade.php) links to the activity's
+ * settings/gear menu — this IS the "open a new Moodle page from edit
+ * mode" entry point teachers use; view.php itself always stays the plain
+ * immersive present-mode page every user (including teachers, previewing)
+ * lands on. Pointing this at manage.php rather than edit.php directly is
+ * deliberate: manage.php is where new/demo/import/paste-and-distribute
+ * and every existing draft deck actually live, previously reachable ONLY
+ * via the full Activity Settings form buried among name/due-date/grading
+ * — genuinely the same easy-to-miss detour as editing any other Moodle
+ * activity's own text field, and the whole reason this entry point exists
+ * at all rather than just relying on Settings. Clicking the existing
+ * document there still opens edit.php exactly as before (unchanged
+ * bentoconvert.js click behavior) — this only moves WHERE that click
+ * starts from.
  *
  * @param settings_navigation $settings
  * @param navigation_node $bentonode
@@ -642,7 +660,7 @@ function bento_extend_settings_navigation(settings_navigation $settings, navigat
     if (has_capability('mod/bento:edit', $context)) {
         $bentonode->add(
             get_string('editpresentation', 'mod_bento'),
-            new moodle_url('/mod/bento/edit.php', ['id' => $cm->id]),
+            new moodle_url('/mod/bento/manage.php', ['id' => $cm->id]),
             navigation_node::TYPE_SETTING,
             null,
             'bentoedit',
@@ -779,6 +797,105 @@ function bento_put_document(context $context, int $itemid, string $content): voi
         'filename' => BENTO_DOCUMENT_FILENAME,
     ], $content);
 }
+
+/**
+ * Updates course_modules.timemodified directly for this activity's own
+ * course-module row. save_document.php's own webservice writes straight to
+ * the `bento` table (and, via bento_put_document() above, file storage) —
+ * it never goes through Moodle's own update_module()/course/modedit.php
+ * workflow, which is the only thing that would otherwise keep this column
+ * current. Left stale, "last modified" as shown by Moodle core's own
+ * activity chooser and several block/report views (anything reading
+ * course_modules.timemodified rather than this plugin's own bento.
+ * timemodified) kept reflecting the last time someone saved the ACTIVITY
+ * SETTINGS FORM specifically, not the last time anyone actually saved the
+ * presentation through the editor — for an activity edited far more often
+ * through the editor than through its own settings, that could read days
+ * or weeks stale despite genuinely current content.
+ *
+ * Deliberately NOT called from the student-submission path in save_
+ * document.php: a student saving their own submission shouldn't make the
+ * ACTIVITY itself look modified to the teacher — only the teacher's own
+ * document (or a draft deck) actually changing should.
+ *
+ * @param int $cmid this activity's own course_modules id
+ */
+function bento_touch_coursemodule(int $cmid): void {
+    global $DB;
+    $DB->set_field('course_modules', 'timemodified', time(), ['id' => $cmid]);
+}
+
+/**
+ * The import/merge widget markup — used by mod_form.php (inside the
+ * activity settings form) AND manage.php (a plain themed page, reachable
+ * directly without going through the settings form at all). The EXISTING
+ * document (if there is a genuine one — not just the single-blank-slide
+ * default) is embedded as a JSON <script> block so bentoconvert.js can
+ * seed it as the first card, mergeable with anything newly dropped here.
+ * Existing DRAFTS (bento_decks) are seeded too, each as its own separate
+ * card, never force-merged into the main one.
+ *
+ * @param string $existingjson raw JSON from the current document, or ''
+ * @param int $courseid
+ * @param int $cmid 0 for a brand-new activity that doesn't exist yet
+ * @param array $decks bento_decks rows for this activity (empty for a
+ *   brand-new activity, which has no bentoid yet to look any up under)
+ * @return string HTML
+ */
+function bento_render_importer(string $existingjson, int $courseid, int $cmid, array $decks = []): string {
+    global $USER;
+    $seed = '';
+    $decoded = $existingjson !== '' ? json_decode($existingjson, true) : null;
+    $isrealdoc = is_array($decoded)
+        && ($decoded['format'] ?? null) === 'bento/slides'
+        && !empty($decoded['slides'])
+        && !(count($decoded['slides']) === 1 && empty($decoded['slides'][0]['elements']));
+    if ($isrealdoc) {
+        // json_encode it back out (rather than reusing $existingjson
+        // verbatim) purely to guarantee well-formed JSON reaches the
+        // <script> block even if the stored value ever had trailing
+        // whitespace or similar — the parsed/re-encoded form is safe.
+        $seed = '<script type="application/json" id="mod-bento-existing-doc">'
+            . json_encode($decoded) . '</script>';
+    }
+
+    $deckseed = '';
+    foreach ($decks as $deck) {
+        $deckdecoded = json_decode($deck->document, true);
+        if (!is_array($deckdecoded) || ($deckdecoded['format'] ?? null) !== 'bento/slides') {
+            continue; // skip anything that somehow isn't valid rather than breaking the whole page over one bad row
+        }
+        $deckseed .= '<script type="application/json" class="mod-bento-deck-seed" data-deckid="' . (int) $deck->id . '" data-name="' . s($deck->name ?? '') . '">'
+            . json_encode($deckdecoded) . '</script>';
+    }
+
+    return '
+        <div class="mod-bento-importer" id="mod-bento-importer" data-courseid="' . $courseid . '" data-cmid="' . $cmid . '" data-candeck="1" data-termsagreed="' . (bento_has_agreed_current_terms((int) $USER->id) ? '1' : '0') . '">
+            <p class="form-text text-muted mod-bento-edithint">' . get_string('editusehint', 'mod_bento') . '</p>
+            ' . $seed . $deckseed . '
+            <div class="mod-bento-tiles has-paste">
+                <button type="button" class="mod-bento-tile mod-bento-tile-new" id="mod-bento-newbtn" data-hasdoc="' . ($isrealdoc ? '1' : '0') . '">
+                    <span class="mod-bento-tile-title" id="mod-bento-newbtn-title">' . ($isrealdoc ? get_string('playtile', 'mod_bento') : get_string('newtile', 'mod_bento')) . '</span>
+                    <span class="mod-bento-tile-sub" id="mod-bento-newbtn-sub">' . ($isrealdoc ? get_string('playtilesub', 'mod_bento') : get_string('newtilesub', 'mod_bento')) . '</span>
+                </button>
+                <button type="button" class="mod-bento-tile mod-bento-tile-demo" id="mod-bento-demobtn">
+                    <span class="mod-bento-tile-title">' . get_string('demotile', 'mod_bento') . '</span>
+                    <span class="mod-bento-tile-sub">' . get_string('demotilesub', 'mod_bento') . '</span>
+                </button>
+                <div class="mod-bento-tile mod-bento-tile-import mod-bento-drop" id="mod-bento-drop" tabindex="0">
+                    <span class="mod-bento-tile-title">' . get_string('droppptxhere', 'mod_bento') . '</span>
+                    <span class="mod-bento-tile-sub">' . get_string('droppptxsub', 'mod_bento') . '</span>
+                    <input type="file" id="mod-bento-file" accept=".pptx,.ppt,.json,.html,.htm" multiple style="display:none">
+                </div>
+                <button type="button" class="mod-bento-tile mod-bento-tile-paste" id="mod-bento-pastetile">
+                    <span class="mod-bento-tile-title">' . get_string('pastetile', 'mod_bento') . '</span>
+                    <span class="mod-bento-tile-sub">' . get_string('pastetilesub', 'mod_bento') . '</span>
+                </button>
+            </div>
+            <div class="mod-bento-items" id="mod-bento-items"></div>
+        </div>';
+}
+
 
 /**
  * Serves the introduction's embedded files (standard mod_intro pattern).

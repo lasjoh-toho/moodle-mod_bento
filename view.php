@@ -97,9 +97,17 @@ if (!$bento->allowstudentsubmissions || $showmaster) {
     $headinject = $caneditmaster ? bento_moodle_config_meta((int) $cm->id) . $bootstrap : $bootstrap;
     $html = preg_replace('/<head[^>]*>/', '$0' . str_replace('$', '\\$', $headinject), $html, 1);
 
-    $backtarget = $showmaster ? new moodle_url('/mod/bento/view.php', ['id' => $cm->id]) : course_get_url($course);
-    $backlabel = $showmaster ? get_string('backtogallery', 'mod_bento') : get_string('backtocourse', 'mod_bento');
-    $backlink = bento_back_link_html($backtarget, $backlabel);
+    if ($showmaster) {
+        $backtarget = new moodle_url('/mod/bento/view.php', ['id' => $cm->id]);
+        $backlabel = get_string('backtogallery', 'mod_bento');
+    } else if ($caneditmaster) {
+        $backtarget = new moodle_url('/mod/bento/manage.php', ['id' => $cm->id]);
+        $backlabel = get_string('backtomanage', 'mod_bento');
+    } else {
+        $backtarget = course_get_url($course);
+        $backlabel = get_string('backtocourse', 'mod_bento');
+    }
+    $backlink = bento_toolbar_html($backtarget, $backlabel, (int) $cm->id, $caneditmaster);
     $html = preg_replace('/<body[^>]*>/', '$0' . str_replace('$', '\\$', $backlink), $html, 1);
 
     header('Content-Type: text/html; charset=utf-8');

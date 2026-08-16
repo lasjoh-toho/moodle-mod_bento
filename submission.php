@@ -107,7 +107,7 @@ $bootstrap = '<script>location.hash = "present"; document.title = ' . json_encod
 $headinject = $isowner ? bento_moodle_config_meta((int) $cm->id) . $bootstrap : $bootstrap;
 $html = preg_replace('/<head[^>]*>/', '$0' . str_replace('$', '\\$', $headinject), $html, 1);
 
-$backlink = bento_back_link_html(new moodle_url('/mod/bento/view.php', ['id' => $cm->id]), get_string('backtogallery', 'mod_bento'));
+$backlink = bento_toolbar_html(new moodle_url('/mod/bento/view.php', ['id' => $cm->id]), get_string('backtogallery', 'mod_bento'), (int) $cm->id, false);
 $html = preg_replace('/<body[^>]*>/', '$0' . str_replace('$', '\\$', $backlink), $html, 1);
 
 
