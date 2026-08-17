@@ -51,11 +51,11 @@ $string['pastestep1title'] = 'Text einfügen';
 $string['pastestep1desc'] = 'Text aus einer Webseite oder einem PDF kopieren, dann hier mit Strg+V (Cmd+V auf dem Mac) einfügen. Bilder im kopierten Inhalt werden mit übernommen — diese Moodle-Version holt sie über die eigene Seite (keine Sicherheitsbeschränkung wie beim eigenständigen Konverter).';
 $string['pastecatcherplaceholder'] = 'Hier klicken und einfügen…';
 $string['pastestep2title'] = 'Text bearbeiten';
-$string['pastestep2desc'] = 'Cursor irgendwo in den Text setzen — ein kleines Menü über der Schreibmarke lässt eine Folie enden oder zwischen Folieninhalt und Zusatztext wechseln, ab genau dieser Stelle. Nichts wurde automatisch erkannt.';
+$string['pastestep2desc'] = 'Cursor irgendwo in den Text setzen — ein kleines Menü über der Schreibmarke lässt eine Folie enden oder zwischen Folieninhalt und Zusatztext wechseln, ab genau dieser Stelle. Nichts wurde automatisch erkannt. Die eingefügten Inhalte werden als Folien angelegt, die zur Präsentation hinzugefügt werden können.';
 $string['pasteviewtoggle'] = 'Folienansicht';
 $string['pastectxendslide'] = '▪ Folie endet hier';
 $string['pastectxtogglemode'] = '↕ Wechsel Folientext/Zusatztext';
-$string['pastegeneratebtn'] = 'Zur Präsentation hinzufügen';
+$string['pastegeneratebtn'] = 'Materialien anlegen';
 
 $string['editpresentation'] = 'Präsentation bearbeiten';
 $string['managepresentation'] = 'Verteilen/Importieren';

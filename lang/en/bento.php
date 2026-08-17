@@ -51,11 +51,11 @@ $string['pastestep1title'] = 'Paste text';
 $string['pastestep1desc'] = 'Copy text from a webpage or a PDF, then paste it here with Ctrl+V (Cmd+V on a Mac). Images in the copied content are carried over — this Moodle-integrated version fetches them through your own site (no cross-origin restriction, unlike the standalone converter).';
 $string['pastecatcherplaceholder'] = 'Click here and paste…';
 $string['pastestep2title'] = 'Edit text';
-$string['pastestep2desc'] = 'Place the cursor anywhere in the text — a small menu above the caret lets you end a slide or switch between slide content and companion text, starting exactly there. Nothing was detected automatically.';
+$string['pastestep2desc'] = 'Place the cursor anywhere in the text — a small menu above the caret lets you end a slide or switch between slide content and companion text, starting exactly there. Nothing was detected automatically. The pasted content becomes slides that can then be added to the presentation.';
 $string['pasteviewtoggle'] = 'Slide view';
 $string['pastectxendslide'] = '▪ End slide here';
 $string['pastectxtogglemode'] = '↕ Switch slide/companion text';
-$string['pastegeneratebtn'] = 'Add to presentation';
+$string['pastegeneratebtn'] = 'Create materials';
 
 $string['editpresentation'] = 'Edit presentation';
 $string['managepresentation'] = 'Distribute/Import';

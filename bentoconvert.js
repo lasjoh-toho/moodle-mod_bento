@@ -855,7 +855,7 @@ function mergeDocs(docA, docB){
       var isPublishedCard = !!it.existing;
       var eyeOpen = isPublishedCard && bentoDocumentVisible;
       var eyeOpenSvg = '<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M1 12s4-7 11-7 11 7 11 7-4 7-11 7-11-7-11-7z"/><circle cx="12" cy="12" r="3"/></svg>';
-      var eyeClosedSvg = '<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17.94 17.94A10.94 10.94 0 0 1 12 20c-7 0-11-8-11-8a18.6 18.6 0 0 1 4.22-5.06M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"/><line x1="1" y1="1" x2="23" y2="23"/></svg>';
+      var eyeClosedSvg = '<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2 13c2.5-3 6-5 10-5s7.5 2 10 5"/><path d="M6 16.5l1-1.8M18 16.5l-1-1.8M12 18l0-2"/></svg>';
       card.innerHTML =
         '<span class="mod-bento-item-grip" title="Ziehen zum Sortieren">⠿</span>' +
         '<div class="mod-bento-item-info">' +
@@ -867,9 +867,11 @@ function mergeDocs(docA, docB){
           (it.warnings && it.warnings.length ? '<ul class="mod-bento-item-warnings">' + it.warnings.map(function (w) { return '<li>' + escapeHtml(w) + '</li>'; }).join('') + '</ul>' : '') +
         '</div>' +
         (isTop ? '' : '<button type="button" class="mod-bento-item-promote" title="Nach oben stellen (wird beim Speichern die veröffentlichte Präsentation)">⇧</button>') +
-        '<button type="button" class="mod-bento-item-save" title="Diese Karte einzeln speichern">' + (isTop && !it.existing ? 'Veröffentlichen' : 'Speichern') + '</button>' +
+        (isPersisted
+          ? '<span class="mod-bento-item-saved-check" title="Gespeichert — nichts zu tun">✓</span>'
+          : '<button type="button" class="mod-bento-item-save" title="Diese Karte einzeln speichern">Speichern</button>') +
         '<button type="button" class="mod-bento-item-play" title="Öffnen (im vollen Editor, mit Speichern)">▶</button>' +
-        '<button type="button" class="mod-bento-item-download" title="Als .bento.html herunterladen">⬇</button>' +
+        '<button type="button" class="mod-bento-item-download" title="Als .bento.html herunterladen">&#8681;</button>' +
         '<button type="button" class="mod-bento-item-remove" title="Entfernen">✕</button>';
 
       card.querySelector('.mod-bento-item-remove').addEventListener('click', function () {
@@ -891,22 +893,24 @@ function mergeDocs(docA, docB){
       });
 
       var saveBtn = card.querySelector('.mod-bento-item-save');
-      saveBtn.addEventListener('click', function () {
-        if (!bentoCmId) { alert('Erst die Aktivität selbst anlegen (unten „Speichern und anzeigen“), bevor einzelne Karten gespeichert werden können.'); return; }
-        saveBtn.disabled = true;
-        var nowTop = items[0] === it; // re-check at click time — order may have changed since the card was built
-        var task = (!bentoCanDeck || nowTop)
-          ? saveDocToMoodle(bentoCmId, it.doc)
-          : saveDeckToMoodle(bentoCmId, it.deckid || 0, it.baseName, it.doc).then(function (res) { it.deckid = res.deckid; });
-        task.then(function () {
-          if (!bentoCanDeck || nowTop) it.existing = true;
-          toastMsg((!bentoCanDeck || nowTop) ? 'Gespeichert.' : 'Entwurf gespeichert.');
-          renderItems();
-        }).catch(function (e) {
-          console.error(e);
-          alert('Konnte nicht speichern: ' + (e.message || e));
-        }).finally(function () { saveBtn.disabled = false; });
-      });
+      if (saveBtn) {
+        saveBtn.addEventListener('click', function () {
+          if (!bentoCmId) { alert('Erst die Aktivität selbst anlegen (unten „Speichern und anzeigen“), bevor einzelne Karten gespeichert werden können.'); return; }
+          saveBtn.disabled = true;
+          var nowTop = items[0] === it; // re-check at click time — order may have changed since the card was built
+          var task = (!bentoCanDeck || nowTop)
+            ? saveDocToMoodle(bentoCmId, it.doc)
+            : saveDeckToMoodle(bentoCmId, it.deckid || 0, it.baseName, it.doc).then(function (res) { it.deckid = res.deckid; });
+          task.then(function () {
+            if (!bentoCanDeck || nowTop) it.existing = true;
+            toastMsg((!bentoCanDeck || nowTop) ? 'Gespeichert.' : 'Entwurf gespeichert.');
+            renderItems();
+          }).catch(function (e) {
+            console.error(e);
+            alert('Konnte nicht speichern: ' + (e.message || e));
+          }).finally(function () { saveBtn.disabled = false; });
+        });
+      }
 
       var promoteBtn = card.querySelector('.mod-bento-item-promote');
       if (promoteBtn) {
@@ -921,7 +925,8 @@ function mergeDocs(docA, docB){
 
       var eyeBtn = card.querySelector('.mod-bento-item-eye');
       if (eyeBtn && bentoCmId) {
-        eyeBtn.addEventListener('click', function () {
+        eyeBtn.addEventListener('click', function (ev) {
+          ev.stopPropagation();
           if (isPublishedCard) {
             // Direct toggle — reversible, doesn't replace anything, so no
             // confirmation needed either direction.

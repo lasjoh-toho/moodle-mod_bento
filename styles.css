@@ -239,6 +239,17 @@
 }
 .mod-bento-item-save:hover { background: #ffb37e; }
 .mod-bento-item-save:disabled { opacity: 0.6; cursor: default; }
+.mod-bento-item-saved-check {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 6px 12px;
+  border-radius: 6px;
+  border: 1px solid transparent;
+  color: #3a8a5e;
+  font-weight: 700;
+  font-size: 14px;
+}
 .mod-bento-item-promote {
   border: none;
   background: transparent;
