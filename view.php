@@ -100,10 +100,11 @@ if (!$bento->allowstudentsubmissions || $showmaster) {
     if ($showmaster) {
         $backtarget = new moodle_url('/mod/bento/view.php', ['id' => $cm->id]);
         $backlabel = get_string('backtogallery', 'mod_bento');
-    } else if ($caneditmaster) {
-        $backtarget = new moodle_url('/mod/bento/manage.php', ['id' => $cm->id]);
-        $backlabel = get_string('backtomanage', 'mod_bento');
     } else {
+        // The + button already covers "back to manage.php" explicitly
+        // for whoever can edit the master document, so × is always a
+        // plain "back to course" here — no separate teacher/non-editor
+        // branch needed, both go to the same place now.
         $backtarget = course_get_url($course);
         $backlabel = get_string('backtocourse', 'mod_bento');
     }

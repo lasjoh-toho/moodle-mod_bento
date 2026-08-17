@@ -825,6 +825,14 @@ function mergeDocs(docA, docB){
       docField.value = items.length ? JSON.stringify(items[0].doc) : '';
     }
 
+    /** German-formatted size string (comma decimal, matching the rest of
+     *  this app) — MB above 1000 KB, KB below that, matching the style
+     *  mod_bento's own PHP-side formatBytesMB() already uses elsewhere. */
+    function bentoFormatBytes(bytes) {
+      if (bytes >= 1024 * 1024) return (bytes / (1024 * 1024)).toFixed(1).replace('.', ',') + ' MB';
+      return Math.round(bytes / 1024) + ' KB';
+    }
+
     function buildItemCard(it) {
       var card = document.createElement('div');
       var isTop = items[0] === it;
@@ -836,7 +844,7 @@ function mergeDocs(docA, docB){
         '<div class="mod-bento-item-info">' +
           '<div class="mod-bento-item-name">' + escapeHtml(it.baseName) +
             (it.existing ? ' <em>(veröffentlicht)</em>' : (isPersisted ? ' <em>(Entwurf, gespeichert)</em>' : ' <em class="mod-bento-item-unsaved-tag">(noch nicht gespeichert)</em>')) + '</div>' +
-          '<div class="mod-bento-item-meta">' + it.slideCount + ' Folie' + (it.slideCount === 1 ? '' : 'n') + '</div>' +
+          '<div class="mod-bento-item-meta">' + it.slideCount + ' Folie' + (it.slideCount === 1 ? '' : 'n') + ' · ' + bentoFormatBytes(JSON.stringify(it.doc).length) + '</div>' +
           (it.warnings && it.warnings.length ? '<ul class="mod-bento-item-warnings">' + it.warnings.map(function (w) { return '<li>' + escapeHtml(w) + '</li>'; }).join('') + '</ul>' : '') +
         '</div>' +
         (isTop ? '' : '<button type="button" class="mod-bento-item-promote" title="Nach oben stellen (wird beim Speichern die veröffentlichte Präsentation)">⇧</button>') +

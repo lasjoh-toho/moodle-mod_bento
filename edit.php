@@ -131,28 +131,16 @@ if ($pastdue) {
     $html = preg_replace('/<body[^>]*>/', '$0' . str_replace('$', '\\$', $banner), $html, 1);
 }
 
-// Same "back" convention as the corresponding audience already gets
-// elsewhere — view.php's own teacher-facing back-link targets the course,
-// submission.php's own back-link targets view.php (the gallery) — this
-// page just never had one of its own before, regardless of which of the
-// two documents/audiences it's currently showing. An explicit returnurl
-// (set by mod_form.php's own New/Play tile when it saves-then-redirects
-// here) takes priority over both: someone who started from the activity
-// SETTINGS form should return to editing those settings, not jump
-// straight to the course page or gallery instead.
-// $returnurlraw already read above, before the terms gate.
-if ($returnurlraw !== '') {
-    $backtarget = new moodle_url($returnurlraw);
-    $backlabel = get_string('backtoactivitysettings', 'mod_bento');
-} else if ($deckid > 0) {
-    $backtarget = new moodle_url('/course/modedit.php', ['update' => $cm->id, 'return' => 0]);
-    $backlabel = get_string('backtoactivitysettings', 'mod_bento');
-} else {
-    $backtarget = $caneditmaster
-        ? course_get_url($course)
-        : new moodle_url('/mod/bento/view.php', ['id' => $cm->id]);
-    $backlabel = $caneditmaster ? get_string('backtocourse', 'mod_bento') : get_string('backtogallery', 'mod_bento');
-}
+// x is always a plain "back to course" (or the gallery, for whoever
+// can't edit the master document) -- predictable regardless of how this
+// page was reached. The + button already covers "back to manage.php"
+// explicitly (see bento_toolbar_html()), so routing x there too for
+// anyone arriving via manage.php's own returnurl would just be a second,
+// redundant way to reach the same place.
+$backtarget = $caneditmaster
+    ? course_get_url($course)
+    : new moodle_url('/mod/bento/view.php', ['id' => $cm->id]);
+$backlabel = $caneditmaster ? get_string('backtocourse', 'mod_bento') : get_string('backtogallery', 'mod_bento');
 $backlink = bento_toolbar_html($backtarget, $backlabel, (int) $cm->id, $caneditmaster);
 $html = preg_replace('/<body[^>]*>/', '$0' . str_replace('$', '\\$', $backlink), $html, 1);
 

@@ -368,7 +368,7 @@ function bento_moodle_config_meta(int $cmid, int $deckid = 0): string {
 function bento_toolbar_html(moodle_url $backtarget, string $backlabel, int $cmid, bool $caneditmaster): string {
     $btnstyle = 'display:flex;align-items:center;justify-content:center;width:36px;height:36px;'
         . 'font:600 18px/1 system-ui, -apple-system, sans-serif;text-decoration:none;';
-    $wrapstyle = 'position:fixed;top:14px;left:14px;z-index:2147483647;display:flex;'
+    $wrapstyle = 'position:fixed;top:6px;left:14px;z-index:2147483647;display:flex;'
         . 'border-radius:10px;overflow:hidden;box-shadow:0 2px 10px rgba(0,0,0,.25);backdrop-filter:blur(10px);';
 
     $buttons = '<a href="' . s($backtarget->out(false)) . '" title="' . s($backlabel) . '" '
@@ -386,7 +386,7 @@ function bento_toolbar_html(moodle_url $backtarget, string $backlabel, int $cmid
     // there at all, only once back in the actual editor/viewer).
     return '<div id="mod-bento-toolbar" style="' . $wrapstyle . '">' . $buttons . '</div>'
         . '<script>(function(){var l=document.getElementById("mod-bento-toolbar");'
-        . 'setInterval(function(){l.style.display=document.querySelector(".bento-present-overlay")?"none":"";},250);'
+        . 'setInterval(function(){l.style.display=document.querySelector(".bento-present-overlay")?"none":"flex";},250);'
         . '})();</script>';
 }
 
@@ -826,7 +826,19 @@ function bento_put_document(context $context, int $itemid, string $content): voi
  */
 function bento_touch_coursemodule(int $cmid): void {
     global $DB;
-    $DB->set_field('course_modules', 'timemodified', time(), ['id' => $cmid]);
+    // This is a cosmetic "last modified" timestamp update — the actual
+    // document has already been saved successfully by the time this
+    // runs (it's always called last, after the real save). A failure
+    // here must never turn an otherwise-successful save into a reported
+    // failure — traced directly to a real incident where this exact
+    // call threw a dml_write_exception for one specific activity, taking
+    // down every save attempt (document, drafts, everything) even though
+    // the actual document write itself worked fine every time.
+    try {
+        $DB->set_field('course_modules', 'timemodified', time(), ['id' => $cmid]);
+    } catch (\Throwable $e) {
+        error_log('[bento] bento_touch_coursemodule(' . $cmid . ') failed, ignoring: ' . get_class($e) . ': ' . $e->getMessage());
+    }
 }
 
 /**
