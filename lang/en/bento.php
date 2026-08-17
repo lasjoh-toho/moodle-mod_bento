@@ -42,7 +42,7 @@ $string['pastetilesub'] = 'Split content you copied from, say, a Word document a
 $string['newtile'] = 'New: Blank presentation';
 $string['newtilesub'] = 'Starts with a single blank slide';
 $string['playtile'] = 'View';
-$string['playtilesub'] = 'Shows the currently saved presentation';
+$string['playtilesub'] = 'Shows the currently visible presentation';
 $string['edittile'] = 'Edit';
 $string['edittilesub'] = 'Opens the presentation in the editor';
 $string['demotile'] = 'Demo/Tutorial';
@@ -59,6 +59,8 @@ $string['pastegeneratebtn'] = 'Add to presentation';
 
 $string['editpresentation'] = 'Edit presentation';
 $string['managepresentation'] = 'Distribute/Import';
+$string['moresettings'] = 'More settings';
+$string['nopresentationvisible'] = 'No presentation is currently available.';
 $string['gradepresentation'] = 'Grade';
 $string['backtoview'] = 'Back to presentation';
 $string['backtogallery'] = 'Back to overview';

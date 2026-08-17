@@ -42,7 +42,7 @@ $string['pastetilesub'] = 'Hier können Sie Inhalte, die Sie beispielsweise aus 
 $string['newtile'] = 'Neu: Leere Präsentation';
 $string['newtilesub'] = 'Beginnt mit einer einzelnen leeren Folie';
 $string['playtile'] = 'Ansehen';
-$string['playtilesub'] = 'Zeigt die aktuell gespeicherte Präsentation';
+$string['playtilesub'] = 'Zeigt die aktuell sichtbare Präsentation';
 $string['edittile'] = 'Bearbeiten';
 $string['edittilesub'] = 'Öffnet die Präsentation im Editor';
 $string['demotile'] = 'Demo/Tutorial';
@@ -59,6 +59,8 @@ $string['pastegeneratebtn'] = 'Zur Präsentation hinzufügen';
 
 $string['editpresentation'] = 'Präsentation bearbeiten';
 $string['managepresentation'] = 'Verteilen/Importieren';
+$string['moresettings'] = 'Weitere Einstellungen';
+$string['nopresentationvisible'] = 'Derzeit ist keine Präsentation verfügbar.';
 $string['gradepresentation'] = 'Bewerten';
 $string['backtoview'] = 'Zurück zur Präsentation';
 $string['backtogallery'] = 'Zurück zur Übersicht';

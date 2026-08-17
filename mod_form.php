@@ -160,7 +160,8 @@ class mod_bento_mod_form extends moodleform_mod {
         $decks = !empty($this->_cm)
             ? $DB->get_records('bento_decks', ['bentoid' => $this->_cm->instance], 'sortorder ASC')
             : [];
-        return bento_render_importer($existingjson, (int) $COURSE->id, (int) ($this->_cm->id ?? 0), $decks);
+        $documentvisible = !isset($this->current->documentvisible) || (bool) $this->current->documentvisible;
+        return bento_render_importer($existingjson, (int) $COURSE->id, (int) ($this->_cm->id ?? 0), $decks, $documentvisible);
     }
 
     public function data_preprocessing(&$defaultvalues) {

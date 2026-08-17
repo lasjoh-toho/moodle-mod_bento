@@ -215,5 +215,17 @@ function xmldb_bento_upgrade($oldversion) {
         $rs->close();
     }
 
+    // ---- document visibility: a separate on/off flag for whether the
+    // published document is currently shown (view.php's own classic/
+    // master-document display) — see install.xml's own documentvisible
+    // comment for the full read/write scheme. Default 1, matching a
+    // fresh install's own default, so every existing activity keeps
+    // showing its document unchanged right after this upgrade. ----
+    $table = new xmldb_table('bento');
+    $field = new xmldb_field('documentvisible', XMLDB_TYPE_INTEGER, '1', null, XMLDB_NOTNULL, null, '1', 'documentinfilestore');
+    if (!$dbman->field_exists($table, $field)) {
+        $dbman->add_field($table, $field);
+    }
+
     return true;
 }

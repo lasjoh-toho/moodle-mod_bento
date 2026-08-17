@@ -856,9 +856,11 @@ function bento_touch_coursemodule(int $cmid): void {
  * @param int $cmid 0 for a brand-new activity that doesn't exist yet
  * @param array $decks bento_decks rows for this activity (empty for a
  *   brand-new activity, which has no bentoid yet to look any up under)
+ * @param bool $documentvisible the row's own documentvisible flag — true
+ *   for a brand-new activity, which has nothing to hide yet
  * @return string HTML
  */
-function bento_render_importer(string $existingjson, int $courseid, int $cmid, array $decks = []): string {
+function bento_render_importer(string $existingjson, int $courseid, int $cmid, array $decks = [], bool $documentvisible = true): string {
     global $USER;
     $seed = '';
     $decoded = $existingjson !== '' ? json_decode($existingjson, true) : null;
@@ -886,12 +888,12 @@ function bento_render_importer(string $existingjson, int $courseid, int $cmid, a
     }
 
     return '
-        <div class="mod-bento-importer" id="mod-bento-importer" data-courseid="' . $courseid . '" data-cmid="' . $cmid . '" data-candeck="1" data-termsagreed="' . (bento_has_agreed_current_terms((int) $USER->id) ? '1' : '0') . '">
+        <div class="mod-bento-importer" id="mod-bento-importer" data-courseid="' . $courseid . '" data-cmid="' . $cmid . '" data-candeck="1" data-termsagreed="' . (bento_has_agreed_current_terms((int) $USER->id) ? '1' : '0') . '" data-documentvisible="' . ($documentvisible ? '1' : '0') . '">
             <p class="form-text text-muted mod-bento-edithint">' . get_string('editusehint', 'mod_bento') . '</p>
             ' . $seed . $deckseed . '
             <div class="mod-bento-tiles has-paste' . ($isrealdoc ? ' has-edit' : '') . '">
                 <button type="button" class="mod-bento-tile mod-bento-tile-new" id="mod-bento-newbtn" data-hasdoc="' . ($isrealdoc ? '1' : '0') . '">
-                    <span class="mod-bento-tile-title" id="mod-bento-newbtn-title">' . ($isrealdoc ? get_string('playtile', 'mod_bento') : get_string('newtile', 'mod_bento')) . '</span>
+                    <span class="mod-bento-tile-title" id="mod-bento-newbtn-title">' . ($isrealdoc ? s($decoded['title'] ?? '') ?: get_string('playtile', 'mod_bento') : get_string('newtile', 'mod_bento')) . '</span>
                     <span class="mod-bento-tile-sub" id="mod-bento-newbtn-sub">' . ($isrealdoc ? get_string('playtilesub', 'mod_bento') : get_string('newtilesub', 'mod_bento')) . '</span>
                 </button>' . ($isrealdoc ? '
                 <button type="button" class="mod-bento-tile mod-bento-tile-edit" id="mod-bento-editbtn">
@@ -903,6 +905,7 @@ function bento_render_importer(string $existingjson, int $courseid, int $cmid, a
                     <span class="mod-bento-tile-sub">' . get_string('demotilesub', 'mod_bento') . '</span>
                 </button>
                 <div class="mod-bento-tile mod-bento-tile-import mod-bento-drop" id="mod-bento-drop" tabindex="0">
+                    <span class="mod-bento-tile-arrow" aria-hidden="true">&#8595;</span>
                     <span class="mod-bento-tile-title">' . get_string('droppptxhere', 'mod_bento') . '</span>
                     <span class="mod-bento-tile-sub">' . get_string('droppptxsub', 'mod_bento') . '</span>
                     <input type="file" id="mod-bento-file" accept=".pptx,.ppt,.json,.html,.htm" multiple style="display:none">

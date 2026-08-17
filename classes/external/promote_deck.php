@@ -77,20 +77,32 @@ class promote_deck extends external_api {
         $bento = $DB->get_record('bento', ['id' => $cm->instance], '*', MUST_EXIST);
         $now = time();
 
+        // The published side reads/writes through bento_get_document()/
+        // bento_put_document() (file storage, once migrated) rather than
+        // the `document` text column directly — same reason every other
+        // save path in this plugin does: writing straight to the text
+        // column would leave a row already on file storage
+        // (documentinfilestore=1) reading its now-stale FILE right back
+        // out via bento_get_document(), making a swap here silently
+        // appear to do nothing.
+        $publisheddoc = bento_get_document($context, (bool) $bento->documentinfilestore, $bento->id, $bento->document);
+
         // A real swap — the draft's own row keeps existing (same id,
         // sortorder, name), just with the OLD published content now
-        // sitting in it, while bento.document gets the draft's content.
-        // Nothing created, nothing deleted, nothing discarded.
+        // sitting in it, while the published side gets the draft's
+        // content. Nothing created, nothing deleted, nothing discarded.
+        bento_put_document($context, $bento->id, $deck->document);
         $DB->update_record('bento', (object) [
             'id' => $bento->id,
-            'document' => $deck->document,
+            'documentinfilestore' => 1,
             'timemodified' => $now,
         ]);
         $DB->update_record('bento_decks', (object) [
             'id' => $deck->id,
-            'document' => $bento->document,
+            'document' => $publisheddoc,
             'timemodified' => $now,
         ]);
+        bento_touch_coursemodule($cm->id);
 
         bento_grade_item_update($bento);
         bento_update_calendar($bento);

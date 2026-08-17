@@ -28,8 +28,8 @@
   grid-template-columns: 1fr 1fr 1.5fr;
 }
 .mod-bento-tiles.has-edit .mod-bento-tile-new { grid-column: 1; grid-row: 1; }
-.mod-bento-tile-edit { grid-column: 1; grid-row: 2; }
-.mod-bento-tiles.has-edit .mod-bento-tile-demo { grid-column: 2; grid-row: 1 / span 2; }
+.mod-bento-tiles.has-edit .mod-bento-tile-demo { grid-column: 1; grid-row: 2; }
+.mod-bento-tile-edit { grid-column: 2; grid-row: 1 / span 2; }
 .mod-bento-tiles.has-edit .mod-bento-tile-import { grid-column: 3; grid-row: 1; }
 .mod-bento-tiles.has-edit.has-paste .mod-bento-tile-import { grid-row: 1; }
 .mod-bento-tiles.has-edit .mod-bento-tile-paste { grid-column: 3; grid-row: 2; }
@@ -62,9 +62,11 @@
    position at all, so nothing can ever visibly jump regardless of screen
    size. */
 .mod-bento-tile-new { background: linear-gradient(155deg, #FFB37E, #FF9E5E); }
+.mod-bento-tile-edit { background: linear-gradient(155deg, #C79FC0, #A374A0); }
 .mod-bento-tile-demo { background: linear-gradient(155deg, #8FA3BF, #5E7699); }
 .mod-bento-tile-import { background: linear-gradient(155deg, #F0EBE0, #DCD4C4); color: #16273E; }
 .mod-bento-tile-import .mod-bento-tile-sub { opacity: .75; }
+.mod-bento-tile-arrow { font-size: 28px; line-height: 1; opacity: .55; margin-bottom: 4px; display: block; }
 .mod-bento-tile-paste { background: linear-gradient(155deg, #8FCBA8, #5FAE83); }
 
 .mod-bento-tile-import.drag { outline: 3px dashed #16273E; outline-offset: -3px; }
@@ -208,6 +210,20 @@
 .mod-bento-item-name em { font-weight: 400; color: #8a6d55; font-style: normal; }
 .mod-bento-item-name-clickable { cursor: pointer; }
 .mod-bento-item-name-clickable:hover { color: #ff9e5e; text-decoration: underline; }
+.mod-bento-item-eye {
+  display: inline-flex;
+  align-items: center;
+  vertical-align: -3px;
+  border: none;
+  background: transparent;
+  padding: 2px;
+  cursor: pointer;
+  color: #9aa3b0;
+}
+.mod-bento-item-eye:hover { color: #5e7699; }
+.mod-bento-item-eye.open { color: #ff9e5e; }
+.mod-bento-item-eye.open:hover { color: #ffb37e; }
+.mod-bento-item-eye:disabled { opacity: .5; cursor: default; }
 .mod-bento-item-meta { color: #6b7280; font-size: 0.8rem; margin-top: 2px; }
 .mod-bento-item-warnings { margin: 6px 0 0; padding-left: 18px; color: #8a6d55; font-size: 0.78rem; }
 .mod-bento-item-save {
@@ -255,12 +271,12 @@
 .mod-bento-item-remove {
   border: none;
   background: transparent;
-  color: #9aa3b0;
+  color: #c0392b;
   cursor: pointer;
   font-size: 14px;
   padding: 2px 4px;
 }
-.mod-bento-item-remove:hover { color: #c0392b; }
+.mod-bento-item-remove:hover { color: #922b21; }
 
 .mod-bento-toast {
   position: fixed; left: 50%; bottom: 24px; transform: translateX(-50%) translateY(20px);

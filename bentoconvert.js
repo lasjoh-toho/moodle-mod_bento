@@ -648,6 +648,13 @@ function mergeDocs(docA, docB){
       var v = el && parseInt(el.dataset.cmid, 10);
       return v ? v : 0;
     })();
+    // Mutable (not const) — updated in place whenever the eye-icon toggle
+    // below actually succeeds, so re-rendering the cards afterward shows
+    // the new state immediately without needing a full page reload.
+    var bentoDocumentVisible = (function () {
+      var el = document.getElementById('mod-bento-importer');
+      return el ? el.dataset.documentvisible === '1' : true;
+    })();
     // Draft decks (bento_decks, saved independently of the published
     // document) need mod/bento:edit — only true on mod_form.php's own
     // importer. submission_new.php's own students only ever have
@@ -750,6 +757,12 @@ function mergeDocs(docA, docB){
     function deleteDeckFromMoodle(cmid, deckid) {
       return callBentoWebservice('mod_bento_delete_deck', { cmid: cmid, deckid: deckid });
     }
+    function promoteDeckToMoodle(cmid, deckid) {
+      return callBentoWebservice('mod_bento_promote_deck', { cmid: cmid, deckid: deckid });
+    }
+    function setDocumentVisible(cmid, visible) {
+      return callBentoWebservice('mod_bento_set_document_visible', { cmid: cmid, visible: visible });
+    }
     function toastMsg(msg) {
       var t = document.createElement('div');
       t.className = 'mod-bento-toast';
@@ -839,10 +852,16 @@ function mergeDocs(docA, docB){
       var isPersisted = it.existing || it.deckid > 0;
       card.className = 'mod-bento-item' + (it.existing ? ' existing' : '') + (isPersisted ? '' : ' unsaved');
       card.draggable = true;
+      var isPublishedCard = !!it.existing;
+      var eyeOpen = isPublishedCard && bentoDocumentVisible;
+      var eyeOpenSvg = '<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M1 12s4-7 11-7 11 7 11 7-4 7-11 7-11-7-11-7z"/><circle cx="12" cy="12" r="3"/></svg>';
+      var eyeClosedSvg = '<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17.94 17.94A10.94 10.94 0 0 1 12 20c-7 0-11-8-11-8a18.6 18.6 0 0 1 4.22-5.06M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"/><line x1="1" y1="1" x2="23" y2="23"/></svg>';
       card.innerHTML =
         '<span class="mod-bento-item-grip" title="Ziehen zum Sortieren">⠿</span>' +
         '<div class="mod-bento-item-info">' +
-          '<div class="mod-bento-item-name">' + escapeHtml(it.baseName) +
+          '<div class="mod-bento-item-name">' +
+            '<button type="button" class="mod-bento-item-eye' + (eyeOpen ? ' open' : '') + '" title="' + (eyeOpen ? 'Sichtbar für alle — klicken, um die Sichtbarkeit zu beenden' : (isPublishedCard ? 'Nicht sichtbar — klicken, um sie wieder zu zeigen' : 'Nicht sichtbar — klicken, um diese Karte sichtbar zu machen')) + '">' + (eyeOpen ? eyeOpenSvg : eyeClosedSvg) + '</button> ' +
+            escapeHtml(it.baseName) +
             (it.existing ? ' <em>(veröffentlicht)</em>' : (isPersisted ? ' <em>(Entwurf, gespeichert)</em>' : ' <em class="mod-bento-item-unsaved-tag">(noch nicht gespeichert)</em>')) + '</div>' +
           '<div class="mod-bento-item-meta">' + it.slideCount + ' Folie' + (it.slideCount === 1 ? '' : 'n') + ' · ' + bentoFormatBytes(JSON.stringify(it.doc).length) + '</div>' +
           (it.warnings && it.warnings.length ? '<ul class="mod-bento-item-warnings">' + it.warnings.map(function (w) { return '<li>' + escapeHtml(w) + '</li>'; }).join('') + '</ul>' : '') +
@@ -897,6 +916,52 @@ function mergeDocs(docA, docB){
           items.splice(i, 1);
           items.unshift(it);
           renderItems();
+        });
+      }
+
+      var eyeBtn = card.querySelector('.mod-bento-item-eye');
+      if (eyeBtn && bentoCmId) {
+        eyeBtn.addEventListener('click', function () {
+          if (isPublishedCard) {
+            // Direct toggle — reversible, doesn't replace anything, so no
+            // confirmation needed either direction.
+            eyeBtn.disabled = true;
+            setDocumentVisible(bentoCmId, !bentoDocumentVisible).then(function () {
+              bentoDocumentVisible = !bentoDocumentVisible;
+              renderItems();
+            }).catch(function (e) {
+              console.error(e);
+              alert('Konnte die Sichtbarkeit nicht ändern: ' + (e.message || e));
+              eyeBtn.disabled = false;
+            });
+            return;
+          }
+          // Any other card: always a genuine content swap with whatever
+          // IS currently published, regardless of whether that's
+          // currently visible or not — confirm first either way.
+          if (!confirm('Es kann nur eine Datei sichtbar sein. Die jetzt sichtbare Datei durch diese hier ersetzen?')) return;
+          eyeBtn.disabled = true;
+          var afterPromote = function () {
+            return setDocumentVisible(bentoCmId, true);
+          };
+          var promoted = it.deckid > 0
+            ? promoteDeckToMoodle(bentoCmId, it.deckid).then(afterPromote)
+            : (function () {
+                var i = items.indexOf(it);
+                if (i > 0) { items.splice(i, 1); items.unshift(it); }
+                return saveDocToMoodle(bentoCmId, it.doc).then(afterPromote);
+              })();
+          promoted.then(function () {
+            // The server-side swap changed what every OTHER card's own
+            // content is too, not just this one — a full reload is the
+            // simplest way to reflect that correctly everywhere, rather
+            // than hand-reconciling every card's own local state.
+            location.reload();
+          }).catch(function (e) {
+            console.error(e);
+            alert('Konnte nicht sichtbar machen: ' + (e.message || e));
+            eyeBtn.disabled = false;
+          });
         });
       }
 
@@ -1054,16 +1119,21 @@ function mergeDocs(docA, docB){
       }
       syncDocField();
 
-      // Keep the New/Play tile's label in sync — it can only ever DO one
-      // of the two things at a time (start fresh vs. open what's already
-      // there), so it relabels in place rather than showing both always.
+      // Keep the New/Ansehen tile's label in sync — it can only ever DO
+      // one of the two things at a time (start fresh vs. open what's
+      // already there), so it relabels in place rather than showing both
+      // always. When there's a real document, its own title (doc.title —
+      // the same field editable top-left in the editor) becomes the main
+      // label instead of the generic "Ansehen", so the tile shows WHICH
+      // presentation this is.
       var newBtnEl = document.getElementById('mod-bento-newbtn');
       if (newBtnEl) {
         var hasDoc = items.length > 0;
         newBtnEl.dataset.hasdoc = hasDoc ? '1' : '0';
         var titleEl = document.getElementById('mod-bento-newbtn-title');
         var subEl = document.getElementById('mod-bento-newbtn-sub');
-        if (titleEl) titleEl.textContent = hasDoc ? M.util.get_string('playtile', 'mod_bento') : M.util.get_string('newtile', 'mod_bento');
+        var docTitle = hasDoc && items[0].doc && items[0].doc.title ? items[0].doc.title : '';
+        if (titleEl) titleEl.textContent = hasDoc ? (docTitle || M.util.get_string('playtile', 'mod_bento')) : M.util.get_string('newtile', 'mod_bento');
         if (subEl) subEl.textContent = hasDoc ? M.util.get_string('playtilesub', 'mod_bento') : M.util.get_string('newtilesub', 'mod_bento');
       }
     }

@@ -54,6 +54,26 @@ bento_view($bento, $course, $cm, $context);
 $showmaster = optional_param('master', 0, PARAM_BOOL);
 if (!$bento->allowstudentsubmissions || $showmaster) {
     // ---- classic single-document present mode (v1 behaviour) ----
+    $caneditmaster = has_capability('mod/bento:edit', $context);
+
+    // documentvisible is entirely separate from Moodle's own course_
+    // modules.visible (never touched here) — see install.xml's own
+    // comment on that column for the full reasoning. A teacher always
+    // gets full access regardless of this flag, since they're the one
+    // who'd need it to turn visibility back on.
+    if (!$caneditmaster && !$bento->documentvisible) {
+        $PAGE->set_url('/mod/bento/view.php', ['id' => $cm->id]);
+        $PAGE->set_context($context);
+        $PAGE->set_cm($cm, $course);
+        $PAGE->set_title(format_string($bento->name));
+        $PAGE->set_heading(format_string($course->fullname));
+        echo $OUTPUT->header();
+        echo $OUTPUT->heading(format_string($bento->name));
+        echo html_writer::tag('p', get_string('nopresentationvisible', 'mod_bento'), ['class' => 'alert alert-info']);
+        echo $OUTPUT->footer();
+        exit;
+    }
+
     $shellpath = __DIR__ . '/asset/bento-shell.html';
     $shell = file_get_contents($shellpath);
     if ($shell === false) {
@@ -68,7 +88,6 @@ if (!$bento->allowstudentsubmissions || $showmaster) {
     // (non-submission) mode — so exiting present mode there can't drop into
     // a live editor with no Moodle save wiring (see submission.php for the
     // full reasoning on that half).
-    $caneditmaster = has_capability('mod/bento:edit', $context);
     $bento->document = bento_get_document($context, (bool) $bento->documentinfilestore, $bento->id, $bento->document);
     if (!$caneditmaster) {
         $decoded = json_decode($bento->document, true);
