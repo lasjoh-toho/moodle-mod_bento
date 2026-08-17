@@ -121,6 +121,38 @@ class save_document extends external_api {
         ]);
         $mark('validate_parameters');
 
+        try {
+            return self::execute_inner($params, $mark, $timing);
+        } catch (\Throwable $e) {
+            // The $mark() calls above already show, step by step, how far
+            // execution got before this — but not WHAT was actually
+            // thrown. A slow save (71s+ HTTP 200 with an error payload,
+            // per this session's own reported incident) could be a PHP
+            // execution-time limit, a database lock-wait timeout, a
+            // dropped connection mid-write, or something else entirely —
+            // genuinely different causes that all currently surface as
+            // the same generic "Fehler beim Schreiben der Datenbank" to
+            // whoever's saving. Logged here, then re-thrown UNCHANGED —
+            // this never alters what the caller actually sees, only adds
+            // a paper trail in the PHP error log for whichever one it
+            // really was.
+            error_log('[bento/save_document] EXCEPTION ' . get_class($e) . ': ' . $e->getMessage() . "\n" . $e->getTraceAsString());
+            throw $e;
+        }
+    }
+
+    /**
+     * The actual body of execute() — split out so the try/catch above can
+     * wrap it as a whole without one giant indented block.
+     *
+     * @param array $params already-validated parameters
+     * @param callable $mark the timing-logger closure from execute()
+     * @param array $timing accumulated timing, by reference
+     * @return array
+     */
+    private static function execute_inner(array $params, callable $mark, array &$timing): array {
+        global $DB, $USER;
+
         $cm = get_coursemodule_from_id('bento', $params['cmid'], 0, false, MUST_EXIST);
         $mark('get_coursemodule_from_id');
         $context = context_module::instance($cm->id);

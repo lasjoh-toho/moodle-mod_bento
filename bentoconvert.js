@@ -711,27 +711,38 @@ function mergeDocs(docA, docB){
      *  actual Bento app at all, just this importer widget. Which record it
      *  writes to (the shared master document, or the caller's own
      *  submission) is decided entirely server-side from the caller's own
-     *  capabilities — see that webservice's own doc comment. */
-    function callBentoWebservice(methodname, args) {
+     *  capabilities — see that webservice's own doc comment.
+     *
+     *  Uses XMLHttpRequest rather than fetch() — same reasoning as moodle.
+     *  ts's own saveToMoodle(): fetch() has no way to report upload
+     *  progress at all, while XHR's own upload.onprogress event gives real
+     *  loaded/total byte counts as the request actually streams out.
+     *  onProgress (optional) is called repeatedly with a 0..1 fraction. */
+    function callBentoWebservice(methodname, args, onProgress) {
       var url = M.cfg.wwwroot + '/lib/ajax/service.php?sesskey=' + encodeURIComponent(M.cfg.sesskey) + '&info=' + methodname;
       var body = [{ index: 0, methodname: methodname, args: args }];
-      return fetch(url, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(body),
-      }).then(function (res) {
-        return res.text().then(function (raw) {
+      return new Promise(function (resolve, reject) {
+        var xhr = new XMLHttpRequest();
+        xhr.open('POST', url);
+        xhr.setRequestHeader('Content-Type', 'application/json');
+        xhr.upload.onprogress = function (ev) {
+          if (onProgress && ev.lengthComputable) onProgress(ev.loaded / ev.total);
+        };
+        xhr.onload = function () {
+          var raw = xhr.responseText;
           var data;
-          try { data = JSON.parse(raw); } catch (e) { throw new Error('Moodle antwortete nicht mit JSON (HTTP ' + res.status + '): ' + raw.slice(0, 200)); }
-          if (!res.ok) throw new Error('HTTP ' + res.status + ': ' + JSON.stringify(data));
-          if (!Array.isArray(data)) throw new Error((data && (data.message || data.error)) || 'Anfrage fehlgeschlagen (unerwartete Antwort)');
-          if (data[0] && data[0].error) throw new Error(data[0].message || (data[0].exception && data[0].exception.message) || 'Anfrage fehlgeschlagen');
-          return data[0] && data[0].data;
-        });
+          try { data = JSON.parse(raw); } catch (e) { reject(new Error('Moodle antwortete nicht mit JSON (HTTP ' + xhr.status + '): ' + raw.slice(0, 200))); return; }
+          if (xhr.status < 200 || xhr.status >= 300) { reject(new Error('HTTP ' + xhr.status + ': ' + JSON.stringify(data))); return; }
+          if (!Array.isArray(data)) { reject(new Error((data && (data.message || data.error)) || 'Anfrage fehlgeschlagen (unerwartete Antwort)')); return; }
+          if (data[0] && data[0].error) { reject(new Error(data[0].message || (data[0].exception && data[0].exception.message) || 'Anfrage fehlgeschlagen')); return; }
+          resolve(data[0] && data[0].data);
+        };
+        xhr.onerror = function () { reject(new Error('Netzwerkfehler bei der Anfrage — bitte erneut versuchen.')); };
+        xhr.send(JSON.stringify(body));
       });
     }
-    function saveDocToMoodle(cmid, doc) {
-      return callBentoWebservice('mod_bento_save_document', { cmid: cmid, document: JSON.stringify(doc) });
+    function saveDocToMoodle(cmid, doc, onProgress) {
+      return callBentoWebservice('mod_bento_save_document', { cmid: cmid, document: JSON.stringify(doc) }, onProgress);
     }
     function saveDeckToMoodle(cmid, deckid, name, doc) {
       return callBentoWebservice('mod_bento_save_deck', { cmid: cmid, deckid: deckid || 0, name: name || '', document: JSON.stringify(doc) });
@@ -829,7 +840,7 @@ function mergeDocs(docA, docB){
           (it.warnings && it.warnings.length ? '<ul class="mod-bento-item-warnings">' + it.warnings.map(function (w) { return '<li>' + escapeHtml(w) + '</li>'; }).join('') + '</ul>' : '') +
         '</div>' +
         (isTop ? '' : '<button type="button" class="mod-bento-item-promote" title="Nach oben stellen (wird beim Speichern die veröffentlichte Präsentation)">⇧</button>') +
-        '<button type="button" class="mod-bento-item-save" title="Diese Karte einzeln speichern">' + (isTop ? 'Veröffentlichen' : 'Speichern') + '</button>' +
+        '<button type="button" class="mod-bento-item-save" title="Diese Karte einzeln speichern">' + (isTop && !it.existing ? 'Veröffentlichen' : 'Speichern') + '</button>' +
         '<button type="button" class="mod-bento-item-play" title="Öffnen (im vollen Editor, mit Speichern)">▶</button>' +
         '<button type="button" class="mod-bento-item-download" title="Als .bento.html herunterladen">⬇</button>' +
         '<button type="button" class="mod-bento-item-remove" title="Entfernen">✕</button>';
@@ -1121,26 +1132,40 @@ function mergeDocs(docA, docB){
       });
     }
 
-    // ---- New/Play tile: a blank presentation when there's nothing saved
-    // yet, otherwise the same "open in present mode" behaviour as a
-    // card's own ▶ button — never both at once, so relabelling in place
-    // (rather than two separate always-visible buttons) matches what the
-    // tile can actually do at any given moment. ----
+    /** Saves `doc` via the SAME AJAX path every per-card Save button
+     *  already uses, then navigates to `pathAndQuery` (relative to
+     *  M.cfg.wwwroot) on success — shared by the "Ansehen" tile (target
+     *  view.php) and the "Bearbeiten" tile (target edit.php), which
+     *  otherwise do exactly the same thing. Disables `btn` for the
+     *  duration, re-enables it on failure (a successful save navigates
+     *  away, so there's nothing left to re-enable). */
+    function bentoSaveThenOpen(btn, doc, pathAndQuery) {
+      btn.disabled = true;
+      saveDocToMoodle(bentoCmId, doc).then(function () {
+        window.location.href = M.cfg.wwwroot + pathAndQuery + '&returnurl=' + encodeURIComponent(location.pathname + location.search + location.hash);
+      }).catch(function (e) {
+        console.error(e);
+        alert('Konnte nicht in Moodle speichern: ' + (e.message || e));
+        btn.disabled = false;
+      });
+    }
+
+    // ---- New/View tile: a blank presentation when there's nothing saved
+    // yet, otherwise saves whatever's currently merged into items[0] and
+    // opens it in view.php (present mode) — never both at once, so
+    // relabelling in place (rather than two separate always-visible
+    // buttons) matches what the tile can actually do at any given moment.
+    // A separate "Bearbeiten" tile (below) does the same save, but opens
+    // edit.php instead — both share bentoSaveThenOpen() for the actual
+    // save-then-navigate mechanics. ----
     var newBtn = document.getElementById('mod-bento-newbtn');
     if (newBtn) {
       newBtn.addEventListener('click', function () {
         if (newBtn.dataset.hasdoc === '1') {
-          var docToPlay = items.length ? items[0].doc : (existingScript ? JSON.parse(existingScript.textContent) : null);
-          if (!docToPlay) return;
+          var docToShow = items.length ? items[0].doc : (existingScript ? JSON.parse(existingScript.textContent) : null);
+          if (!docToShow) return;
           if (bentoCmId) {
-            newBtn.disabled = true;
-            saveDocToMoodle(bentoCmId, docToPlay).then(function () {
-              window.location.href = M.cfg.wwwroot + '/mod/bento/edit.php?id=' + bentoCmId + '&returnurl=' + encodeURIComponent(location.pathname + location.search + location.hash);
-            }).catch(function (e) {
-              console.error(e);
-              alert('Konnte nicht in Moodle speichern: ' + (e.message || e));
-              newBtn.disabled = false;
-            });
+            bentoSaveThenOpen(newBtn, docToShow, '/mod/bento/view.php?id=' + bentoCmId + '&master=1');
             return;
           }
           var win = window.open('', '_blank');
@@ -1149,7 +1174,7 @@ function mergeDocs(docA, docB){
             '<body style="font-family:system-ui,sans-serif;padding:2.5rem;color:#667">Bento wird geladen…</body>');
           newBtn.disabled = true;
           getShell().then(function (shell) {
-            var html = spliceDoc(shell, docToPlay);
+            var html = spliceDoc(shell, docToShow);
             win.document.open();
             win.document.write(html);
             win.document.close();
@@ -1168,6 +1193,19 @@ function mergeDocs(docA, docB){
       });
     }
 
+    // ---- Bearbeiten tile: only rendered when there's a genuine existing
+    // document (see bento_render_importer()'s own $isrealdoc guard) —
+    // saves whatever's currently merged into items[0], same as the
+    // Ansehen tile above, but opens edit.php instead of view.php. ----
+    var editBtn = document.getElementById('mod-bento-editbtn');
+    if (editBtn) {
+      editBtn.addEventListener('click', function () {
+        var docToEdit = items.length ? items[0].doc : (existingScript ? JSON.parse(existingScript.textContent) : null);
+        if (!docToEdit || !bentoCmId) return;
+        bentoSaveThenOpen(editBtn, docToEdit, '/mod/bento/edit.php?id=' + bentoCmId);
+      });
+    }
+
     drop.addEventListener('click', function () { if (bentoGuardTerms()) fileInput.click(); });
     drop.addEventListener('keydown', function (e) { if ((e.key === 'Enter' || e.key === ' ') && bentoGuardTerms()) fileInput.click(); });
     fileInput.addEventListener('change', function (e) { if (bentoGuardTerms()) handleFiles(e.target.files); fileInput.value = ''; });
@@ -1180,6 +1218,37 @@ function mergeDocs(docA, docB){
     });
 
     renderItems(); // paint the seeded "Aktuell gespeichert" card (if any) immediately
+
+    /** Builds and inserts a thin progress-bar track right under the
+     *  form's own Save/Cancel button row (Moodle's own standard
+     *  moodleform_mod convention wraps those in .form-buttons) — same
+     *  visual language as the live editor's own Save-button progress bar
+     *  (dark-blue fill displacing an orange track) for consistency across
+     *  both save paths. Falls back to right after the form itself if that
+     *  specific class isn't found, since a theme's own markup could
+     *  differ; this is a defensive fallback; not the expected path.
+     *  Returns the FILL element itself (set its own .style.width as
+     *  progress comes in) — the caller removes the whole track once the
+     *  save settles either way. */
+    function bentoShowSaveProgressBar(form) {
+      var track = document.createElement('div')
+      track.style.cssText = 'height:6px;border-radius:3px;overflow:hidden;background:#f7a600;margin:10px 0;'
+      var fill = document.createElement('div')
+      fill.style.cssText = 'height:100%;width:0;background:#5b8def;transition:width .15s linear;'
+      track.appendChild(fill)
+      // Wraps the fill in a getter/setter-free object so callers can just
+      // do progressBar.style.width — but the actual DOM node styled is
+      // the inner fill, not the track itself (which stays the orange
+      // "not yet uploaded" base color throughout).
+      var proxy = { style: fill.style, remove: function () { track.remove() } }
+      var buttonsRow = form.querySelector('.form-buttons')
+      if (buttonsRow) {
+        buttonsRow.insertAdjacentElement('afterend', track)
+      } else {
+        form.insertAdjacentElement('afterend', track)
+      }
+      return proxy
+    }
 
     var form = docField.closest('form');
     if (form) {
@@ -1228,8 +1297,12 @@ function mergeDocs(docA, docB){
           // saved" apart from "this document really is meant to be blank
           // now."
           docField.value = '__bento_saved_via_ajax__'
-          saveDocToMoodle(bentoCmId, items[0].doc).then(function () {
+          var progressBar = bentoShowSaveProgressBar(form)
+          saveDocToMoodle(bentoCmId, items[0].doc, function (fraction) {
+            if (progressBar) progressBar.style.width = Math.round(fraction * 100) + '%'
+          }).then(function () {
             bentoDocAlreadySaved = true
+            if (progressBar) progressBar.remove()
             // requestSubmit() (not submit()) re-triggers this SAME handler
             // — but the flag above makes that second pass fall through to
             // the plain syncDocField()+submit path below instead of
@@ -1238,6 +1311,7 @@ function mergeDocs(docA, docB){
             // validation (required fields etc.) entirely.
             form.requestSubmit()
           }, function (err) {
+            if (progressBar) progressBar.remove()
             alert('Konnte die Präsentation nicht speichern: ' + (err && err.message ? err.message : err) + '\n\nDie übrigen Einstellungen wurden noch nicht gespeichert — bitte erneut versuchen.')
           })
           return

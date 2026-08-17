@@ -56,12 +56,6 @@ require_capability('mod/bento:edit', $context); // teacher/master-document only 
 $existing = bento_get_document($context, (bool) $bento->documentinfilestore, $bento->id, $bento->document);
 $decks = $DB->get_records('bento_decks', ['bentoid' => $bento->id], 'sortorder ASC');
 
-$decoded = json_decode($existing, true);
-$hasrealdoc = is_array($decoded)
-    && ($decoded['format'] ?? null) === 'bento/slides'
-    && !empty($decoded['slides'])
-    && !(count($decoded['slides']) === 1 && empty($decoded['slides'][0]['elements']));
-
 $PAGE->set_url('/mod/bento/manage.php', ['id' => $cm->id]);
 $PAGE->set_title(format_string($bento->name) . ' — ' . get_string('managepresentation', 'mod_bento'));
 $PAGE->set_heading(format_string($course->fullname));
@@ -79,17 +73,10 @@ $PAGE->requires->js(new moodle_url('/mod/bento/bentopaste.js'));
 echo $OUTPUT->header();
 echo $OUTPUT->heading(format_string($bento->name) . ' — ' . get_string('managepresentation', 'mod_bento'));
 
-// A second, explicit way to just PRESENT what's already there without
-// opening the editor at all — the tile above behaves as "open in the
-// editor" (see bentoconvert.js's own newBtn handler, unchanged here),
-// which reads a little differently from what its own label ("Abspielen")
-// suggests. This link is the literal "just show me the presentation"
-// action for whoever only wants that.
-if ($hasrealdoc) {
-    $presenturl = new moodle_url('/mod/bento/view.php', ['id' => $cm->id, 'master' => 1]);
-    echo html_writer::link($presenturl, get_string('presentmypresentation', 'mod_bento'), ['class' => 'btn btn-secondary mb-3']);
-}
-
 echo bento_render_importer($existing, (int) $course->id, (int) $cm->id, $decks);
+
+echo html_writer::tag('textarea', s($existing !== '' ? $existing : bento_blank_document()), [
+    'id' => 'id_document', 'name' => 'document', 'style' => 'display:none',
+]);
 
 echo $OUTPUT->footer();

@@ -19,6 +19,20 @@
 .mod-bento-tile-import { grid-column: 2; grid-row: 1 / span 2; }
 .mod-bento-tiles.has-paste .mod-bento-tile-import { grid-row: 1; }
 .mod-bento-tile-paste { grid-column: 2; grid-row: 2; }
+/* Bearbeiten (5th tile, teacher/master-document context only — see
+   bento_render_importer()'s own $isrealdoc guard) stacks under Ansehen
+   in a new first column; Demo moves to its own second column and grows
+   to span both rows to fill the space cleanly; Import/Paste keep their
+   exact same column/row assignment, just shifted one column right. */
+.mod-bento-tiles.has-edit {
+  grid-template-columns: 1fr 1fr 1.5fr;
+}
+.mod-bento-tiles.has-edit .mod-bento-tile-new { grid-column: 1; grid-row: 1; }
+.mod-bento-tile-edit { grid-column: 1; grid-row: 2; }
+.mod-bento-tiles.has-edit .mod-bento-tile-demo { grid-column: 2; grid-row: 1 / span 2; }
+.mod-bento-tiles.has-edit .mod-bento-tile-import { grid-column: 3; grid-row: 1; }
+.mod-bento-tiles.has-edit.has-paste .mod-bento-tile-import { grid-row: 1; }
+.mod-bento-tiles.has-edit .mod-bento-tile-paste { grid-column: 3; grid-row: 2; }
 .mod-bento-tile {
   display: flex;
   flex-direction: column;

@@ -348,32 +348,36 @@ function bento_moodle_config_meta(int $cmid, int $deckid = 0): string {
  * page, no Moodle navigation chrome at all — Escape from present mode
  * there previously landed in Bento's own minimal read-only player, or the
  * live editor, with no way back to anything Moodle-side built in: not the
- * course, not the activity's own settings, and no visible way to switch
- * between viewing the presentation and editing it without already knowing
- * the two URLs differ only by whether #present is in the hash). z-index
- * deliberately far above anything Bento's own present-mode overlay uses,
- * so it stays visible and clickable through present mode too, not just
- * the player card/editor.
+ * course, not a way to add/organize material, and no visible indication
+ * that manage.php's own tiles even exist). z-index deliberately far above
+ * anything Bento's own present-mode overlay uses, so it stays visible and
+ * clickable through present mode too, not just the player card/editor.
  *
- * @param moodle_url $backtarget where "← Back" points
- * @param string $backlabel its own label
+ * Two compact icon buttons, not text pills — the previous text-label pills
+ * covered the slide name input field at the top of the editor. Both
+ * labels moved into their own tooltips instead.
+ *
+ * @param moodle_url $backtarget where "×" points
+ * @param string $backlabel its own tooltip text
  * @param int $cmid this activity's own course-module id
- * @param bool $caneditmaster whether Settings should show at all — a
- *   student viewing the classic single document has no use for it
+ * @param bool $caneditmaster whether "+" (leads to manage.php) should show
+ *   at all — a student viewing the classic single document has no use for
+ *   the tile importer, which is teacher/master-document only
  * @return string
  */
 function bento_toolbar_html(moodle_url $backtarget, string $backlabel, int $cmid, bool $caneditmaster): string {
-    $pillstyle = 'font:600 13px system-ui, -apple-system, sans-serif;color:#14161c;background:rgba(255,255,255,.85);'
-        . 'backdrop-filter:blur(10px);padding:7px 14px;border-radius:999px;text-decoration:none;'
-        . 'box-shadow:0 2px 10px rgba(0,0,0,.25);display:inline-block;';
-    $wrapstyle = 'position:fixed;top:14px;left:14px;z-index:2147483647;display:flex;gap:8px;align-items:center;';
+    $btnstyle = 'display:flex;align-items:center;justify-content:center;width:36px;height:36px;'
+        . 'font:600 18px/1 system-ui, -apple-system, sans-serif;text-decoration:none;';
+    $wrapstyle = 'position:fixed;top:14px;left:14px;z-index:2147483647;display:flex;'
+        . 'border-radius:10px;overflow:hidden;box-shadow:0 2px 10px rgba(0,0,0,.25);backdrop-filter:blur(10px);';
 
-    $buttons = '<a href="' . s($backtarget->out(false)) . '" style="' . $pillstyle . '">&larr; ' . s($backlabel) . '</a>';
+    $buttons = '<a href="' . s($backtarget->out(false)) . '" title="' . s($backlabel) . '" '
+        . 'style="' . $btnstyle . 'background:rgba(255,255,255,.85);color:#14161c;">&times;</a>';
 
     if ($caneditmaster) {
-        $settingsurl = new moodle_url('/course/modedit.php', ['update' => $cmid, 'return' => 1]);
-        $buttons .= '<a href="' . s($settingsurl->out(false)) . '" style="' . $pillstyle . '">'
-            . s(get_string('editsettings')) . '</a>';
+        $manageurl = new moodle_url('/mod/bento/manage.php', ['id' => $cmid]);
+        $buttons .= '<a href="' . s($manageurl->out(false)) . '" title="' . s(get_string('managepresentation', 'mod_bento')) . '" '
+            . 'style="' . $btnstyle . 'background:#f7a600;color:#3a2a00;">+</a>';
     }
 
     // Hidden automatically while present mode's own overlay is showing (a
@@ -873,11 +877,15 @@ function bento_render_importer(string $existingjson, int $courseid, int $cmid, a
         <div class="mod-bento-importer" id="mod-bento-importer" data-courseid="' . $courseid . '" data-cmid="' . $cmid . '" data-candeck="1" data-termsagreed="' . (bento_has_agreed_current_terms((int) $USER->id) ? '1' : '0') . '">
             <p class="form-text text-muted mod-bento-edithint">' . get_string('editusehint', 'mod_bento') . '</p>
             ' . $seed . $deckseed . '
-            <div class="mod-bento-tiles has-paste">
+            <div class="mod-bento-tiles has-paste' . ($isrealdoc ? ' has-edit' : '') . '">
                 <button type="button" class="mod-bento-tile mod-bento-tile-new" id="mod-bento-newbtn" data-hasdoc="' . ($isrealdoc ? '1' : '0') . '">
                     <span class="mod-bento-tile-title" id="mod-bento-newbtn-title">' . ($isrealdoc ? get_string('playtile', 'mod_bento') : get_string('newtile', 'mod_bento')) . '</span>
                     <span class="mod-bento-tile-sub" id="mod-bento-newbtn-sub">' . ($isrealdoc ? get_string('playtilesub', 'mod_bento') : get_string('newtilesub', 'mod_bento')) . '</span>
-                </button>
+                </button>' . ($isrealdoc ? '
+                <button type="button" class="mod-bento-tile mod-bento-tile-edit" id="mod-bento-editbtn">
+                    <span class="mod-bento-tile-title">' . get_string('edittile', 'mod_bento') . '</span>
+                    <span class="mod-bento-tile-sub">' . get_string('edittilesub', 'mod_bento') . '</span>
+                </button>' : '') . '
                 <button type="button" class="mod-bento-tile mod-bento-tile-demo" id="mod-bento-demobtn">
                     <span class="mod-bento-tile-title">' . get_string('demotile', 'mod_bento') . '</span>
                     <span class="mod-bento-tile-sub">' . get_string('demotilesub', 'mod_bento') . '</span>
