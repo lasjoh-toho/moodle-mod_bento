@@ -60,8 +60,12 @@ if (!$bento->allowstudentsubmissions || $showmaster) {
     // modules.visible (never touched here) — see install.xml's own
     // comment on that column for the full reasoning. A teacher always
     // gets full access regardless of this flag, since they're the one
-    // who'd need it to turn visibility back on.
-    if (!$caneditmaster && !$bento->documentvisible) {
+    // who'd need it to turn visibility back on. Checks whether ANYTHING
+    // is visible now — bento.document itself, or any deck — not just
+    // bento.document's own flag, since any number of decks can
+    // independently be visible even while bento.document itself isn't.
+    $anyvisible = $bento->documentvisible || $DB->record_exists('bento_decks', ['bentoid' => $bento->id, 'visible' => 1]);
+    if (!$caneditmaster && !$anyvisible) {
         $PAGE->set_url('/mod/bento/view.php', ['id' => $cm->id]);
         $PAGE->set_context($context);
         $PAGE->set_cm($cm, $course);
@@ -88,7 +92,30 @@ if (!$bento->allowstudentsubmissions || $showmaster) {
     // (non-submission) mode — so exiting present mode there can't drop into
     // a live editor with no Moodle save wiring (see submission.php for the
     // full reasoning on that half).
-    $bento->document = bento_get_document($context, (bool) $bento->documentinfilestore, $bento->id, $bento->document);
+    $visibledecks = array_values($DB->get_records_select(
+        'bento_decks',
+        'bentoid = ? AND visible = 1',
+        [$bento->id],
+        'sortorder ASC'
+    ));
+
+    $startdeckid = 0; // 0 = bento.document itself starts the sequence
+    $playlistdecks = $visibledecks;
+    if (!$bento->documentvisible) {
+        // bento.document itself isn't visible (checked above — execution
+        // only reaches here because at least one visible deck exists) —
+        // the first visible deck takes its place as the sequence's own
+        // starting point instead, with every OTHER visible deck as its
+        // playlist.
+        $startdeckid = (int) $visibledecks[0]->id;
+        $playlistdecks = array_slice($visibledecks, 1);
+    }
+    if ($startdeckid > 0) {
+        $startdeck = $DB->get_record('bento_decks', ['id' => $startdeckid], '*', MUST_EXIST);
+        $bento->document = $startdeck->document;
+    } else {
+        $bento->document = bento_get_document($context, (bool) $bento->documentinfilestore, $bento->id, $bento->document);
+    }
     if (!$caneditmaster) {
         $decoded = json_decode($bento->document, true);
         if (is_array($decoded)) {
@@ -113,7 +140,8 @@ if (!$bento->allowstudentsubmissions || $showmaster) {
     // meta tag (editable viewers only) goes in the same spot.
     $title = format_string($bento->name);
     $bootstrap = '<script>location.hash = "present"; document.title = ' . json_encode($title) . ';</script>';
-    $headinject = $caneditmaster ? bento_moodle_config_meta((int) $cm->id) . $bootstrap : $bootstrap;
+    $playlistdeckids = array_map(function ($d) { return (int) $d->id; }, $playlistdecks);
+    $headinject = ($caneditmaster || $playlistdeckids) ? bento_moodle_config_meta((int) $cm->id, 0, $playlistdeckids) . $bootstrap : $bootstrap;
     $html = preg_replace('/<head[^>]*>/', '$0' . str_replace('$', '\\$', $headinject), $html, 1);
 
     if ($showmaster) {

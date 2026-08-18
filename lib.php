@@ -319,9 +319,14 @@ function bento_require_current_schema(): void {
  * door to editing something that isn't theirs.
  *
  * @param int $cmid
+ * @param int $deckid
+ * @param int[] $playlistdeckids ordered ids of OTHER decks to play through
+ *   after this document's own last slide — see view.php's own visible-
+ *   decks query for how this list is built. Empty means "just this one
+ *   document", same as before this parameter existed.
  * @return string
  */
-function bento_moodle_config_meta(int $cmid, int $deckid = 0): string {
+function bento_moodle_config_meta(int $cmid, int $deckid = 0, array $playlistdeckids = []): string {
     global $CFG;
     $moodleconfig = [
         'cmid' => $cmid,
@@ -331,6 +336,11 @@ function bento_moodle_config_meta(int $cmid, int $deckid = 0): string {
     ];
     if ($deckid > 0) {
         $moodleconfig['deckid'] = $deckid;
+    }
+    if ($playlistdeckids) {
+        $moodleconfig['playlist'] = array_map(function (int $id) use ($cmid): array {
+            return ['url' => (new moodle_url('/mod/bento/deck.php', ['id' => $cmid, 'deckid' => $id]))->out(false)];
+        }, $playlistdeckids);
     }
     // json_encode's default escaping already turns '<' into '\u003c' inside
     // string values — safe to drop straight into an HTML attribute — but the
@@ -908,7 +918,7 @@ function bento_render_importer(string $existingjson, int $courseid, int $cmid, a
         if (!is_array($deckdecoded) || ($deckdecoded['format'] ?? null) !== 'bento/slides') {
             continue; // skip anything that somehow isn't valid rather than breaking the whole page over one bad row
         }
-        $deckseed .= '<script type="application/json" class="mod-bento-deck-seed" data-deckid="' . (int) $deck->id . '" data-name="' . s($deck->name ?? '') . '">'
+        $deckseed .= '<script type="application/json" class="mod-bento-deck-seed" data-deckid="' . (int) $deck->id . '" data-name="' . s($deck->name ?? '') . '" data-visible="' . ((int) ($deck->visible ?? 0)) . '">'
             . json_encode($deckdecoded) . '</script>';
     }
 

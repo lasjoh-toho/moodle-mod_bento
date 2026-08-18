@@ -25,11 +25,11 @@
    to span both rows to fill the space cleanly; Import/Paste keep their
    exact same column/row assignment, just shifted one column right. */
 .mod-bento-tiles.has-edit {
-  grid-template-columns: 1fr 1fr 1.5fr;
+  grid-template-columns: 1.5fr 1fr 1fr;
 }
-.mod-bento-tiles.has-edit .mod-bento-tile-new { grid-column: 1; grid-row: 1; }
-.mod-bento-tiles.has-edit .mod-bento-tile-demo { grid-column: 1; grid-row: 2; }
-.mod-bento-tile-edit { grid-column: 2; grid-row: 1 / span 2; }
+.mod-bento-tiles.has-edit .mod-bento-tile-new { grid-column: 1; grid-row: 1 / span 2; }
+.mod-bento-tile-edit { grid-column: 2; grid-row: 1; }
+.mod-bento-tiles.has-edit .mod-bento-tile-demo { grid-column: 2; grid-row: 2; }
 .mod-bento-tiles.has-edit .mod-bento-tile-import { grid-column: 3; grid-row: 1; }
 .mod-bento-tiles.has-edit.has-paste .mod-bento-tile-import { grid-row: 1; }
 .mod-bento-tiles.has-edit .mod-bento-tile-paste { grid-column: 3; grid-row: 2; }
@@ -51,7 +51,7 @@
   box-shadow: 0 4px 14px rgba(0,0,0,.18);
   outline: none;
 }
-.mod-bento-tile-title { display: block; font-weight: 700; font-size: 1.02rem; margin: 0 0 4px; }
+.mod-bento-tile-title { display: block; font-weight: 700; font-size: 1.02rem; margin: 0 0 4px; text-shadow: 0 1px 3px rgba(0,0,0,.35); }
 .mod-bento-tile-sub { display: block; font-size: 0.82rem; opacity: .88; font-weight: 500; line-height: 1.35; }
 
 /* Bento's own brand palette, one distinct colour each — kept deliberately
@@ -61,10 +61,11 @@
    filter/box-shadow change on hover, neither of which affects layout or
    position at all, so nothing can ever visibly jump regardless of screen
    size. */
-.mod-bento-tile-new { background: linear-gradient(155deg, #FFB37E, #FF9E5E); }
-.mod-bento-tile-edit { background: linear-gradient(155deg, #C79FC0, #A374A0); }
+.mod-bento-tile-new { background: linear-gradient(155deg, #C79FC0, #A374A0); }
+.mod-bento-tile-edit { background: linear-gradient(155deg, #FFB37E, #FF9E5E); }
 .mod-bento-tile-demo { background: linear-gradient(155deg, #8FA3BF, #5E7699); }
 .mod-bento-tile-import { background: linear-gradient(155deg, #F0EBE0, #DCD4C4); color: #16273E; }
+.mod-bento-tile-import .mod-bento-tile-title { text-shadow: none; }
 .mod-bento-tile-import .mod-bento-tile-sub { opacity: .75; }
 .mod-bento-tile-arrow { font-size: 28px; line-height: 1; opacity: .55; margin-bottom: 4px; display: block; }
 .mod-bento-tile-paste { background: linear-gradient(155deg, #8FCBA8, #5FAE83); }
@@ -203,6 +204,7 @@
 .mod-bento-item.dragging { opacity: 0.4; }
 .mod-bento-item.existing { border-color: #ff9e5e; background: #fff8f4; }
 .mod-bento-item.unsaved { border-style: dashed; }
+.mod-bento-item.hidden-item { opacity: 0.55; filter: grayscale(0.6); background: #f5f5f5; }
 .mod-bento-item-unsaved-tag { color: #b3261e !important; font-weight: 600 !important; }
 .mod-bento-item-grip { color: #9aa3b0; font-size: 15px; padding-top: 2px; user-select: none; }
 .mod-bento-item-info { flex: 1; min-width: 0; }
@@ -278,6 +280,16 @@
   line-height: 1;
   padding: 2px 6px;
 }
+.mod-bento-item-edit {
+  border: none;
+  background: transparent;
+  color: #6b7280;
+  cursor: pointer;
+  font-size: 16px;
+  line-height: 1;
+  padding: 4px 6px;
+}
+.mod-bento-item-edit:hover { color: #a374a0; }
 .mod-bento-item-play:hover { color: #ff9e5e; }
 .mod-bento-item-download:hover { color: #16273e; }
 .mod-bento-item-remove {

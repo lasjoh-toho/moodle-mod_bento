@@ -781,6 +781,12 @@ function mergeDocs(docA, docB){
     function setDocumentVisible(cmid, visible) {
       return callBentoWebservice('mod_bento_set_document_visible', { cmid: cmid, visible: visible });
     }
+    function setDeckVisible(cmid, deckid, visible) {
+      return callBentoWebservice('mod_bento_set_deck_visible', { cmid: cmid, deckid: deckid, visible: visible });
+    }
+    function swapDeckOrder(cmid, deckid1, deckid2) {
+      return callBentoWebservice('mod_bento_swap_deck_order', { cmid: cmid, deckid1: deckid1, deckid2: deckid2 });
+    }
     function toastMsg(msg) {
       var t = document.createElement('div');
       t.className = 'mod-bento-toast';
@@ -801,6 +807,7 @@ function mergeDocs(docA, docB){
             warnings: [],
             existing: true,
             deckid: 0,
+            visible: bentoDocumentVisible,
           });
         }
       } catch (e) { console.warn('mod_bento: could not parse the existing document', e); }
@@ -821,6 +828,7 @@ function mergeDocs(docA, docB){
           warnings: [],
           existing: false,
           deckid: parseInt(el.dataset.deckid, 10) || 0,
+          visible: el.dataset.visible === '1',
         });
       } catch (e) { console.warn('mod_bento: could not parse a draft deck', e); }
     });
@@ -868,26 +876,28 @@ function mergeDocs(docA, docB){
       var card = document.createElement('div');
       var isTop = items[0] === it;
       var isPersisted = it.existing || it.deckid > 0;
-      card.className = 'mod-bento-item' + (it.existing ? ' existing' : '') + (isPersisted ? '' : ' unsaved');
+      var eyeOpen = !!it.visible;
+      card.className = 'mod-bento-item' + (it.existing ? ' existing' : '') + (isPersisted ? '' : ' unsaved') + (eyeOpen ? '' : ' hidden-item');
       card.draggable = true;
-      var isPublishedCard = isTop;
-      var eyeOpen = isPublishedCard && bentoDocumentVisible;
       var eyeOpenSvg = '<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M1 12s4-7 11-7 11 7 11 7-4 7-11 7-11-7-11-7z"/><circle cx="12" cy="12" r="3"/></svg>';
       var eyeClosedSvg = '<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2 13c2.5-3 6-5 10-5s7.5 2 10 5"/><path d="M6 16.5l1-1.8M18 16.5l-1-1.8M12 18l0-2"/></svg>';
+      var firstDeckIndex = items[0] && items[0].existing ? 1 : 0;
+      var canMoveUp = it.deckid > 0 && items.indexOf(it) > firstDeckIndex;
       card.innerHTML =
         '<span class="mod-bento-item-grip" title="Ziehen zum Sortieren">⠿</span>' +
         '<div class="mod-bento-item-info">' +
           '<div class="mod-bento-item-name">' +
-            '<button type="button" class="mod-bento-item-eye' + (eyeOpen ? ' open' : '') + '" title="' + (eyeOpen ? 'Sichtbar für alle — klicken, um die Sichtbarkeit zu beenden' : (isPublishedCard ? 'Nicht sichtbar — klicken, um sie wieder zu zeigen' : 'Nicht sichtbar — klicken, um diese Karte sichtbar zu machen')) + '">' + (eyeOpen ? eyeOpenSvg : eyeClosedSvg) + '</button> ' +
+            '<button type="button" class="mod-bento-item-eye' + (eyeOpen ? ' open' : '') + '" title="' + (eyeOpen ? 'Sichtbar — klicken, um sie auszublenden' : 'Nicht sichtbar — klicken, um sie zu zeigen') + '">' + (eyeOpen ? eyeOpenSvg : eyeClosedSvg) + '</button> ' +
             escapeHtml((it.doc && it.doc.title) || it.baseName) +
-            (it.existing ? ' <em>(veröffentlicht)</em>' : (isPersisted ? ' <em>(Entwurf, gespeichert)</em>' : ' <em class="mod-bento-item-unsaved-tag">(noch nicht gespeichert)</em>')) + '</div>' +
+            (it.existing ? ' <em>(Hauptdokument)</em>' : (isPersisted ? ' <em>(Entwurf, gespeichert)</em>' : ' <em class="mod-bento-item-unsaved-tag">(noch nicht gespeichert)</em>')) + '</div>' +
           '<div class="mod-bento-item-meta">' + it.slideCount + ' Folie' + (it.slideCount === 1 ? '' : 'n') + ' · ' + bentoFormatBytes(JSON.stringify(it.doc).length) + '</div>' +
           (it.warnings && it.warnings.length ? '<ul class="mod-bento-item-warnings">' + it.warnings.map(function (w) { return '<li>' + escapeHtml(w) + '</li>'; }).join('') + '</ul>' : '') +
         '</div>' +
-        (isTop ? '' : '<button type="button" class="mod-bento-item-promote" title="Nach oben stellen (wird beim Speichern die veröffentlichte Präsentation)">⇧</button>') +
+        (canMoveUp ? '<button type="button" class="mod-bento-item-promote" title="In der Abspielreihenfolge nach oben">⇧</button>' : '') +
         (isPersisted
           ? '<span class="mod-bento-item-saved-check" title="Gespeichert — nichts zu tun">✓</span>'
           : '<button type="button" class="mod-bento-item-save" title="Diese Karte einzeln speichern">Speichern</button>') +
+        (isPersisted ? '<button type="button" class="mod-bento-item-edit" title="Bearbeiten (im vollen Editor, mit Speichern)">✎</button>' : '') +
         '<button type="button" class="mod-bento-item-play" title="Ansehen (nichts wird gespeichert)">▶</button>' +
         '<button type="button" class="mod-bento-item-download" title="Als .bento.html herunterladen">&#8681;</button>' +
         '<button type="button" class="mod-bento-item-remove" title="Entfernen">✕</button>';
@@ -932,13 +942,22 @@ function mergeDocs(docA, docB){
       }
 
       var promoteBtn = card.querySelector('.mod-bento-item-promote');
-      if (promoteBtn) {
+      if (promoteBtn && bentoCmId) {
         promoteBtn.addEventListener('click', function () {
           var i = items.indexOf(it);
-          if (i <= 0) return;
-          items.splice(i, 1);
-          items.unshift(it);
-          renderItems();
+          if (i <= firstDeckIndex) return;
+          var other = items[i - 1];
+          if (!(other.deckid > 0)) return; // shouldn't happen given canMoveUp's own guard, but never swap against something with no real row
+          promoteBtn.disabled = true;
+          bentoWithSaveLock(function () {
+            return swapDeckOrder(bentoCmId, it.deckid, other.deckid);
+          }).then(function () {
+            location.reload();
+          }).catch(function (e) {
+            console.error(e);
+            if (e.message !== 'save already in flight') alert('Konnte die Reihenfolge nicht ändern: ' + (e.message || e));
+            promoteBtn.disabled = false;
+          });
         });
       }
 
@@ -946,22 +965,24 @@ function mergeDocs(docA, docB){
       if (eyeBtn && bentoCmId) {
         eyeBtn.addEventListener('click', function (ev) {
           ev.stopPropagation();
-          if (isPublishedCard) {
-            // Direct toggle — purely local, reversible, nothing sent
-            // anywhere until "Reihenfolge speichern" is clicked.
-            bentoDocumentVisible = !bentoDocumentVisible;
-            renderItems();
+          if (!isPersisted) {
+            alert('Diese Karte muss erst gespeichert werden, bevor sie sichtbar gemacht werden kann.');
             return;
           }
-          // Any other card: always a genuine content swap with whatever
-          // IS (or would become) published — confirm first either way,
-          // even though this is still fully reversible locally until
-          // saved, since it's still a meaningful change of intent.
-          if (!confirm('Es kann nur eine Datei sichtbar sein. Beim Speichern der Reihenfolge wird die jetzt sichtbare Datei durch diese hier ersetzt.')) return;
-          var i = items.indexOf(it);
-          if (i > 0) { items.splice(i, 1); items.unshift(it); }
-          bentoDocumentVisible = true;
-          renderItems();
+          eyeBtn.disabled = true;
+          var newVisible = !it.visible;
+          bentoWithSaveLock(function () {
+            return it.existing
+              ? setDocumentVisible(bentoCmId, newVisible)
+              : setDeckVisible(bentoCmId, it.deckid, newVisible);
+          }).then(function () {
+            it.visible = newVisible;
+            renderItems();
+          }).catch(function (e) {
+            console.error(e);
+            if (e.message !== 'save already in flight') alert('Konnte die Sichtbarkeit nicht ändern: ' + (e.message || e));
+            eyeBtn.disabled = false;
+          });
         });
       }
 
@@ -975,24 +996,7 @@ function mergeDocs(docA, docB){
        *  flight from another action on the page (a real incident this
        *  fixed: saving-before-open here running concurrently with the
        *  eye toggle's own save/promote elsewhere on the page). */
-      var openForEditing = function () {
-        var nowTop = items[0] === it;
-        var alreadyPersisted = bentoCmId && ((!bentoCanDeck && it.existing) || (bentoCanDeck && ((nowTop && it.existing) || it.deckid > 0)));
-        if (alreadyPersisted) {
-          // Already in the database exactly as shown — no need to save
-          // anything first, straight to the real editor (full save-back
-          // and back-button capability there).
-          var url = M.cfg.wwwroot + '/mod/bento/edit.php?id=' + bentoCmId
-            + (bentoCanDeck && !nowTop ? '&deckid=' + it.deckid : '')
-            + '&returnurl=' + encodeURIComponent(location.pathname + location.search + location.hash);
-          window.location.href = url;
-          return;
-        }
-        // Not yet persisted (or no activity to save into yet) — a plain,
-        // read-only preview of exactly what's currently in this card,
-        // never saved anywhere. Use the real editor's own Save button
-        // (or "Speichern"/the eye toggle back on this page) to actually
-        // persist it first, if that's what's wanted.
+      var playPreview = function () {
         var win = window.open('', '_blank');
         if (!win) { alert('Popup blockiert — bitte Popups für diese Seite erlauben'); return; }
         win.document.write('<!doctype html><meta charset="utf-8"><title>Bento wird geladen…</title>' +
@@ -1009,11 +1013,21 @@ function mergeDocs(docA, docB){
           alert('Konnte die Präsentation nicht öffnen: ' + (e.message || e));
         }).finally(function () { playBtn.disabled = false; });
       };
-      playBtn.addEventListener('click', openForEditing);
+      playBtn.addEventListener('click', playPreview);
       if (titleEl) {
         titleEl.classList.add('mod-bento-item-name-clickable');
-        titleEl.title = 'Öffnen';
-        titleEl.addEventListener('click', openForEditing);
+        titleEl.title = 'Ansehen';
+        titleEl.addEventListener('click', playPreview);
+      }
+      var editBtn = card.querySelector('.mod-bento-item-edit');
+      if (editBtn && bentoCmId) {
+        editBtn.addEventListener('click', function () {
+          var nowTop = items[0] === it;
+          var url = M.cfg.wwwroot + '/mod/bento/edit.php?id=' + bentoCmId
+            + (bentoCanDeck && !nowTop ? '&deckid=' + it.deckid : '')
+            + '&returnurl=' + encodeURIComponent(location.pathname + location.search + location.hash);
+          window.location.href = url;
+        });
       }
       card.querySelector('.mod-bento-item-download').addEventListener('click', function () {
         var btn = card.querySelector('.mod-bento-item-download');
@@ -1100,42 +1114,8 @@ function mergeDocs(docA, docB){
         var w = document.createElement('p');
         w.id = 'mod-bento-multi-warn';
         w.className = 'mod-bento-warn';
-        w.textContent = 'Nur die oberste Karte ist die veröffentlichte Präsentation. Jede Karte einzeln über ihren eigenen Speichern-Knopf sichern — nichts wird automatisch verbunden. Über ⇧ eine Karte nach oben stellen, um sie stattdessen zu veröffentlichen.';
+        w.textContent = 'Jede Karte einzeln über ihren eigenen Speichern-Knopf sichern — nichts wird automatisch verbunden. Über das Augen-Symbol entscheiden, welche Karten in der Aktivität gezeigt werden (alle sichtbaren werden nacheinander abgespielt).';
         itemsEl.parentNode.insertBefore(w, itemsEl.nextSibling);
-      }
-
-      var existingOrderBar = document.getElementById('mod-bento-order-save-bar');
-      if (existingOrderBar) existingOrderBar.remove();
-      var orderDirty = bentoCmId && ((items.length ? items[0] : null) !== bentoInitialTopItem || bentoDocumentVisible !== bentoInitialVisible);
-      if (orderDirty) {
-        var orderBar = document.createElement('div');
-        orderBar.id = 'mod-bento-order-save-bar';
-        orderBar.className = 'mod-bento-order-save-bar';
-        var orderBtn = document.createElement('button');
-        orderBtn.type = 'button';
-        orderBtn.className = 'mod-bento-order-save-btn';
-        orderBtn.textContent = 'Reihenfolge speichern';
-        orderBar.appendChild(orderBtn);
-        itemsEl.parentNode.insertBefore(orderBar, itemsEl.nextSibling);
-        orderBtn.addEventListener('click', function () {
-          orderBtn.disabled = true;
-          var newTop = items.length ? items[0] : null;
-          var topChanged = newTop !== bentoInitialTopItem;
-          bentoWithSaveLock(function () {
-            var task = !topChanged
-              ? Promise.resolve()
-              : (newTop.deckid > 0
-                  ? promoteDeckToMoodle(bentoCmId, newTop.deckid)
-                  : saveDocToMoodle(bentoCmId, newTop.doc));
-            return task.then(function () { return setDocumentVisible(bentoCmId, bentoDocumentVisible); });
-          }).then(function () {
-            location.reload();
-          }).catch(function (e) {
-            console.error(e);
-            if (e.message !== 'save already in flight') alert('Konnte die Reihenfolge nicht speichern: ' + (e.message || e));
-            orderBtn.disabled = false;
-          });
-        });
       }
 
       syncDocField();
@@ -1155,7 +1135,12 @@ function mergeDocs(docA, docB){
         var subEl = document.getElementById('mod-bento-newbtn-sub');
         var docTitle = hasDoc && items[0].doc && items[0].doc.title ? items[0].doc.title : '';
         if (titleEl) titleEl.textContent = hasDoc ? (docTitle || M.util.get_string('playtile', 'mod_bento')) : M.util.get_string('newtile', 'mod_bento');
-        if (subEl) subEl.textContent = hasDoc ? M.util.get_string('playtilesub', 'mod_bento') : M.util.get_string('newtilesub', 'mod_bento');
+        if (subEl) {
+          var visibleNames = items.filter(function (i) { return i.visible; }).map(function (i) { return (i.doc && i.doc.title) || i.baseName; });
+          subEl.textContent = hasDoc
+            ? (visibleNames.length ? visibleNames.join(' → ') : M.util.get_string('playtilesub', 'mod_bento'))
+            : M.util.get_string('newtilesub', 'mod_bento');
+        }
       }
     }
 
@@ -1189,7 +1174,7 @@ function mergeDocs(docA, docB){
           slideCount = (doc.slides || []).length;
           baseName = file.name.replace(/\.bento\.json$/i, '').replace(/\.json$/i, '');
         }
-        items.push({ baseName: baseName, doc: doc, slideCount: slideCount, warnings: warnings, existing: false, deckid: 0 });
+        items.push({ baseName: baseName, doc: doc, slideCount: slideCount, warnings: warnings, existing: false, deckid: 0, visible: false });
         renderItems();
       } catch (e) {
         console.error(e);
@@ -1288,7 +1273,7 @@ function mergeDocs(docA, docB){
           var blankDoc;
           try { blankDoc = JSON.parse(docField.value); } catch (e) { blankDoc = null; }
           if (!blankDoc || blankDoc.format !== 'bento/slides') return; // shouldn't happen — data_preprocessing() always seeds a blank doc server-side
-          items.push({ baseName: 'Neue-Praesentation', doc: blankDoc, slideCount: (blankDoc.slides || []).length, warnings: [], existing: false, deckid: 0 });
+          items.push({ baseName: 'Neue-Praesentation', doc: blankDoc, slideCount: (blankDoc.slides || []).length, warnings: [], existing: false, deckid: 0, visible: false });
           renderItems();
         }
       });
@@ -1317,12 +1302,6 @@ function mergeDocs(docA, docB){
       drop.classList.remove('drag');
       if (bentoGuardTerms()) handleFiles(e.dataTransfer.files);
     });
-
-    // Snapshot of what the server actually knows right now — the "Reihen­
-    // folge speichern" button (in renderItems() below) only appears once
-    // either of these has genuinely diverged from it.
-    var bentoInitialTopItem = items.length ? items[0] : null;
-    var bentoInitialVisible = bentoDocumentVisible;
 
     renderItems(); // paint the seeded "Aktuell gespeichert" card (if any) immediately
 

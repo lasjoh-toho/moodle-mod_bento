@@ -227,5 +227,19 @@ function xmldb_bento_upgrade($oldversion) {
         $dbman->add_field($table, $field);
     }
 
+    // ---- per-deck visibility: independent of every other row (including
+    // bento.documentvisible) — see install.xml's own bento_decks.visible
+    // comment for the full reasoning. Default 0, matching a fresh
+    // install's own default and this table's previous semantics (a draft
+    // stayed private until explicitly promoted; now it stays private
+    // until its own eye toggle is switched on instead), so no existing
+    // draft suddenly appears in an activity's own playback sequence right
+    // after this upgrade. ----
+    $table = new xmldb_table('bento_decks');
+    $field = new xmldb_field('visible', XMLDB_TYPE_INTEGER, '1', null, XMLDB_NOTNULL, null, '0', 'sortorder');
+    if (!$dbman->field_exists($table, $field)) {
+        $dbman->add_field($table, $field);
+    }
+
     return true;
 }

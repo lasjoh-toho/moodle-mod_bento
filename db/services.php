@@ -65,4 +65,20 @@ $functions = [
         'ajax'        => true,
         'capabilities' => 'mod/bento:edit',
     ],
+    'mod_bento_set_deck_visible' => [
+        'classname'   => 'mod_bento\external\set_deck_visible',
+        'methodname'  => 'execute',
+        'description' => 'Toggles one deck\'s own visible flag, independent of every other row\'s own visibility.',
+        'type'        => 'write',
+        'ajax'        => true,
+        'capabilities' => 'mod/bento:edit',
+    ],
+    'mod_bento_swap_deck_order' => [
+        'classname'   => 'mod_bento\external\swap_deck_order',
+        'methodname'  => 'execute',
+        'description' => 'Swaps two decks\' own sortorder values -- the mechanism behind moving a deck up/down in playback order.',
+        'type'        => 'write',
+        'ajax'        => true,
+        'capabilities' => 'mod/bento:edit',
+    ],
 ];
