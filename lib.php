@@ -98,7 +98,7 @@ function bento_add_instance(stdClass $bento, $mform = null) {
 
     $bento->id = $DB->insert_record('bento', $bento);
 
-    bento_grade_item_update($bento);
+    bento_safe_grade_item_update($bento);
     bento_update_calendar($bento);
 
     return $bento->id;
@@ -143,7 +143,7 @@ function bento_update_instance(stdClass $bento, $mform = null) {
 
     $DB->update_record('bento', $bento);
 
-    bento_grade_item_update($bento);
+    bento_safe_grade_item_update($bento);
     bento_update_calendar($bento);
 
     return true;
@@ -511,6 +511,31 @@ function bento_visible_submissions(stdClass $bento, int $userid, bool $bypassmod
 // activities that still want a gradebook slot (e.g. mod_choice with
 // grading enabled) — this module never computes a grade itself.
 // ---------------------------------------------------------------------
+
+/**
+ * Defensive wrapper around bento_grade_item_update() — grade_update()
+ * (Moodle core) is a genuine dml_write_exception risk, confirmed live: it's
+ * the one operation every "Fehler beim Schreiben der Datenbank" incident
+ * traced so far actually has in common (bento_add_instance, bento_update_
+ * instance, and promote_deck.php all call this — unlike bento_touch_
+ * coursemodule(), which was only ever part of SOME of them). A failure
+ * here means the gradebook's own item for this activity is now out of
+ * sync with what was just saved — a real, visible problem, logged clearly
+ * — but it must never be allowed to turn an otherwise-successful document
+ * save into a reported failure, same reasoning bento_touch_coursemodule()
+ * already uses elsewhere in this file.
+ *
+ * @param stdClass $bento
+ * @param mixed $grades
+ * @return void
+ */
+function bento_safe_grade_item_update(stdClass $bento, $grades = null): void {
+    try {
+        bento_grade_item_update($bento, $grades);
+    } catch (\Throwable $e) {
+        error_log('[bento] bento_grade_item_update(bentoid=' . ($bento->id ?? '?') . ') failed, ignoring: ' . get_class($e) . ': ' . $e->getMessage());
+    }
+}
 
 /**
  * Creates/updates the grade_item for a bento instance.

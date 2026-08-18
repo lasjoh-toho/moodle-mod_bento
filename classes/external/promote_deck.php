@@ -104,7 +104,7 @@ class promote_deck extends external_api {
         ]);
         bento_touch_coursemodule($cm->id);
 
-        bento_grade_item_update($bento);
+        bento_safe_grade_item_update($bento);
         bento_update_calendar($bento);
 
         return ['ok' => true, 'timemodified' => $now];
