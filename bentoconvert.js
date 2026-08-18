@@ -879,7 +879,7 @@ function mergeDocs(docA, docB){
         '<div class="mod-bento-item-info">' +
           '<div class="mod-bento-item-name">' +
             '<button type="button" class="mod-bento-item-eye' + (eyeOpen ? ' open' : '') + '" title="' + (eyeOpen ? 'Sichtbar für alle — klicken, um die Sichtbarkeit zu beenden' : (isPublishedCard ? 'Nicht sichtbar — klicken, um sie wieder zu zeigen' : 'Nicht sichtbar — klicken, um diese Karte sichtbar zu machen')) + '">' + (eyeOpen ? eyeOpenSvg : eyeClosedSvg) + '</button> ' +
-            escapeHtml(it.baseName) +
+            escapeHtml((it.doc && it.doc.title) || it.baseName) +
             (it.existing ? ' <em>(veröffentlicht)</em>' : (isPersisted ? ' <em>(Entwurf, gespeichert)</em>' : ' <em class="mod-bento-item-unsaved-tag">(noch nicht gespeichert)</em>')) + '</div>' +
           '<div class="mod-bento-item-meta">' + it.slideCount + ' Folie' + (it.slideCount === 1 ? '' : 'n') + ' · ' + bentoFormatBytes(JSON.stringify(it.doc).length) + '</div>' +
           (it.warnings && it.warnings.length ? '<ul class="mod-bento-item-warnings">' + it.warnings.map(function (w) { return '<li>' + escapeHtml(w) + '</li>'; }).join('') + '</ul>' : '') +
