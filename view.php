@@ -51,10 +51,14 @@ if (!empty($bento->loginonly)) {
 
 bento_view($bento, $course, $cm, $context);
 
+$caneditmaster = has_capability('mod/bento:edit', $context);
+if ($caneditmaster && !$bento->allowstudentsubmissions) {
+    redirect(new moodle_url('/mod/bento/manage.php', ['id' => $cm->id]));
+}
+
 $showmaster = optional_param('master', 0, PARAM_BOOL);
 if (!$bento->allowstudentsubmissions || $showmaster) {
     // ---- classic single-document present mode (v1 behaviour) ----
-    $caneditmaster = has_capability('mod/bento:edit', $context);
 
     // documentvisible is entirely separate from Moodle's own course_
     // modules.visible (never touched here) — see install.xml's own
@@ -204,7 +208,30 @@ echo html_writer::link(
 echo html_writer::end_div();
 echo html_writer::end_div();
 
-if ($cansubmit) {
+if ($caneditmaster) {
+    // The teacher's own presentation IS the master document already
+    // managed via manage.php/edit.php — never a student-submission row
+    // (bento_submissions), which they don't have and were never meant to.
+    // Uses the SAME "Meine Präsentation ansehen/bearbeiten" strings the
+    // student-submission section below uses, since the actual meaning
+    // ("view/edit MY OWN presentation for this activity") is identical —
+    // only which underlying document it points at differs.
+    echo html_writer::start_div('mod-bento-mine card mb-4');
+    echo html_writer::start_div('card-body');
+    echo html_writer::tag('h5', get_string('mypresentation', 'mod_bento'), ['class' => 'card-title']);
+    echo html_writer::link(
+        new moodle_url('/mod/bento/manage.php', ['id' => $cm->id]),
+        get_string('editmypresentation', 'mod_bento'),
+        ['class' => 'btn btn-primary mr-2']
+    );
+    echo html_writer::link(
+        new moodle_url('/mod/bento/view.php', ['id' => $cm->id, 'master' => 1]),
+        get_string('presentmypresentation', 'mod_bento'),
+        ['class' => 'btn btn-secondary']
+    );
+    echo html_writer::end_div();
+    echo html_writer::end_div();
+} else if ($cansubmit) {
     echo html_writer::start_div('mod-bento-mine card mb-4');
     echo html_writer::start_div('card-body');
     echo html_writer::tag('h5', get_string('mypresentation', 'mod_bento'), ['class' => 'card-title']);

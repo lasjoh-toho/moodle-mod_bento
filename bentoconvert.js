@@ -784,8 +784,26 @@ function mergeDocs(docA, docB){
     function setDeckVisible(cmid, deckid, visible) {
       return callBentoWebservice('mod_bento_set_deck_visible', { cmid: cmid, deckid: deckid, visible: visible });
     }
-    function swapDeckOrder(cmid, deckid1, deckid2) {
-      return callBentoWebservice('mod_bento_swap_deck_order', { cmid: cmid, deckid1: deckid1, deckid2: deckid2 });
+    function setDeckOrder(cmid, deckids) {
+      return callBentoWebservice('mod_bento_set_deck_order', { cmid: cmid, deckids: deckids });
+    }
+    /** Sends the CURRENT local order of every persisted deck to the
+     *  server, in one call — shared by the ⇧ button and drag-and-drop
+     *  reordering below, so neither leaves the server's own sortorder
+     *  stale (drag-and-drop previously never persisted anything at all).
+     *  Silently skipped if there's nothing to persist yet (no cmid, or
+     *  fewer than two persisted decks — reordering only matters when
+     *  something could actually move relative to something else). */
+    function bentoPersistDeckOrder() {
+      if (!bentoCmId) return;
+      var deckids = items.filter(function (i) { return i.deckid > 0; }).map(function (i) { return i.deckid; });
+      if (deckids.length < 2) return;
+      bentoWithSaveLock(function () {
+        return setDeckOrder(bentoCmId, deckids);
+      }).catch(function (e) {
+        console.error(e);
+        if (e.message !== 'save already in flight') alert('Konnte die Reihenfolge nicht speichern: ' + (e.message || e));
+      });
     }
     function toastMsg(msg) {
       var t = document.createElement('div');
@@ -881,8 +899,6 @@ function mergeDocs(docA, docB){
       card.draggable = true;
       var eyeOpenSvg = '<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M1 12s4-7 11-7 11 7 11 7-4 7-11 7-11-7-11-7z"/><circle cx="12" cy="12" r="3"/></svg>';
       var eyeClosedSvg = '<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2 13c2.5-3 6-5 10-5s7.5 2 10 5"/><path d="M6 16.5l1-1.8M18 16.5l-1-1.8M12 18l0-2"/></svg>';
-      var firstDeckIndex = items[0] && items[0].existing ? 1 : 0;
-      var canMoveUp = it.deckid > 0 && items.indexOf(it) > firstDeckIndex;
       card.innerHTML =
         '<span class="mod-bento-item-grip" title="Ziehen zum Sortieren">⠿</span>' +
         '<div class="mod-bento-item-info">' +
@@ -893,7 +909,6 @@ function mergeDocs(docA, docB){
           '<div class="mod-bento-item-meta">' + it.slideCount + ' Folie' + (it.slideCount === 1 ? '' : 'n') + ' · ' + bentoFormatBytes(JSON.stringify(it.doc).length) + '</div>' +
           (it.warnings && it.warnings.length ? '<ul class="mod-bento-item-warnings">' + it.warnings.map(function (w) { return '<li>' + escapeHtml(w) + '</li>'; }).join('') + '</ul>' : '') +
         '</div>' +
-        (canMoveUp ? '<button type="button" class="mod-bento-item-promote" title="In der Abspielreihenfolge nach oben">⇧</button>' : '') +
         (isPersisted
           ? '<span class="mod-bento-item-saved-check" title="Gespeichert — nichts zu tun">✓</span>'
           : '<button type="button" class="mod-bento-item-save" title="Diese Karte einzeln speichern">Speichern</button>') +
@@ -938,26 +953,6 @@ function mergeDocs(docA, docB){
             console.error(e);
             if (e.message !== 'save already in flight') alert('Konnte nicht speichern: ' + (e.message || e));
           }).finally(function () { saveBtn.disabled = false; });
-        });
-      }
-
-      var promoteBtn = card.querySelector('.mod-bento-item-promote');
-      if (promoteBtn && bentoCmId) {
-        promoteBtn.addEventListener('click', function () {
-          var i = items.indexOf(it);
-          if (i <= firstDeckIndex) return;
-          var other = items[i - 1];
-          if (!(other.deckid > 0)) return; // shouldn't happen given canMoveUp's own guard, but never swap against something with no real row
-          promoteBtn.disabled = true;
-          bentoWithSaveLock(function () {
-            return swapDeckOrder(bentoCmId, it.deckid, other.deckid);
-          }).then(function () {
-            location.reload();
-          }).catch(function (e) {
-            console.error(e);
-            if (e.message !== 'save already in flight') alert('Konnte die Reihenfolge nicht ändern: ' + (e.message || e));
-            promoteBtn.disabled = false;
-          });
         });
       }
 
@@ -1062,6 +1057,7 @@ function mergeDocs(docA, docB){
         var targetIdx = items.indexOf(it);
         items.splice(above ? targetIdx : targetIdx + 1, 0, draggedItem);
         renderItems();
+        bentoPersistDeckOrder();
       });
       return card;
     }
@@ -1104,6 +1100,24 @@ function mergeDocs(docA, docB){
             btn.addEventListener('click', function () { mergeItems(idxCopy, idxCopy + 1); });
           })(idx);
           connector.appendChild(btn);
+          var canSwap = items[idx].deckid > 0 && items[idx + 1].deckid > 0;
+          if (canSwap) {
+            var swapBtn = document.createElement('button');
+            swapBtn.type = 'button';
+            swapBtn.className = 'mod-bento-connector-btn mod-bento-connector-swap';
+            swapBtn.textContent = '\u2B0D';
+            swapBtn.title = 'Reihenfolge tauschen';
+            (function (idxCopy) {
+              swapBtn.addEventListener('click', function () {
+                var tmp = items[idxCopy];
+                items[idxCopy] = items[idxCopy + 1];
+                items[idxCopy + 1] = tmp;
+                renderItems();
+                bentoPersistDeckOrder();
+              });
+            })(idx);
+            connector.appendChild(swapBtn);
+          }
           itemsEl.appendChild(connector);
         }
       });
@@ -1137,9 +1151,11 @@ function mergeDocs(docA, docB){
         if (titleEl) titleEl.textContent = hasDoc ? (docTitle || M.util.get_string('playtile', 'mod_bento')) : M.util.get_string('newtile', 'mod_bento');
         if (subEl) {
           var visibleNames = items.filter(function (i) { return i.visible; }).map(function (i) { return (i.doc && i.doc.title) || i.baseName; });
-          subEl.textContent = hasDoc
-            ? (visibleNames.length ? visibleNames.join(' → ') : M.util.get_string('playtilesub', 'mod_bento'))
-            : M.util.get_string('newtilesub', 'mod_bento');
+          if (hasDoc && visibleNames.length) {
+            subEl.innerHTML = visibleNames.map(function (n, idx) { return (idx > 0 ? '→ ' : '') + escapeHtml(n); }).join('<br>');
+          } else {
+            subEl.textContent = hasDoc ? M.util.get_string('playtilesub', 'mod_bento') : M.util.get_string('newtilesub', 'mod_bento');
+          }
         }
       }
     }

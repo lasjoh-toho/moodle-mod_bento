@@ -95,6 +95,12 @@ try {
   const distDir = join(REPO_ROOT, 'dist')
   mkdirSync(distDir, { recursive: true })
   const zipPath = join(distDir, 'mod_bento.zip')
+  // zip -r updates an EXISTING zip incrementally rather than replacing it —
+  // it never removes an entry whose source file was since deleted, which
+  // let at least one already-removed file linger in a built release.
+  // Removing any stale zip first guarantees every build starts from a
+  // genuinely empty archive, matching exactly what's staged right now.
+  rmSync(zipPath, { force: true })
   run(`zip -r -q "${zipPath}" bento -x "*.DS_Store"`, work)
 
   console.log(`\nBuilt dist/mod_bento.zip from ${BENTO_BRANCH}@${shortSha}, plugin version ${stamp}`)

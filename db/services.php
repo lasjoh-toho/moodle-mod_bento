@@ -73,10 +73,10 @@ $functions = [
         'ajax'        => true,
         'capabilities' => 'mod/bento:edit',
     ],
-    'mod_bento_swap_deck_order' => [
-        'classname'   => 'mod_bento\external\swap_deck_order',
+    'mod_bento_set_deck_order' => [
+        'classname'   => 'mod_bento\external\set_deck_order',
         'methodname'  => 'execute',
-        'description' => 'Swaps two decks\' own sortorder values -- the mechanism behind moving a deck up/down in playback order.',
+        'description' => 'Sets the full playback order of every deck from an ordered list of ids -- powers both the (up arrow) reorder button and drag-and-drop reordering.',
         'type'        => 'write',
         'ajax'        => true,
         'capabilities' => 'mod/bento:edit',

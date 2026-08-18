@@ -24,55 +24,55 @@ use core_external\external_api;
 use core_external\external_function_parameters;
 use core_external\external_value;
 use core_external\external_single_structure;
+use core_external\external_multiple_structure;
 use context_module;
 
 /**
- * mod_bento_swap_deck_order — swaps two decks' own sortorder values,
- * immediately committed. This is the whole mechanism behind the ⇧ "move up
- * in playback order" button in manage.php's own tile-import view: moving a
- * deck up swaps it with whichever deck currently sits one position ahead
- * of it. The main document (bento.document, conceptually always sortorder
- * 0 — see install.xml's own bento_decks table comment) is never touched
- * here; only decks reorder among themselves.
+ * mod_bento_set_deck_order — sets the FULL playback order of every deck in
+ * one call, from an ordered list of deck ids (1-based sortorder assigned in
+ * list order). General-purpose replacement for a plain two-way swap: this
+ * is what both the ⇧ "move up" button AND drag-and-drop reordering in
+ * manage.php's own tile-import view actually persist through — a drag can
+ * move an item across several positions at once, which a simple swap
+ * can't correctly express, only a full reorder can.
  *
- * Safe to commit immediately (unlike the old promote/publish mechanism
- * this replaced): a sortorder swap changes nothing about either deck's
- * own CONTENT, only where it falls in playback sequence — there is no
- * "which one is exclusively published" state left to collide over.
+ * The main document (bento.document, conceptually always sortorder 0 — see
+ * install.xml's own bento_decks table comment) is never part of this list;
+ * only decks reorder among themselves.
  *
  * @package     mod_bento
  * @copyright   2026 The Bento authors
  * @license     http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
  */
-class swap_deck_order extends external_api {
+class set_deck_order extends external_api {
 
     public static function execute_parameters(): external_function_parameters {
         return new external_function_parameters([
             'cmid' => new external_value(PARAM_INT, 'course module id'),
-            'deckid1' => new external_value(PARAM_INT, 'first deck'),
-            'deckid2' => new external_value(PARAM_INT, 'second deck'),
+            'deckids' => new external_multiple_structure(
+                new external_value(PARAM_INT, 'deck id'),
+                'every deck belonging to this activity, in the new desired playback order'
+            ),
         ]);
     }
 
     public static function execute_returns(): external_single_structure {
         return new external_single_structure([
-            'ok' => new external_value(PARAM_BOOL, 'true if swapped'),
+            'ok' => new external_value(PARAM_BOOL, 'true if reordered'),
         ]);
     }
 
     /**
      * @param int $cmid
-     * @param int $deckid1
-     * @param int $deckid2
+     * @param int[] $deckids
      * @return array
      */
-    public static function execute($cmid, $deckid1, $deckid2): array {
+    public static function execute($cmid, $deckids): array {
         global $DB;
 
         $params = self::validate_parameters(self::execute_parameters(), [
             'cmid' => $cmid,
-            'deckid1' => $deckid1,
-            'deckid2' => $deckid2,
+            'deckids' => $deckids,
         ]);
 
         $cm = get_coursemodule_from_id('bento', $params['cmid'], 0, false, MUST_EXIST);
@@ -81,14 +81,20 @@ class swap_deck_order extends external_api {
         bento_require_current_schema();
         require_capability('mod/bento:edit', $context);
 
-        // bentoid match required on BOTH — same reasoning as every other
-        // deck webservice in this plugin: never let one activity's own
-        // edit capability touch a deck belonging to a different one.
-        $deck1 = $DB->get_record('bento_decks', ['id' => $params['deckid1'], 'bentoid' => $cm->instance], 'id, sortorder', MUST_EXIST);
-        $deck2 = $DB->get_record('bento_decks', ['id' => $params['deckid2'], 'bentoid' => $cm->instance], 'id, sortorder', MUST_EXIST);
-
-        $DB->set_field('bento_decks', 'sortorder', $deck2->sortorder, ['id' => $deck1->id]);
-        $DB->set_field('bento_decks', 'sortorder', $deck1->sortorder, ['id' => $deck2->id]);
+        $sortorder = 1;
+        foreach ($params['deckids'] as $deckid) {
+            // bentoid match required on every single one — same reasoning
+            // as every other deck webservice in this plugin: never let
+            // one activity's own edit capability touch a deck belonging
+            // to a different one, even if it's just skipped rather than
+            // erroring on a mismatch.
+            $deck = $DB->get_record('bento_decks', ['id' => $deckid, 'bentoid' => $cm->instance], 'id', IGNORE_MISSING);
+            if (!$deck) {
+                continue;
+            }
+            $DB->set_field('bento_decks', 'sortorder', $sortorder, ['id' => $deck->id]);
+            $sortorder++;
+        }
         bento_touch_coursemodule($cm->id);
 
         return ['ok' => true];

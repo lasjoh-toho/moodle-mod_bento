@@ -204,12 +204,13 @@
 .mod-bento-item.dragging { opacity: 0.4; }
 .mod-bento-item.existing { border-color: #ff9e5e; background: #fff8f4; }
 .mod-bento-item.unsaved { border-style: dashed; }
-.mod-bento-item.hidden-item { opacity: 0.55; filter: grayscale(0.6); background: #f5f5f5; }
+.mod-bento-item.hidden-item { background: #ececec; border-color: #d5d5d5; }
+.mod-bento-item.hidden-item .mod-bento-item-meta { opacity: 0.65; }
 .mod-bento-item-unsaved-tag { color: #b3261e !important; font-weight: 600 !important; }
 .mod-bento-item-grip { color: #9aa3b0; font-size: 15px; padding-top: 2px; user-select: none; }
 .mod-bento-item-info { flex: 1; min-width: 0; }
 .mod-bento-item-name { font-weight: 600; font-size: 0.92rem; word-break: break-word; }
-.mod-bento-item-name em { font-weight: 400; color: #8a6d55; font-style: normal; }
+.mod-bento-item-name em { font-weight: 400; color: #5c3d26; font-style: normal; }
 .mod-bento-item-name-clickable { cursor: pointer; }
 .mod-bento-item-name-clickable:hover { color: #ff9e5e; text-decoration: underline; }
 .mod-bento-item-eye {
@@ -226,7 +227,7 @@
 .mod-bento-item-eye.open { color: #ff9e5e; }
 .mod-bento-item-eye.open:hover { color: #ffb37e; }
 .mod-bento-item-eye:disabled { opacity: .5; cursor: default; }
-.mod-bento-item-meta { color: #6b7280; font-size: 0.8rem; margin-top: 2px; }
+.mod-bento-item-meta { color: #4b5563; font-size: 0.8rem; margin-top: 2px; }
 .mod-bento-item-warnings { margin: 6px 0 0; padding-left: 18px; color: #8a6d55; font-size: 0.78rem; }
 .mod-bento-item-save {
   border: 1px solid #ff9e5e;
@@ -310,7 +311,7 @@
 }
 .mod-bento-toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
 
-.mod-bento-connector { display: flex; justify-content: center; align-items: center; height: 26px; }
+.mod-bento-connector { display: flex; justify-content: center; align-items: center; height: 26px; gap: 6px; }
 .mod-bento-connector-btn {
   width: 26px;
   height: 26px;
@@ -323,6 +324,7 @@
   cursor: pointer;
 }
 .mod-bento-connector-btn:hover { background: #ff9e5e; border-color: #ff9e5e; color: #241205; }
+.mod-bento-connector-swap:hover { background: #5e7699; border-color: #5e7699; color: #fff; }
 
 .mod-bento-warn {
   margin: 10px 0 0;
