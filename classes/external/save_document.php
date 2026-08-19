@@ -172,7 +172,14 @@ class save_document extends external_api {
         if (!bento_document_has_valid_structure($decoded)) {
             throw new invalid_parameter_exception('Not a valid bento/slides document.');
         }
-        $maxbytes = bento_effective_max_document_bytes($bento);
+        // Which branch this save will actually go through, decided the
+        // same way the real branching further down does — needed here
+        // first so the size check below applies the right ceiling (a
+        // student's own separate maxstudentdocumentsize, when set,
+        // rather than always the teacher/deck's own maxdocumentsize
+        // regardless of who's actually saving).
+        $isstudentsubmission = $params['deckid'] === 0 && !has_capability('mod/bento:edit', $context);
+        $maxbytes = bento_effective_max_document_bytes($bento, $isstudentsubmission);
         if (strlen($params['document']) > $maxbytes) {
             throw new invalid_parameter_exception('Document too large (max ' . round($maxbytes / 1024 / 1024, 1) . ' MB for this activity).');
         }
@@ -207,7 +214,7 @@ class save_document extends external_api {
             return ['ok' => true, 'timemodified' => $now, 'debugtimingms' => json_encode($timing)];
         }
 
-        if (has_capability('mod/bento:edit', $context)) {
+        if (!$isstudentsubmission) {
             $mark('has_capability_edit');
             // Moodle's File API, not the `document` text column — see
             // lib.php's own bento_get_document()/bento_put_document() for

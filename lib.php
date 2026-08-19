@@ -43,12 +43,21 @@ define('BENTO_MAX_DOCUMENT_BYTES', 60 * 1024 * 1024);
  * BENTO_MAX_DOCUMENT_BYTES itself, which stays a separate, unconditional
  * outer safety cap regardless of either setting.
  *
- * @param object $bento a full `bento` table row (needs ->maxdocumentsize)
+ * @param object $bento a full `bento` table row (needs ->maxdocumentsize,
+ *   and ->maxstudentdocumentsize when $forstudentsubmission is true)
+ * @param bool $forstudentsubmission true for a student's own submission
+ *   (bento_submissions) — uses the activity's own maxstudentdocumentsize
+ *   instead of maxdocumentsize when that's genuinely set (>0); falls back
+ *   to the SAME maxdocumentsize the teacher's own document uses otherwise,
+ *   so an activity that's never touched this separate setting keeps
+ *   exactly the single-limit behaviour it always had. false (the default)
+ *   is the teacher's own document, or a draft deck — always maxdocumentsize.
  * @return int effective ceiling in bytes
  */
-function bento_effective_max_document_bytes(object $bento): int {
+function bento_effective_max_document_bytes(object $bento, bool $forstudentsubmission = false): int {
     $absolutemb = (int) (get_config('mod_bento', 'absolutemaxdocumentsize') ?: 20);
-    $ownmb = (int) ($bento->maxdocumentsize ?? $absolutemb);
+    $studentmb = (int) ($bento->maxstudentdocumentsize ?? 0);
+    $ownmb = ($forstudentsubmission && $studentmb > 0) ? $studentmb : (int) ($bento->maxdocumentsize ?? $absolutemb);
     $effectivemb = ($ownmb > 0) ? min($ownmb, $absolutemb) : $absolutemb;
     return $effectivemb * 1024 * 1024;
 }

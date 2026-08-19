@@ -279,5 +279,16 @@ function xmldb_bento_upgrade($oldversion) {
         $rs->close();
     }
 
+    // ---- separate size ceiling for student submissions — see install.
+    // xml's own maxstudentdocumentsize comment for the full reasoning.
+    // Default 0 (no separate limit, falls back to maxdocumentsize), so
+    // no existing activity's own behaviour changes until a teacher
+    // explicitly sets a separate value. ----
+    $table = new xmldb_table('bento');
+    $field = new xmldb_field('maxstudentdocumentsize', XMLDB_TYPE_INTEGER, '10', null, XMLDB_NOTNULL, null, '0', 'maxdocumentsize');
+    if (!$dbman->field_exists($table, $field)) {
+        $dbman->add_field($table, $field);
+    }
+
     return true;
 }

@@ -132,6 +132,16 @@ class mod_bento_mod_form extends moodleform_mod {
         $mform->setDefault('maxdocumentsize', (int) (get_config('mod_bento', 'absolutemaxdocumentsize') ?: 20));
         $mform->addHelpButton('maxdocumentsize', 'maxdocumentsize', 'mod_bento');
 
+        // A SEPARATE ceiling for student submissions specifically — left
+        // empty/0 (the default), a submission uses the SAME limit as the
+        // field above; only shown when submissions are actually enabled,
+        // matching every other submissions-only field's own hideIf here.
+        $mform->addElement('text', 'maxstudentdocumentsize', get_string('maxstudentdocumentsize', 'mod_bento'));
+        $mform->setType('maxstudentdocumentsize', PARAM_INT);
+        $mform->setDefault('maxstudentdocumentsize', 0);
+        $mform->addHelpButton('maxstudentdocumentsize', 'maxstudentdocumentsize', 'mod_bento');
+        $mform->hideIf('maxstudentdocumentsize', 'allowstudentsubmissions', 'notchecked');
+
         // ---- grading, availability, common module settings ----
         $this->standard_grading_coursemodule_elements();
         $this->standard_coursemodule_elements();
@@ -179,6 +189,15 @@ class mod_bento_mod_form extends moodleform_mod {
                 $errors['maxdocumentsize'] = get_string('maxdocumentsize_toosmall', 'mod_bento');
             } else if ($data['maxdocumentsize'] > $absolutemax) {
                 $errors['maxdocumentsize'] = get_string('maxdocumentsize_exceedsabsolute', 'mod_bento', $absolutemax);
+            }
+        }
+        // 0 is explicitly valid here (means "no separate limit, use
+        // maxdocumentsize above") — unlike maxdocumentsize's own <1 check,
+        // 0 has a real meaning for this field rather than being an
+        // invalid size.
+        if (isset($data['maxstudentdocumentsize']) && $data['maxstudentdocumentsize'] > 0) {
+            if ($data['maxstudentdocumentsize'] > $absolutemax) {
+                $errors['maxstudentdocumentsize'] = get_string('maxdocumentsize_exceedsabsolute', 'mod_bento', $absolutemax);
             }
         }
         return $errors;
