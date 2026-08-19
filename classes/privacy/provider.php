@@ -18,6 +18,8 @@ namespace mod_bento\privacy;
 
 defined('MOODLE_INTERNAL') || die();
 
+require_once($CFG->dirroot . '/mod/bento/lib.php');
+
 use core_privacy\local\metadata\collection;
 use core_privacy\local\request\approved_contextlist;
 use core_privacy\local\request\approved_userlist;
@@ -140,7 +142,8 @@ class provider implements
                 // meant for; the presentation itself is still reachable to
                 // the user directly inside the activity while their account
                 // exists.
-                $decoded = json_decode($submission->document, true);
+                $submissiondoc = bento_get_document($context, (bool) $submission->documentinfilestore, $submission->id, $submission->document, BENTO_SUBMISSION_FILEAREA);
+                $decoded = json_decode($submissiondoc, true);
                 $slidecount = is_array($decoded['slides'] ?? null) ? count($decoded['slides']) : 0;
                 writer::with_context($context)->export_data(
                     [get_string('modulename', 'mod_bento'), get_string('privacy:submissionsubcontext', 'mod_bento')],
@@ -166,6 +169,11 @@ class provider implements
             return;
         }
         $DB->delete_records('bento_grades', ['bentoid' => $cm->instance]);
+        // Every submission for this activity is being wiped regardless of
+        // which one it was — delete every file in the submission filearea
+        // at once (no itemid) rather than looking up each row's own id
+        // first just to delete them one at a time.
+        get_file_storage()->delete_area_files($context->id, BENTO_DOCUMENT_COMPONENT, BENTO_SUBMISSION_FILEAREA);
         $DB->delete_records('bento_submissions', ['bentoid' => $cm->instance]);
     }
 
@@ -181,6 +189,10 @@ class provider implements
                 continue;
             }
             $DB->delete_records('bento_grades', ['bentoid' => $cm->instance, 'userid' => $user->id]);
+            $submission = $DB->get_record('bento_submissions', ['bentoid' => $cm->instance, 'userid' => $user->id], 'id');
+            if ($submission) {
+                get_file_storage()->delete_area_files($context->id, BENTO_DOCUMENT_COMPONENT, BENTO_SUBMISSION_FILEAREA, $submission->id);
+            }
             $DB->delete_records('bento_submissions', ['bentoid' => $cm->instance, 'userid' => $user->id]);
         }
     }
@@ -197,6 +209,10 @@ class provider implements
         }
         foreach ($userlist->get_userids() as $userid) {
             $DB->delete_records('bento_grades', ['bentoid' => $cm->instance, 'userid' => $userid]);
+            $submission = $DB->get_record('bento_submissions', ['bentoid' => $cm->instance, 'userid' => $userid], 'id');
+            if ($submission) {
+                get_file_storage()->delete_area_files($context->id, BENTO_DOCUMENT_COMPONENT, BENTO_SUBMISSION_FILEAREA, $submission->id);
+            }
             $DB->delete_records('bento_submissions', ['bentoid' => $cm->instance, 'userid' => $userid]);
         }
     }

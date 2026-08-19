@@ -446,14 +446,15 @@ function bento_get_submission(int $bentoid, int $userid) {
  *
  * @param int $bentoid
  * @param int $userid
+ * @param context $context this activity's own module context
  * @return stdClass the (possibly just-created) submission row
  */
-function bento_get_or_create_submission(int $bentoid, int $userid): stdClass {
+function bento_get_or_create_submission(int $bentoid, int $userid, context $context): stdClass {
     $existing = bento_get_submission($bentoid, $userid);
     if ($existing) {
         return $existing;
     }
-    return bento_create_submission($bentoid, $userid, bento_blank_document());
+    return bento_create_submission($bentoid, $userid, bento_blank_document(), $context);
 }
 
 /**
@@ -470,20 +471,23 @@ function bento_get_or_create_submission(int $bentoid, int $userid): stdClass {
  * @param int $bentoid
  * @param int $userid
  * @param string $document raw bento/slides JSON, NOT yet validated
+ * @param context $context this activity's own module context
  * @return stdClass the newly created submission row
  */
-function bento_create_submission(int $bentoid, int $userid, string $document): stdClass {
+function bento_create_submission(int $bentoid, int $userid, string $document, context $context): stdClass {
     global $DB;
     $now = time();
     $record = (object) [
         'bentoid' => $bentoid,
         'userid' => $userid,
-        'document' => bento_validate_document($document),
+        'document' => '', // never populated — documentinfilestore below means this is never read anyway
+        'documentinfilestore' => 1,
         'status' => 'pending',
         'timecreated' => $now,
         'timemodified' => $now,
     ];
     $record->id = $DB->insert_record('bento_submissions', $record);
+    bento_put_document($context, $record->id, bento_validate_document($document), BENTO_SUBMISSION_FILEAREA);
     return $record;
 }
 
@@ -765,6 +769,14 @@ function bento_view(stdClass $bento, stdClass $course, $cm, context_module $cont
  */
 define('BENTO_DOCUMENT_COMPONENT', 'mod_bento');
 define('BENTO_DOCUMENT_FILEAREA', 'document');
+/** Student submissions get their OWN filearea — fully separate from the
+ *  main document's, even though itemid (a bento_submissions row's own id)
+ *  never collides with a bento row's own id space anyway. Keeping them
+ *  distinct avoids any possible confusion when browsing file storage
+ *  directly, and matters for the privacy provider's own file-deletion
+ *  step (see classes/privacy/provider.php), which needs to delete
+ *  exactly a user's own submission files and nothing else. */
+define('BENTO_SUBMISSION_FILEAREA', 'submission');
 /** The single filename every document's own stored_file uses — content
  *  type/identity is entirely carried by (component, filearea, itemid), not
  *  the filename, so this never needs to vary. */
@@ -787,12 +799,15 @@ define('BENTO_DOCUMENT_FILENAME', 'document.json');
  *   comment for why this doubles as the file-storage itemid directly,
  *   with nothing separate to look up
  * @param string|null $legacytext the row's own (legacy) document column
+ * @param string $filearea which filearea this row's own file lives in —
+ *   BENTO_DOCUMENT_FILEAREA (the default) for a `bento` row,
+ *   BENTO_SUBMISSION_FILEAREA for a `bento_submissions` row
  * @return string the document JSON — '' if genuinely empty/missing either way
  */
-function bento_get_document(context $context, bool $infilestore, int $itemid, ?string $legacytext): string {
+function bento_get_document(context $context, bool $infilestore, int $itemid, ?string $legacytext, string $filearea = BENTO_DOCUMENT_FILEAREA): string {
     if ($infilestore) {
         $fs = get_file_storage();
-        $file = $fs->get_file($context->id, BENTO_DOCUMENT_COMPONENT, BENTO_DOCUMENT_FILEAREA, $itemid, '/', BENTO_DOCUMENT_FILENAME);
+        $file = $fs->get_file($context->id, BENTO_DOCUMENT_COMPONENT, $filearea, $itemid, '/', BENTO_DOCUMENT_FILENAME);
         if ($file) {
             return $file->get_content();
         }
@@ -820,17 +835,19 @@ function bento_get_document(context $context, bool $infilestore, int $itemid, ?s
  *   already uniquely identifies one activity, so there's never a
  *   collision risk here worth generating a random id to avoid)
  * @param string $content the document JSON to store
+ * @param string $filearea which filearea to write into — see bento_get_
+ *   document()'s own doc comment for the two current values
  */
-function bento_put_document(context $context, int $itemid, string $content): void {
+function bento_put_document(context $context, int $itemid, string $content, string $filearea = BENTO_DOCUMENT_FILEAREA): void {
     $fs = get_file_storage();
-    $existing = $fs->get_file($context->id, BENTO_DOCUMENT_COMPONENT, BENTO_DOCUMENT_FILEAREA, $itemid, '/', BENTO_DOCUMENT_FILENAME);
+    $existing = $fs->get_file($context->id, BENTO_DOCUMENT_COMPONENT, $filearea, $itemid, '/', BENTO_DOCUMENT_FILENAME);
     if ($existing) {
         $existing->delete();
     }
     $fs->create_file_from_string([
         'contextid' => $context->id,
         'component' => BENTO_DOCUMENT_COMPONENT,
-        'filearea' => BENTO_DOCUMENT_FILEAREA,
+        'filearea' => $filearea,
         'itemid' => $itemid,
         'filepath' => '/',
         'filename' => BENTO_DOCUMENT_FILENAME,

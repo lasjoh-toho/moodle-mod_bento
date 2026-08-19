@@ -79,8 +79,8 @@ if ($deckid > 0) {
     if (!$bento->allowstudentsubmissions) {
         throw new moodle_exception('submissionsnotenabled', 'mod_bento');
     }
-    $submission = bento_get_or_create_submission($bento->id, $USER->id);
-    $document = $submission->document;
+    $submission = bento_get_or_create_submission($bento->id, $USER->id, $context);
+    $document = bento_get_document($context, (bool) $submission->documentinfilestore, $submission->id, $submission->document, BENTO_SUBMISSION_FILEAREA);
     $ownerlabel = ' — ' . get_string('mypresentation', 'mod_bento');
     $pastdue = $bento->duedate > 0 && time() > $bento->duedate;
     if ($pastdue) {

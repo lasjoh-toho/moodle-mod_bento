@@ -247,20 +247,22 @@ class save_document extends external_api {
         $existing = $DB->get_record('bento_submissions', ['bentoid' => $bento->id, 'userid' => $USER->id]);
         $mark('get_record_submission');
         if ($existing) {
+            bento_put_document($context, $existing->id, $cleandocument, BENTO_SUBMISSION_FILEAREA);
             $DB->update_record('bento_submissions', (object) [
                 'id' => $existing->id,
-                'document' => $cleandocument,
+                'documentinfilestore' => 1,
                 'timemodified' => $now,
             ]);
         } else {
-            $DB->insert_record('bento_submissions', (object) [
+            $newid = $DB->insert_record('bento_submissions', (object) [
                 'bentoid' => $bento->id,
                 'userid' => $USER->id,
-                'document' => $cleandocument,
                 'status' => 'pending',
                 'timecreated' => $now,
                 'timemodified' => $now,
             ]);
+            bento_put_document($context, $newid, $cleandocument, BENTO_SUBMISSION_FILEAREA);
+            $DB->set_field('bento_submissions', 'documentinfilestore', 1, ['id' => $newid]);
         }
         $mark('write_submission');
 

@@ -277,6 +277,7 @@ if (empty($others)) {
 } else {
     echo html_writer::start_tag('div', ['class' => 'mod-bento-gallery row']);
     foreach ($others as $s) {
+        $s->document = bento_get_document($context, (bool) $s->documentinfilestore, $s->id, $s->document, BENTO_SUBMISSION_FILEAREA);
         $name = fullname($s);
         $pendingbadge = '';
         if ($bento->submissionvisibility === 'moderated' && $s->status !== 'approved' && $viewall) {

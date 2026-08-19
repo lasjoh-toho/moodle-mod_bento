@@ -62,7 +62,7 @@ if (bento_get_submission($bento->id, $USER->id)) {
 if ($data = data_submitted()) {
     require_sesskey();
     $document = required_param('document', PARAM_RAW);
-    bento_create_submission($bento->id, $USER->id, $document);
+    bento_create_submission($bento->id, $USER->id, $document, $context);
     redirect($editurl);
 }
 

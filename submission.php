@@ -56,6 +56,7 @@ if (!$bento->allowstudentsubmissions) {
 }
 
 $submission = $DB->get_record('bento_submissions', ['id' => $submissionid, 'bentoid' => $bento->id], '*', MUST_EXIST);
+$submission->document = bento_get_document($context, (bool) $submission->documentinfilestore, $submission->id, $submission->document, BENTO_SUBMISSION_FILEAREA);
 
 $isowner = (int) $submission->userid === (int) $USER->id;
 $viewall = has_capability('mod/bento:viewallsubmissions', $context);

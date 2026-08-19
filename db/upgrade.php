@@ -241,5 +241,43 @@ function xmldb_bento_upgrade($oldversion) {
         $dbman->add_field($table, $field);
     }
 
+    // ---- student submissions onto the same file-storage scheme the
+    // master document already moved to — a large submission (embedded
+    // images etc.) was still hitting the same MySQL text-column-size
+    // ceiling the master document already moved off of. See install.
+    // xml's own bento_submissions.documentinfilestore comment for the
+    // full reasoning. ----
+    $table = new xmldb_table('bento_submissions');
+    $field = new xmldb_field('documentinfilestore', XMLDB_TYPE_INTEGER, '1', null, XMLDB_NOTNULL, null, '0', 'document');
+    if (!$dbman->field_exists($table, $field)) {
+        $dbman->add_field($table, $field);
+    }
+
+    // Same batching reasoning as bento.document's own migration above —
+    // one row's content in memory at a time, never the whole table. Each
+    // row needs its own bentoid looked up to find the right course_
+    // modules/context, since a submission has no direct link to course_
+    // modules the way a `bento` row itself does.
+    $modulerecord = $DB->get_record('modules', ['name' => 'bento']);
+    if ($modulerecord) {
+        $rs = $DB->get_recordset_select(
+            'bento_submissions',
+            'documentinfilestore = 0 AND document IS NOT NULL AND ' . $DB->sql_compare_text('document') . " != ''"
+        );
+        foreach ($rs as $row) {
+            $cm = $DB->get_record('course_modules', ['module' => $modulerecord->id, 'instance' => $row->bentoid]);
+            if (!$cm) {
+                continue; // orphaned submission with no parent activity left at all — nothing sensible to migrate this into
+            }
+            $context = context_module::instance($cm->id, IGNORE_MISSING);
+            if (!$context) {
+                continue;
+            }
+            bento_put_document($context, $row->id, $row->document, BENTO_SUBMISSION_FILEAREA);
+            $DB->set_field('bento_submissions', 'documentinfilestore', 1, ['id' => $row->id]);
+        }
+        $rs->close();
+    }
+
     return true;
 }
