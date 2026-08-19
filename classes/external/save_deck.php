@@ -111,10 +111,11 @@ class save_deck extends external_api {
 
         if ($params['deckid'] > 0) {
             $existing = $DB->get_record('bento_decks', ['id' => $params['deckid'], 'bentoid' => $cm->instance], '*', MUST_EXIST);
+            bento_put_document($context, $existing->id, $cleandocument, BENTO_DECK_FILEAREA);
             $DB->update_record('bento_decks', (object) [
                 'id' => $existing->id,
                 'name' => $cleanname,
-                'document' => $cleandocument,
+                'documentinfilestore' => 1,
                 'timemodified' => $now,
             ]);
             bento_touch_coursemodule($cm->id);
@@ -129,10 +130,12 @@ class save_deck extends external_api {
             'bentoid' => $cm->instance,
             'sortorder' => $maxsort + 1,
             'name' => $cleanname,
-            'document' => $cleandocument,
+            'document' => '', // never populated — documentinfilestore below means this is never read anyway
+            'documentinfilestore' => 1,
             'timecreated' => $now,
             'timemodified' => $now,
         ]);
+        bento_put_document($context, $newid, $cleandocument, BENTO_DECK_FILEAREA);
         bento_touch_coursemodule($cm->id);
 
         return ['ok' => true, 'deckid' => (int) $newid, 'timemodified' => $now];

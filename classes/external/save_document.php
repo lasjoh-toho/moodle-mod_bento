@@ -204,9 +204,11 @@ class save_document extends external_api {
             require_capability('mod/bento:edit', $context);
             $deck = $DB->get_record('bento_decks', ['id' => $params['deckid'], 'bentoid' => $cm->instance], '*', MUST_EXIST);
             $mark('get_record_deck');
+            bento_put_document($context, $deck->id, $cleandocument, BENTO_DECK_FILEAREA);
+            $mark('bento_put_document_deck');
             $DB->update_record('bento_decks', (object) [
                 'id' => $deck->id,
-                'document' => $cleandocument,
+                'documentinfilestore' => 1,
                 'timemodified' => $now,
             ]);
             bento_touch_coursemodule($cm->id);

@@ -73,7 +73,7 @@ $PAGE->requires->js(new moodle_url('/mod/bento/bentopaste.js'));
 echo $OUTPUT->header();
 echo $OUTPUT->heading(format_string($bento->name) . ' — ' . get_string('managepresentation', 'mod_bento'));
 
-echo bento_render_importer($existing, (int) $course->id, (int) $cm->id, $decks, (bool) $bento->documentvisible);
+echo bento_render_importer($existing, (int) $course->id, (int) $cm->id, $decks, (bool) $bento->documentvisible, $context);
 
 $settingsurl = new moodle_url('/course/modedit.php', ['update' => $cm->id, 'return' => 1]);
 echo html_writer::tag('p', html_writer::link($settingsurl, get_string('moresettings', 'mod_bento')), ['class' => 'mt-3']);

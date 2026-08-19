@@ -65,7 +65,7 @@ if ($deckid > 0) {
         bento_require_not_guest();
     }
     $deck = $DB->get_record('bento_decks', ['id' => $deckid, 'bentoid' => $cm->instance], '*', MUST_EXIST);
-    $document = $deck->document;
+    $document = bento_get_document($context, (bool) $deck->documentinfilestore, $deck->id, $deck->document, BENTO_DECK_FILEAREA);
     $ownerlabel = ' — ' . get_string('draftlabel', 'mod_bento', $deck->name ?: get_string('untitleddraft', 'mod_bento'));
 } else if ($caneditmaster) {
     if (!empty($bento->loginonly)) {

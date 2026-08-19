@@ -779,13 +779,21 @@ function bento_view(stdClass $bento, stdClass $course, $cm, context_module $cont
 define('BENTO_DOCUMENT_COMPONENT', 'mod_bento');
 define('BENTO_DOCUMENT_FILEAREA', 'document');
 /** Student submissions get their OWN filearea — fully separate from the
- *  main document's, even though itemid (a bento_submissions row's own id)
- *  never collides with a bento row's own id space anyway. Keeping them
- *  distinct avoids any possible confusion when browsing file storage
- *  directly, and matters for the privacy provider's own file-deletion
- *  step (see classes/privacy/provider.php), which needs to delete
- *  exactly a user's own submission files and nothing else. */
+ *  main document's. bento_submissions.id and bento.id come from separate
+ *  auto-increment sequences, so nothing inherently rules out them landing
+ *  on the same numeric value; it's the distinct filearea itself that
+ *  rules a collision out, not the itemid values. Also matters for the
+ *  privacy provider's own file-deletion step (see classes/privacy/
+ *  provider.php), which needs to delete exactly a user's own submission
+ *  files and nothing else. */
 define('BENTO_SUBMISSION_FILEAREA', 'submission');
+/** Draft decks get their OWN filearea too, for the same reason as
+ *  submissions above — bento.id and bento_decks.id come from separate
+ *  auto-increment sequences, so nothing inherently rules out them ever
+ *  landing on the same numeric value; keeping every document TYPE in its
+ *  own filearea is what actually rules a collision out, not the itemid
+ *  values themselves. */
+define('BENTO_DECK_FILEAREA', 'deck');
 /** The single filename every document's own stored_file uses — content
  *  type/identity is entirely carried by (component, filearea, itemid), not
  *  the filename, so this never needs to vary. */
@@ -919,9 +927,12 @@ function bento_touch_coursemodule(int $cmid): void {
  *   brand-new activity, which has no bentoid yet to look any up under)
  * @param bool $documentvisible the row's own documentvisible flag — true
  *   for a brand-new activity, which has nothing to hide yet
+ * @param ?context $context this activity's own module context — required
+ *   whenever $decks is non-empty (to read each one's own document through
+ *   file storage), null only valid for a brand-new activity (empty $decks)
  * @return string HTML
  */
-function bento_render_importer(string $existingjson, int $courseid, int $cmid, array $decks = [], bool $documentvisible = true): string {
+function bento_render_importer(string $existingjson, int $courseid, int $cmid, array $decks = [], bool $documentvisible = true, ?context $context = null): string {
     global $USER;
     $seed = '';
     $decoded = $existingjson !== '' ? json_decode($existingjson, true) : null;
@@ -940,7 +951,8 @@ function bento_render_importer(string $existingjson, int $courseid, int $cmid, a
 
     $deckseed = '';
     foreach ($decks as $deck) {
-        $deckdecoded = json_decode($deck->document, true);
+        $deckdoc = $context ? bento_get_document($context, (bool) $deck->documentinfilestore, $deck->id, $deck->document, BENTO_DECK_FILEAREA) : $deck->document;
+        $deckdecoded = json_decode($deckdoc, true);
         if (!is_array($deckdecoded) || ($deckdecoded['format'] ?? null) !== 'bento/slides') {
             continue; // skip anything that somehow isn't valid rather than breaking the whole page over one bad row
         }
@@ -949,7 +961,7 @@ function bento_render_importer(string $existingjson, int $courseid, int $cmid, a
     }
 
     return '
-        <div class="mod-bento-importer" id="mod-bento-importer" data-courseid="' . $courseid . '" data-cmid="' . $cmid . '" data-candeck="1" data-termsagreed="' . (bento_has_agreed_current_terms((int) $USER->id) ? '1' : '0') . '" data-documentvisible="' . ($documentvisible ? '1' : '0') . '">
+        <div class="mod-bento-importer" id="mod-bento-importer" data-courseid="' . $courseid . '" data-cmid="' . $cmid . '" data-candeck="1" data-termsagreed="' . (bento_has_agreed_current_terms((int) $USER->id) ? '1' : '0') . '" data-documentvisible="' . ($documentvisible ? '1' : '0') . '" data-savetimeout="' . (int) (get_config('mod_bento', 'savetimeout') ?: 600) . '">
             <p class="form-text text-muted mod-bento-edithint">' . get_string('editusehint', 'mod_bento') . '</p>
             ' . $seed . $deckseed . '
             <div class="mod-bento-tiles has-paste' . ($isrealdoc ? ' has-edit' : '') . '">

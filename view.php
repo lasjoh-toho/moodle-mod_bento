@@ -116,7 +116,7 @@ if (!$bento->allowstudentsubmissions || $showmaster) {
     }
     if ($startdeckid > 0) {
         $startdeck = $DB->get_record('bento_decks', ['id' => $startdeckid], '*', MUST_EXIST);
-        $bento->document = $startdeck->document;
+        $bento->document = bento_get_document($context, (bool) $startdeck->documentinfilestore, $startdeck->id, $startdeck->document, BENTO_DECK_FILEAREA);
     } else {
         $bento->document = bento_get_document($context, (bool) $bento->documentinfilestore, $bento->id, $bento->document);
     }

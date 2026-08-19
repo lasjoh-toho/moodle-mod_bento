@@ -51,4 +51,4 @@ $deck = $DB->get_record('bento_decks', ['id' => $deckid, 'bentoid' => $cm->insta
 
 header('Content-Type: application/json; charset=utf-8');
 header('X-Frame-Options: SAMEORIGIN');
-echo $deck->document;
+echo bento_get_document($context, (bool) $deck->documentinfilestore, $deck->id, $deck->document, BENTO_DECK_FILEAREA);

@@ -648,6 +648,11 @@ function mergeDocs(docA, docB){
       var v = el && parseInt(el.dataset.cmid, 10);
       return v ? v : 0;
     })();
+    var bentoSaveTimeoutMs = (function () {
+      var el = document.getElementById('mod-bento-importer');
+      var v = el && parseInt(el.dataset.savetimeout, 10);
+      return (v && v > 0 ? v : 600) * 1000;
+    })();
     // Mutable (not const) — updated in place whenever the eye-icon toggle
     // below actually succeeds, so re-rendering the cards afterward shows
     // the new state immediately without needing a full page reload.
@@ -750,6 +755,7 @@ function mergeDocs(docA, docB){
         var xhr = new XMLHttpRequest();
         xhr.open('POST', url);
         xhr.setRequestHeader('Content-Type', 'application/json');
+        xhr.timeout = bentoSaveTimeoutMs;
         xhr.upload.onprogress = function (ev) {
           if (onProgress && ev.lengthComputable) onProgress(ev.loaded / ev.total);
         };
@@ -763,14 +769,15 @@ function mergeDocs(docA, docB){
           resolve(data[0] && data[0].data);
         };
         xhr.onerror = function () { reject(new Error('Netzwerkfehler bei der Anfrage — bitte erneut versuchen.')); };
+        xhr.ontimeout = function () { reject(new Error('Zeitüberschreitung beim Speichern — bitte erneut versuchen.')); };
         xhr.send(JSON.stringify(body));
       });
     }
     function saveDocToMoodle(cmid, doc, onProgress) {
       return callBentoWebservice('mod_bento_save_document', { cmid: cmid, document: JSON.stringify(doc) }, onProgress);
     }
-    function saveDeckToMoodle(cmid, deckid, name, doc) {
-      return callBentoWebservice('mod_bento_save_deck', { cmid: cmid, deckid: deckid || 0, name: name || '', document: JSON.stringify(doc) });
+    function saveDeckToMoodle(cmid, deckid, name, doc, onProgress) {
+      return callBentoWebservice('mod_bento_save_deck', { cmid: cmid, deckid: deckid || 0, name: name || '', document: JSON.stringify(doc) }, onProgress);
     }
     function deleteDeckFromMoodle(cmid, deckid) {
       return callBentoWebservice('mod_bento_delete_deck', { cmid: cmid, deckid: deckid });
@@ -911,8 +918,8 @@ function mergeDocs(docA, docB){
         '</div>' +
         (isPersisted
           ? '<span class="mod-bento-item-saved-check" title="Gespeichert — nichts zu tun">✓</span>'
-          : '<button type="button" class="mod-bento-item-save" title="Diese Karte einzeln speichern">Speichern</button>') +
-        (isPersisted ? '<button type="button" class="mod-bento-item-edit" title="Bearbeiten (im vollen Editor, mit Speichern)">✎</button>' : '') +
+          : '<button type="button" class="mod-bento-item-save" title="Diese Karte einzeln speichern"><span class="mod-bento-item-save-progress"></span><span>Speichern</span></button>') +
+        ('<button type="button" class="mod-bento-item-edit' + (isPersisted ? '' : ' unsaved-edit') + '" title="' + (isPersisted ? 'Bearbeiten (im vollen Editor, mit Speichern)' : 'Bearbeiten — speichert diese Karte zuerst als Entwurf') + '">✎</button>') +
         '<button type="button" class="mod-bento-item-play" title="Ansehen (nichts wird gespeichert)">▶</button>' +
         '<button type="button" class="mod-bento-item-download" title="Als .bento.html herunterladen">&#8681;</button>' +
         '<button type="button" class="mod-bento-item-remove" title="Entfernen">✕</button>';
@@ -937,14 +944,19 @@ function mergeDocs(docA, docB){
 
       var saveBtn = card.querySelector('.mod-bento-item-save');
       if (saveBtn) {
+        var saveProgressEl = saveBtn.querySelector('.mod-bento-item-save-progress');
         saveBtn.addEventListener('click', function () {
           if (!bentoCmId) { alert('Erst die Aktivität selbst anlegen (unten „Speichern und anzeigen“), bevor einzelne Karten gespeichert werden können.'); return; }
           saveBtn.disabled = true;
+          if (saveProgressEl) saveProgressEl.classList.add('active');
+          var onProgress = function (fraction) {
+            if (saveProgressEl) saveProgressEl.style.width = Math.round(fraction * 100) + '%';
+          };
           var nowTop = items[0] === it; // re-check at click time — order may have changed since the card was built
           bentoWithSaveLock(function () {
             return (!bentoCanDeck || nowTop)
-              ? saveDocToMoodle(bentoCmId, it.doc)
-              : saveDeckToMoodle(bentoCmId, it.deckid || 0, it.baseName, it.doc).then(function (res) { it.deckid = res.deckid; });
+              ? saveDocToMoodle(bentoCmId, it.doc, onProgress)
+              : saveDeckToMoodle(bentoCmId, it.deckid || 0, it.baseName, it.doc, onProgress).then(function (res) { it.deckid = res.deckid; });
           }).then(function () {
             if (!bentoCanDeck || nowTop) it.existing = true;
             toastMsg((!bentoCanDeck || nowTop) ? 'Gespeichert.' : 'Entwurf gespeichert.');
@@ -952,7 +964,10 @@ function mergeDocs(docA, docB){
           }).catch(function (e) {
             console.error(e);
             if (e.message !== 'save already in flight') alert('Konnte nicht speichern: ' + (e.message || e));
-          }).finally(function () { saveBtn.disabled = false; });
+          }).finally(function () {
+            saveBtn.disabled = false;
+            if (saveProgressEl) { saveProgressEl.classList.remove('active'); saveProgressEl.style.width = '0'; }
+          });
         });
       }
 
@@ -1018,10 +1033,32 @@ function mergeDocs(docA, docB){
       if (editBtn && bentoCmId) {
         editBtn.addEventListener('click', function () {
           var nowTop = items[0] === it;
-          var url = M.cfg.wwwroot + '/mod/bento/edit.php?id=' + bentoCmId
-            + (bentoCanDeck && !nowTop ? '&deckid=' + it.deckid : '')
-            + '&returnurl=' + encodeURIComponent(location.pathname + location.search + location.hash);
-          window.location.href = url;
+          var goToEdit = function (deckidForUrl) {
+            var url = M.cfg.wwwroot + '/mod/bento/edit.php?id=' + bentoCmId
+              + (bentoCanDeck && !nowTop ? '&deckid=' + deckidForUrl : '')
+              + '&returnurl=' + encodeURIComponent(location.pathname + location.search + location.hash);
+            window.location.href = url;
+          };
+          if (isPersisted) { goToEdit(it.deckid); return; }
+          // Not yet saved anywhere — save it first (transparently, the
+          // button's own tooltip already says so), then open it for real.
+          editBtn.disabled = true;
+          var originalLabel = editBtn.textContent;
+          editBtn.textContent = '…';
+          bentoWithSaveLock(function () {
+            return (!bentoCanDeck || nowTop)
+              ? saveDocToMoodle(bentoCmId, it.doc)
+              : saveDeckToMoodle(bentoCmId, 0, it.baseName, it.doc);
+          }).then(function (res) {
+            if (!bentoCanDeck || nowTop) { it.existing = true; goToEdit(0); return; }
+            it.deckid = res.deckid;
+            goToEdit(res.deckid);
+          }).catch(function (e) {
+            console.error(e);
+            if (e.message !== 'save already in flight') alert('Konnte nicht speichern: ' + (e.message || e));
+            editBtn.disabled = false;
+            editBtn.textContent = originalLabel;
+          });
         });
       }
       card.querySelector('.mod-bento-item-download').addEventListener('click', function () {

@@ -230,6 +230,8 @@
 .mod-bento-item-meta { color: #4b5563; font-size: 0.8rem; margin-top: 2px; }
 .mod-bento-item-warnings { margin: 6px 0 0; padding-left: 18px; color: #8a6d55; font-size: 0.78rem; }
 .mod-bento-item-save {
+  position: relative;
+  overflow: hidden;
   border: 1px solid #ff9e5e;
   background: #ff9e5e;
   color: #2b120a;
@@ -242,6 +244,18 @@
 }
 .mod-bento-item-save:hover { background: #ffb37e; }
 .mod-bento-item-save:disabled { opacity: 0.6; cursor: default; }
+.mod-bento-item-save-progress {
+  position: absolute;
+  inset: 0;
+  width: 0;
+  background: #5b8def;
+  opacity: 0;
+  transition: width 0.15s linear, opacity 0.15s ease;
+  pointer-events: none;
+  z-index: 0;
+}
+.mod-bento-item-save-progress.active { opacity: 1; }
+.mod-bento-item-save > span { position: relative; z-index: 1; }
 .mod-bento-item-saved-check {
   display: inline-flex;
   align-items: center;

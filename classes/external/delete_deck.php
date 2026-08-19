@@ -73,6 +73,10 @@ class delete_deck extends external_api {
         // get_record with MUST_EXIST also confirms this draft actually
         // belongs to THIS activity, not just any id a caller might supply.
         $deck = $DB->get_record('bento_decks', ['id' => $params['deckid'], 'bentoid' => $cm->instance], '*', MUST_EXIST);
+        // No-op if this deck never actually migrated to file storage —
+        // delete_area_files() with a specific itemid is a safe no-op when
+        // nothing's there.
+        get_file_storage()->delete_area_files($context->id, BENTO_DOCUMENT_COMPONENT, BENTO_DECK_FILEAREA, $deck->id);
         $DB->delete_records('bento_decks', ['id' => $deck->id]);
 
         return ['ok' => true];
