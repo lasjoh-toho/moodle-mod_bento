@@ -52,11 +52,11 @@ if (!empty($bento->loginonly)) {
 bento_view($bento, $course, $cm, $context);
 
 $caneditmaster = has_capability('mod/bento:edit', $context);
-if ($caneditmaster && !$bento->allowstudentsubmissions) {
+$showmaster = optional_param('master', 0, PARAM_BOOL);
+if ($caneditmaster && !$bento->allowstudentsubmissions && !$showmaster) {
     redirect(new moodle_url('/mod/bento/manage.php', ['id' => $cm->id]));
 }
 
-$showmaster = optional_param('master', 0, PARAM_BOOL);
 if (!$bento->allowstudentsubmissions || $showmaster) {
     // ---- classic single-document present mode (v1 behaviour) ----
 
