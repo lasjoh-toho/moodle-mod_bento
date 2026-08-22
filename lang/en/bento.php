@@ -40,6 +40,7 @@ $string['editusehint'] = 'Drop a file here to merge it with what\'s already save
 $string['pastetile'] = 'Distribute content across slides';
 $string['pastetilesub'] = 'Split content you copied from, say, a Word document across several slides.';
 $string['newtile'] = 'New: Blank presentation';
+$string['newparttile'] = '+ New empty part';
 $string['newtilesub'] = 'Starts with a single blank slide';
 $string['playtile'] = 'View';
 $string['playtilesub'] = 'Shows the currently visible presentation';

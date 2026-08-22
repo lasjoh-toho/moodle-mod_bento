@@ -582,19 +582,95 @@ async function buildBentoHtml(doc, filenameBase){
 }
 
 
+// Port of bento's own findUsedAssetAndFontKeys (slides/src/model.ts) — same
+// element-type coverage, since this file can't import that TypeScript
+// module directly. Used by the split-into-parts feature below so each
+// resulting part only carries the assets/fonts it actually references,
+// not a full copy of everything in the original document.
+function bentoFindUsedAssetAndFontKeys(doc) {
+  var assetKeys = {};
+  var fontFamiliesInUse = {};
+  if (doc.theme && doc.theme.fontFamily) fontFamiliesInUse[doc.theme.fontFamily] = true;
+  function assetKeyFrom(value) {
+    return (typeof value === 'string' && value.indexOf('asset:') === 0) ? value.slice('asset:'.length) : null;
+  }
+  function visitElement(el) {
+    if (!el || !el.type) return;
+    if (el.type === 'image') {
+      var src = assetKeyFrom(el.src); if (src) assetKeys[src] = true;
+      var mask = assetKeyFrom(el.mask); if (mask) assetKeys[mask] = true;
+    } else if (el.type === 'svg') {
+      if (el.asset) assetKeys[el.asset] = true;
+    } else if (el.type === 'media') {
+      var msrc = assetKeyFrom(el.src); if (msrc) assetKeys[msrc] = true;
+      var poster = assetKeyFrom(el.poster); if (poster) assetKeys[poster] = true;
+    } else if (el.type === 'text') {
+      if (el.fontFamily) fontFamiliesInUse[el.fontFamily] = true;
+    } else if (el.type === 'table') {
+      if (el.style && el.style.fontFamily) fontFamiliesInUse[el.style.fontFamily] = true;
+    } else if (el.type === 'chart') {
+      var m, re = /asset:([a-zA-Z0-9_-]+)/g, str = JSON.stringify(el.option || {});
+      while ((m = re.exec(str))) assetKeys[m[1]] = true;
+    }
+  }
+  function visitSlide(s) {
+    (s.elements || []).forEach(visitElement);
+  }
+  (doc.slides || []).forEach(visitSlide);
+  (doc.layouts || []).forEach(visitSlide);
+  var fontKeys = {};
+  (doc.fonts || []).forEach(function (f) {
+    if (fontFamiliesInUse[f.family]) { fontKeys[f.asset] = true; assetKeys[f.asset] = true; }
+  });
+  return { assetKeys: assetKeys, fontKeys: fontKeys };
+}
+
+// Builds a standalone document from a contiguous slice of doc.slides,
+// carrying over only the assets/fonts that slice actually references
+// (via bentoFindUsedAssetAndFontKeys above) — this is the calculation the
+// split-into-parts modal needs: each part should be a genuinely small,
+// self-contained file, not a full copy of the original's every embedded
+// image, most of which the part would never use.
+function bentoBuildSplitDoc(doc, startIdx, endIdx) {
+  var part = JSON.parse(JSON.stringify(doc));
+  part.slides = (doc.slides || []).slice(startIdx, endIdx);
+  var used = bentoFindUsedAssetAndFontKeys(part);
+  if (part.assets) {
+    Object.keys(part.assets).forEach(function (k) { if (!used.assetKeys[k]) delete part.assets[k]; });
+  }
+  if (part.fonts) {
+    part.fonts = part.fonts.filter(function (f) { return used.fontKeys[f.asset]; });
+  }
+  return part;
+}
+
 function mergeDocs(docA, docB){
   const merged = JSON.parse(JSON.stringify(docA));
   merged.assets = merged.assets || {};
   const assetsB = docB.assets || {};
-  const keyMap = {}; // key in B -> key in merged (only set when renamed to dodge a collision)
+  // Reverse index (content -> existing key) so a content match reuses the
+  // SAME key regardless of what docB happened to call it — this is the
+  // actual dedup step; the collision loop below only ever renamed on a
+  // key clash with a DIFFERENT value, never noticed a same-content asset
+  // sitting under an unrelated key.
+  const valueToKey = {};
+  for (const [k, v] of Object.entries(merged.assets)) valueToKey[v] = k;
+  const keyMap = {}; // key in B -> key in merged (set whenever B's own key isn't what ends up being used, whether from a rename or a content-dedup reuse)
   for (const [key, val] of Object.entries(assetsB)){
+    if (Object.prototype.hasOwnProperty.call(valueToKey, val)) {
+      // Identical content already present under some key — reuse it,
+      // store nothing new.
+      if (valueToKey[val] !== key) keyMap[key] = valueToKey[val];
+      continue;
+    }
     let newKey = key;
-    if (Object.prototype.hasOwnProperty.call(merged.assets, newKey) && merged.assets[newKey] !== val){
+    if (Object.prototype.hasOwnProperty.call(merged.assets, newKey)){
       let i = 1;
       while (Object.prototype.hasOwnProperty.call(merged.assets, key + '_' + i)) i++;
       newKey = key + '_' + i;
     }
     merged.assets[newKey] = val;
+    valueToKey[val] = newKey;
     if (newKey !== key) keyMap[key] = newKey;
   }
 
@@ -822,6 +898,94 @@ function mergeDocs(docA, docB){
       setTimeout(function () { t.classList.remove('show'); setTimeout(function () { t.remove(); }, 300); }, 2500);
     }
 
+    function slideLabel(slide, idx) {
+      // Best-effort short label — the first non-empty text content found
+      // on the slide, falling back to a plain slide number.
+      var found = null;
+      (function walk(node) {
+        if (found || !node || typeof node !== 'object') return;
+        if (Array.isArray(node)) { node.forEach(walk); return; }
+        if (typeof node.text === 'string' && node.text.trim()) { found = node.text.trim(); return; }
+        if (typeof node.content === 'string' && node.content.trim()) { found = node.content.trim(); return; }
+        for (var k in node) walk(node[k]);
+      })(slide.elements || []);
+      var text = found ? found.slice(0, 40) + (found.length > 40 ? '…' : '') : '(ohne Text)';
+      return 'Folie ' + (idx + 1) + ' — ' + text;
+    }
+
+    function openSplitModal(it) {
+      var slides = it.doc.slides || [];
+      var breakAfter = new Array(slides.length - 1).fill(false); // breakAfter[i] = true means a new part starts after slide i
+
+      var overlay = document.createElement('div');
+      overlay.className = 'mod-bento-modal-overlay';
+      var box = document.createElement('div');
+      box.className = 'mod-bento-modal-box';
+      box.innerHTML =
+        '<h3>In Teile aufteilen</h3>' +
+        '<p class="form-text text-muted">Zwischen zwei Folien klicken, um dort eine Trennung einzufügen. Jeder entstehende Teil bekommt nur die Assets, die seine eigenen Folien tatsächlich verwenden.</p>' +
+        '<div class="mod-bento-split-list"></div>' +
+        '<div class="mod-bento-split-actions">' +
+          '<button type="button" class="btn btn-secondary mod-bento-split-cancel">Abbrechen</button>' +
+          '<button type="button" class="btn btn-primary mod-bento-split-confirm">Aufteilen</button>' +
+        '</div>';
+      overlay.appendChild(box);
+      document.body.appendChild(overlay);
+
+      var listEl = box.querySelector('.mod-bento-split-list');
+      var confirmBtn = box.querySelector('.mod-bento-split-confirm');
+
+      function renderList() {
+        listEl.innerHTML = '';
+        slides.forEach(function (slide, idx) {
+          var row = document.createElement('div');
+          row.className = 'mod-bento-split-row';
+          row.textContent = slideLabel(slide, idx);
+          listEl.appendChild(row);
+          if (idx < slides.length - 1) {
+            var brk = document.createElement('button');
+            brk.type = 'button';
+            brk.className = 'mod-bento-split-break' + (breakAfter[idx] ? ' active' : '');
+            brk.textContent = breakAfter[idx] ? '✂ Trennung hier — klicken zum Entfernen' : '+ Trennung hier einfügen';
+            (function (i) {
+              brk.addEventListener('click', function () {
+                breakAfter[i] = !breakAfter[i];
+                renderList();
+              });
+            })(idx);
+            listEl.appendChild(brk);
+          }
+        });
+        var partCount = breakAfter.filter(Boolean).length + 1;
+        confirmBtn.textContent = partCount > 1 ? ('In ' + partCount + ' Teile aufteilen') : 'Keine Trennung gewählt';
+        confirmBtn.disabled = partCount <= 1;
+      }
+      renderList();
+
+      function close() { overlay.remove(); }
+      box.querySelector('.mod-bento-split-cancel').addEventListener('click', close);
+      overlay.addEventListener('click', function (e) { if (e.target === overlay) close(); });
+      confirmBtn.addEventListener('click', function () {
+        var groups = [];
+        var current = [];
+        slides.forEach(function (_, idx) {
+          current.push(idx);
+          if (breakAfter[idx]) { groups.push(current); current = []; }
+        });
+        if (current.length) groups.push(current);
+        var parts = splitDocBySlideGroups(it.doc, groups);
+        var i = items.indexOf(it);
+        var newItems = parts.map(function (partDoc) {
+          return { baseName: partDoc.title, doc: partDoc, slideCount: partDoc.slides.length, warnings: [], existing: false, deckid: 0, visible: 0 };
+        });
+        if (i >= 0) items.splice.apply(items, [i, 1].concat(newItems));
+        else items.push.apply(items, newItems);
+        close();
+        renderItems();
+        toastMsg('In ' + parts.length + ' Teile aufgeteilt — noch nicht gespeichert.');
+      });
+    }
+
     if (existingScript) {
       try {
         var existingDoc = JSON.parse(existingScript.textContent);
@@ -859,7 +1023,41 @@ function mergeDocs(docA, docB){
       } catch (e) { console.warn('mod_bento: could not parse a draft deck', e); }
     });
 
-    function escapeHtml(s) {
+    function collectUsedAssetKeys(node, out) {
+  if (typeof node === 'string') {
+    var m = /^asset:(.+)$/.exec(node);
+    if (m) out.add(m[1]);
+    return;
+  }
+  if (Array.isArray(node)) { node.forEach(function (n) { collectUsedAssetKeys(n, out); }); return; }
+  if (node && typeof node === 'object') { for (var k in node) collectUsedAssetKeys(node[k], out); }
+}
+function splitDocBySlideGroups(doc, groups) {
+  // groups: array of arrays of slide INDEXES (into doc.slides), one entry
+  // per resulting part, in order.
+  return groups.map(function (idxs, partNum) {
+    var slides = idxs.map(function (i) { return JSON.parse(JSON.stringify(doc.slides[i])); });
+    var usedKeys = new Set();
+    collectUsedAssetKeys(slides, usedKeys);
+    var assets = {};
+    if (doc.assets) {
+      Object.keys(doc.assets).forEach(function (k) { if (usedKeys.has(k)) assets[k] = doc.assets[k]; });
+    }
+    var part = {
+      format: 'bento/slides',
+      version: doc.version || 1,
+      docId: (crypto.randomUUID ? crypto.randomUUID() : 'part-' + Date.now() + '-' + partNum),
+      title: (doc.title || 'Deck') + ' — Teil ' + (partNum + 1),
+      size: doc.size ? JSON.parse(JSON.stringify(doc.size)) : undefined,
+      theme: doc.theme ? JSON.parse(JSON.stringify(doc.theme)) : undefined,
+      slides: slides,
+      modified: new Date().toISOString(),
+    };
+    if (Object.keys(assets).length) part.assets = assets;
+    return part;
+  });
+}
+function escapeHtml(s) {
       return String(s).replace(/[&<>"']/g, function (c) {
         return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c];
       });
@@ -898,6 +1096,83 @@ function mergeDocs(docA, docB){
       return Math.round(bytes / 1024) + ' KB';
     }
 
+    function bentoOpenSplitModal(it) {
+      var slides = it.doc.slides || [];
+      var breaks = {}; // index i means "break BEFORE slide i" (1 <= i <= slides.length-1)
+      var overlay = document.createElement('div');
+      overlay.className = 'mod-bento-split-overlay';
+      var modal = document.createElement('div');
+      modal.className = 'mod-bento-split-modal';
+      modal.innerHTML =
+        '<h3>In mehrere Teile aufteilen</h3>' +
+        '<p class="mod-bento-split-hint">Klicke zwischen zwei Folien, um dort eine Trennung zu setzen. Jeder entstehende Teil wird eine eigene, unabhängige Karte — nur mit den Bildern/Schriften, die er tatsächlich braucht.</p>' +
+        '<div class="mod-bento-split-list" id="mod-bento-split-list"></div>' +
+        '<div class="mod-bento-split-actions">' +
+          '<button type="button" class="mod-bento-split-cancel">Abbrechen</button>' +
+          '<button type="button" class="mod-bento-split-confirm" disabled>Aufteilen</button>' +
+        '</div>';
+      overlay.appendChild(modal);
+      document.body.appendChild(overlay);
+
+      var listEl = modal.querySelector('#mod-bento-split-list');
+      var confirmBtn = modal.querySelector('.mod-bento-split-confirm');
+
+      function slideLabel(s, idx) {
+        var firstText = (s.elements || []).find(function (e) { return e.type === 'text' && e.text; });
+        var title = firstText ? String(firstText.text).replace(/<[^>]+>/g, '').trim().slice(0, 40) : '';
+        return 'Folie ' + (idx + 1) + (title ? ' — ' + title : '');
+      }
+      function updateConfirmState() {
+        confirmBtn.disabled = Object.keys(breaks).length === 0;
+      }
+      function render() {
+        listEl.innerHTML = '';
+        slides.forEach(function (s, idx) {
+          var row = document.createElement('div');
+          row.className = 'mod-bento-split-row';
+          row.textContent = slideLabel(s, idx);
+          listEl.appendChild(row);
+          if (idx < slides.length - 1) {
+            var divider = document.createElement('button');
+            divider.type = 'button';
+            divider.className = 'mod-bento-split-divider' + (breaks[idx + 1] ? ' active' : '');
+            divider.textContent = breaks[idx + 1] ? '✂ Trennung hier — klicken zum Entfernen' : '+ Trennung hier einfügen';
+            divider.addEventListener('click', function () {
+              if (breaks[idx + 1]) delete breaks[idx + 1]; else breaks[idx + 1] = true;
+              render();
+              updateConfirmState();
+            });
+            listEl.appendChild(divider);
+          }
+        });
+      }
+      render();
+
+      modal.querySelector('.mod-bento-split-cancel').addEventListener('click', function () { overlay.remove(); });
+      overlay.addEventListener('click', function (ev) { if (ev.target === overlay) overlay.remove(); });
+
+      confirmBtn.addEventListener('click', function () {
+        var points = [0].concat(Object.keys(breaks).map(Number).sort(function (a, b) { return a - b; })).concat([slides.length]);
+        var i = items.indexOf(it);
+        var newParts = [];
+        for (var p = 0; p < points.length - 1; p++) {
+          var partDoc = bentoBuildSplitDoc(it.doc, points[p], points[p + 1]);
+          newParts.push({
+            baseName: it.baseName + ' (Teil ' + (p + 1) + ')',
+            doc: partDoc,
+            slideCount: partDoc.slides.length,
+            warnings: [],
+            existing: false,
+            deckid: 0,
+            visible: 0,
+          });
+        }
+        if (i >= 0) items.splice.apply(items, [i, 1].concat(newParts)); else items.push.apply(items, newParts);
+        renderItems();
+        overlay.remove();
+      });
+    }
+
     function buildItemCard(it) {
       var card = document.createElement('div');
       var isTop = items[0] === it;
@@ -931,6 +1206,8 @@ function mergeDocs(docA, docB){
         ('<button type="button" class="mod-bento-item-edit' + (isPersisted ? '' : ' unsaved-edit') + '" title="' + (isPersisted ? 'Bearbeiten (im vollen Editor, mit Speichern)' : 'Bearbeiten — speichert diese Karte zuerst als Entwurf') + '"><span class="mod-bento-item-save-progress"></span><span>✎</span></button>') +
         '<button type="button" class="mod-bento-item-play" title="Präsentation starten (kann danach bearbeitet werden)"><span class="mod-bento-item-save-progress"></span><span>▶</span></button>' +
         '<button type="button" class="mod-bento-item-download" title="Als .bento.html herunterladen">&#8681;</button>' +
+        (it.slideCount > 1 ? '<button type="button" class="mod-bento-item-split" title="In mehrere Teile aufteilen">⑂</button>' : '') +
+        (it.slideCount > 1 ? '<button type="button" class="mod-bento-item-split" title="In mehrere Teile aufteilen">&#9986;</button>' : '') +
         '<button type="button" class="mod-bento-item-remove" title="Entfernen">✕</button>';
 
       card.querySelector('.mod-bento-item-remove').addEventListener('click', function () {
@@ -1114,6 +1391,16 @@ function mergeDocs(docA, docB){
           alert('Konnte die Datei nicht erzeugen: ' + (e.message || e));
         }).finally(function () { btn.disabled = false; });
       });
+      var splitBtn = card.querySelector('.mod-bento-item-split');
+      if (splitBtn) {
+        splitBtn.addEventListener('click', function () { openSplitModal(it); });
+      }
+      var splitBtn = card.querySelector('.mod-bento-item-split');
+      if (splitBtn) {
+        splitBtn.addEventListener('click', function () {
+          bentoOpenSplitModal(it);
+        });
+      }
       card.addEventListener('dragstart', function () { draggedItem = it; card.classList.add('dragging'); });
       card.addEventListener('dragend', function () { card.classList.remove('dragging'); draggedItem = null; });
       card.addEventListener('dragover', function (e) { e.preventDefault(); });
@@ -1213,6 +1500,21 @@ function mergeDocs(docA, docB){
         }
       });
 
+      var existingAddPart = document.getElementById('mod-bento-add-part');
+      if (existingAddPart) existingAddPart.remove();
+      var addPartBtn = document.createElement('button');
+      addPartBtn.type = 'button';
+      addPartBtn.id = 'mod-bento-add-part';
+      addPartBtn.className = 'mod-bento-add-part-btn';
+      addPartBtn.textContent = '+ Neuer leerer Teil';
+      addPartBtn.title = 'Einen neuen, leeren Teil zur Kette hinzufügen';
+      itemsEl.parentNode.insertBefore(addPartBtn, itemsEl.nextSibling);
+      addPartBtn.addEventListener('click', function () {
+        var blankPart = { format: 'bento/slides', title: '', slides: [{ id: 's1', elements: [] }] };
+        items.push({ baseName: 'Neuer-Teil', doc: blankPart, slideCount: 1, warnings: [], existing: false, deckid: 0, visible: 0 });
+        renderItems();
+      });
+
       var existingWarn = document.getElementById('mod-bento-multi-warn');
       if (existingWarn) existingWarn.remove();
       if (items.length > 1) {
@@ -1220,7 +1522,7 @@ function mergeDocs(docA, docB){
         w.id = 'mod-bento-multi-warn';
         w.className = 'mod-bento-warn';
         w.textContent = 'Jede Karte einzeln über ihren eigenen Speichern-Knopf sichern — nichts wird automatisch verbunden. Über das Augen-Symbol entscheiden, welche Karten in der Aktivität gezeigt werden (alle sichtbaren werden nacheinander abgespielt).';
-        itemsEl.parentNode.insertBefore(w, itemsEl.nextSibling);
+        itemsEl.parentNode.insertBefore(w, addPartBtn.nextSibling);
       }
 
       syncDocField();
@@ -1296,6 +1598,14 @@ function mergeDocs(docA, docB){
     // ---- Demo tile: opens the bundled feature-tour deck directly in
     // present mode, in a new tab — never touches this form's own items/
     // document at all, purely a "look, don't touch" preview. ----
+    var newPartBtn = document.getElementById('mod-bento-newpart-btn');
+    if (newPartBtn) {
+      newPartBtn.addEventListener('click', function () {
+        var blankDoc = { format: 'bento/slides', title: '', slides: [{ id: 's1', elements: [] }] };
+        items.push({ baseName: 'Neuer-Teil', doc: blankDoc, slideCount: 1, warnings: [], existing: false, deckid: 0, visible: 0 });
+        renderItems();
+      });
+    }
     var demoBtn = document.getElementById('mod-bento-demobtn');
     if (demoBtn) {
       demoBtn.addEventListener('click', function () {

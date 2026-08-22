@@ -40,6 +40,7 @@ $string['editusehint'] = 'Ziehe eine Datei hierher, um sie mit dem bereits Gespe
 $string['pastetile'] = 'Inhalte auf Folien verteilen';
 $string['pastetilesub'] = 'Hier können Sie Inhalte, die Sie beispielsweise aus einem Word-Dokument kopiert haben, auf mehrere Folien aufteilen.';
 $string['newtile'] = 'Neu: Leere Präsentation';
+$string['newparttile'] = '+ Neuer leerer Teil';
 $string['newtilesub'] = 'Beginnt mit einer einzelnen leeren Folie';
 $string['playtile'] = 'Ansehen';
 $string['playtilesub'] = 'Zeigt die aktuell sichtbare Präsentation';

@@ -197,11 +197,39 @@
   background: #ff9e5e; color: #2B120A; font-weight: 700; font-size: 14px; cursor: pointer;
 }
 
+.mod-bento-newpart-btn {
+  display: block;
+  width: 100%;
+  margin-top: 10px;
+  padding: 8px 14px;
+  border: 1px dashed #c3cad3;
+  border-radius: 8px;
+  background: transparent;
+  color: #5c6672;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  text-align: center;
+}
+.mod-bento-newpart-btn:hover { background: #f4f5f7; border-color: #9aa3b0; color: #241205; }
 .mod-bento-items {
   display: flex;
   flex-direction: column;
-  margin-top: 10px;
+  margin-top: 36px;
 }
+.mod-bento-add-part-btn {
+  margin: 10px 0 0;
+  align-self: flex-start;
+  border: 1px dashed #9aa3b0;
+  background: transparent;
+  color: #4a5568;
+  font-size: 0.85rem;
+  font-weight: 600;
+  padding: 7px 14px;
+  border-radius: 8px;
+  cursor: pointer;
+}
+.mod-bento-add-part-btn:hover { background: #f0f2f5; border-color: #6b7280; color: #1f2937; }
 .mod-bento-item {
   display: flex;
   align-items: flex-start;
@@ -311,6 +339,16 @@
   line-height: 1;
   padding: 2px 6px;
 }
+.mod-bento-item-split {
+  border: none;
+  background: transparent;
+  color: #6b7280;
+  cursor: pointer;
+  font-size: 19px;
+  line-height: 1;
+  padding: 2px 6px;
+}
+.mod-bento-item-split:hover { color: #a374a0; }
 .mod-bento-item-edit {
   position: relative;
   overflow: hidden;
@@ -353,11 +391,13 @@
   padding: 0;
   font-size: 13px;
   line-height: 1;
-  border: 1px solid #dfe3e8;
-  background: #f4f5f7;
+  border: 1px solid #ff9e5e;
+  background: #ffdcbb;
+  color: #5c2e08;
   cursor: pointer;
 }
 .mod-bento-connector-btn:hover { background: #ff9e5e; border-color: #ff9e5e; color: #241205; }
+.mod-bento-connector-swap { border-color: #5e7699; background: #cddcee; color: #1c3247; }
 .mod-bento-connector-swap:hover { background: #5e7699; border-color: #5e7699; color: #fff; }
 
 .mod-bento-warn {
@@ -384,3 +424,47 @@
 }
 .mod-bento-order-save-btn:hover { background: #ffb37e; }
 .mod-bento-order-save-btn:disabled { opacity: 0.6; cursor: default; }
+
+/* Split-into-parts modal */
+.mod-bento-modal-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(20, 20, 25, 0.55);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 10000;
+}
+.mod-bento-modal-box {
+  background: #fff;
+  border-radius: 14px;
+  padding: 24px 26px;
+  width: min(560px, 92vw);
+  max-height: 80vh;
+  overflow-y: auto;
+  box-shadow: 0 12px 40px rgba(0,0,0,.3);
+}
+.mod-bento-modal-box h3 { margin: 0 0 6px; }
+.mod-bento-split-list { margin: 14px 0; }
+.mod-bento-split-row {
+  padding: 8px 10px;
+  border: 1px solid #dfe3e8;
+  border-radius: 8px;
+  background: #f9fafb;
+  font-size: 0.88rem;
+  color: #1f2937;
+}
+.mod-bento-split-break {
+  display: block;
+  width: 100%;
+  margin: 4px 0;
+  border: 1px dashed #b9c8dc;
+  background: transparent;
+  color: #5e7699;
+  font-size: 0.78rem;
+  padding: 4px 8px;
+  border-radius: 6px;
+  cursor: pointer;
+}
+.mod-bento-split-break.active { border-style: solid; background: #ff9e5e; border-color: #ff9e5e; color: #241205; font-weight: 600; }
+.mod-bento-split-actions { display: flex; justify-content: flex-end; gap: 10px; margin-top: 12px; }
