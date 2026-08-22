@@ -482,3 +482,32 @@
 }
 .mod-bento-split-break.active { border-style: solid; background: #ff9e5e; border-color: #ff9e5e; color: #241205; font-weight: 600; }
 .mod-bento-split-actions { display: flex; justify-content: flex-end; gap: 10px; margin-top: 12px; }
+
+/* Dark mode for the split modal — prefers-color-scheme (OS/browser level,
+   theme-independent) plus common Moodle dark-mode toggle class names, since
+   there's no single universal Moodle standard for this (it varies by theme/
+   plugin — e.g. .darkmode is what several Boost-based dark-mode approaches
+   apply to <body>). Both covered so this looks right regardless of which
+   mechanism a given site actually uses. */
+@media (prefers-color-scheme: dark) {
+  .mod-bento-modal-box { background: #1f2430; color: #e5e7eb; }
+  .mod-bento-modal-box h3 { color: #f3f4f6; }
+  .mod-bento-split-row { background: #2a3040; border-color: #3d4455; color: #e5e7eb; }
+  .mod-bento-split-thumb { border-color: #3d4455; background: #12151c; }
+  .mod-bento-split-break { border-color: #4a5568; color: #9db4d6; }
+  .mod-bento-split-break.active { background: #ff9e5e; border-color: #ff9e5e; color: #241205; }
+}
+.darkmode .mod-bento-modal-box,
+body.dark .mod-bento-modal-box {
+  background: #1f2430; color: #e5e7eb;
+}
+.darkmode .mod-bento-modal-box h3,
+body.dark .mod-bento-modal-box h3 { color: #f3f4f6; }
+.darkmode .mod-bento-split-row,
+body.dark .mod-bento-split-row { background: #2a3040; border-color: #3d4455; color: #e5e7eb; }
+.darkmode .mod-bento-split-thumb,
+body.dark .mod-bento-split-thumb { border-color: #3d4455; background: #12151c; }
+.darkmode .mod-bento-split-break,
+body.dark .mod-bento-split-break { border-color: #4a5568; color: #9db4d6; }
+.darkmode .mod-bento-split-break.active,
+body.dark .mod-bento-split-break.active { background: #ff9e5e; border-color: #ff9e5e; color: #241205; }

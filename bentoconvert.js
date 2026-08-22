@@ -913,6 +913,16 @@ function mergeDocs(docA, docB){
       return 'Folie ' + (idx + 1) + ' — ' + text;
     }
 
+    var thumbnailQueue = [];
+    var thumbnailQueueRunning = false;
+    function pumpThumbnailQueue() {
+      if (thumbnailQueueRunning || !thumbnailQueue.length) return;
+      thumbnailQueueRunning = true;
+      var job = thumbnailQueue.shift();
+      var done = function () { thumbnailQueueRunning = false; pumpThumbnailQueue(); };
+      job(done);
+    }
+
     function buildSlideThumbnail(doc, idx) {
       var wrap = document.createElement('div');
       wrap.className = 'mod-bento-split-thumb';
@@ -926,18 +936,33 @@ function mergeDocs(docA, docB){
       iframe.style.transform = 'scale(' + scale + ')';
       iframe.setAttribute('tabindex', '-1');
       iframe.setAttribute('aria-hidden', 'true');
+      // No allow-same-origin: this iframe gets its own opaque origin, with
+      // zero script-level access back into this page — a preview render
+      // has no legitimate reason to ever touch the parent window at all.
+      iframe.setAttribute('sandbox', 'allow-scripts');
       wrap.appendChild(iframe);
-      getShell().then(function (shell) {
-        var slideDoc = {
-          format: doc.format, version: doc.version || 1,
-          docId: 'thumb-' + idx, title: doc.title || '',
-          size: doc.size || { width: 1280, height: 720 },
-          theme: doc.theme || { background: '#FFFFFF', color: '#111111', accent: '#FF9E5E', fontFamily: 'system-ui, sans-serif' },
-          assets: doc.assets, slides: [doc.slides[idx]],
-        };
-        var html = spliceDoc(shell, slideDoc).replace('<head>', '<head><script>location.hash="present";<\/script>');
-        iframe.srcdoc = html;
-      }).catch(function (e) { console.warn('Thumbnail konnte nicht geladen werden:', e); });
+      // Queued rather than started immediately — building all of these at
+      // once made the whole modal feel unresponsive (every iframe fighting
+      // for the main thread simultaneously). One loads, THEN the next.
+      thumbnailQueue.push(function (done) {
+        getShell().then(function (shell) {
+          var slideDoc = {
+            format: doc.format, version: doc.version || 1,
+            docId: 'thumb-' + idx, title: doc.title || '',
+            size: doc.size || { width: 1280, height: 720 },
+            theme: doc.theme || { background: '#FFFFFF', color: '#111111', accent: '#FF9E5E', fontFamily: 'system-ui, sans-serif' },
+            assets: doc.assets, slides: [doc.slides[idx]],
+            readonly: true, // minimal "present"-only render, not the full editor — this is the actual fix for how long thumbnails took
+          };
+          var html = spliceDoc(shell, slideDoc);
+          iframe.addEventListener('load', done, { once: true });
+          iframe.srcdoc = html;
+        }).catch(function (e) {
+          console.warn('Thumbnail konnte nicht geladen werden:', e);
+          done();
+        });
+      });
+      pumpThumbnailQueue();
       return wrap;
     }
 
