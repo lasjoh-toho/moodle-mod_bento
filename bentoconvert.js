@@ -1218,7 +1218,7 @@ function escapeHtml(s) {
         };
         if (it.existing) {
           if (!confirm('Das Hauptdokument wird dabei geleert und ausgeblendet (es gibt kein „Löschen“ dafür, nur „Leeren“). Fortfahren?')) return;
-          var blankMainDoc = { format: 'bento/slides', title: '', slides: [{ id: 's1', elements: [] }] };
+          var blankMainDoc = { format: 'bento/slides', title: '', size: { width: 1280, height: 720 }, slides: [{ id: 's1', elements: [] }] };
           bentoWithSaveLock(function () {
             return saveDocToMoodle(bentoCmId, blankMainDoc).then(function () {
               return setDocumentVisible(bentoCmId, 0);
@@ -1585,10 +1585,36 @@ function escapeHtml(s) {
     // document at all, purely a "look, don't touch" preview. ----
     var newPartBtn = document.getElementById('mod-bento-newpart-btn');
     if (newPartBtn) {
+      var newPartProgressEl = document.createElement('span');
+      newPartProgressEl.className = 'mod-bento-item-save-progress';
+      newPartBtn.insertBefore(newPartProgressEl, newPartBtn.firstChild);
+      var newPartLabel = document.createElement('span');
+      while (newPartBtn.childNodes.length > 1) newPartLabel.appendChild(newPartBtn.childNodes[1]);
+      newPartBtn.appendChild(newPartLabel);
       newPartBtn.addEventListener('click', function () {
-        var blankDoc = { format: 'bento/slides', title: '', slides: [{ id: 's1', elements: [] }] };
-        items.push({ baseName: 'Neuer-Teil', doc: blankDoc, slideCount: 1, warnings: [], existing: false, deckid: 0, visible: 0 });
-        renderItems();
+        var blankDoc = { format: 'bento/slides', title: '', size: { width: 1280, height: 720 }, slides: [{ id: 's1', elements: [] }] };
+        if (!bentoCmId) {
+          items.push({ baseName: 'Neuer-Teil', doc: blankDoc, slideCount: 1, warnings: [], existing: false, deckid: 0, visible: 0 });
+          renderItems();
+          return;
+        }
+        newPartBtn.disabled = true;
+        newPartProgressEl.classList.add('active');
+        bentoWithSaveLock(function () {
+          return saveDeckToMoodle(bentoCmId, 0, 'Neuer-Teil', blankDoc, function (fraction) {
+            newPartProgressEl.style.width = Math.round(fraction * 100) + '%';
+          });
+        }).then(function (res) {
+          var url = M.cfg.wwwroot + '/mod/bento/edit.php?id=' + bentoCmId + '&deckid=' + res.deckid
+            + '&returnurl=' + encodeURIComponent(location.pathname + location.search + location.hash);
+          window.location.href = url;
+        }).catch(function (e) {
+          console.error(e);
+          if (e.message !== 'save already in flight') alert('Konnte nicht speichern: ' + (e.message || e));
+          newPartBtn.disabled = false;
+          newPartProgressEl.classList.remove('active');
+          newPartProgressEl.style.width = '0';
+        });
       });
     }
     var demoBtn = document.getElementById('mod-bento-demobtn');
