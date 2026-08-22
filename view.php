@@ -60,15 +60,15 @@ $showmaster = optional_param('master', 0, PARAM_BOOL);
 if (!$bento->allowstudentsubmissions || $showmaster) {
     // ---- classic single-document present mode (v1 behaviour) ----
 
-    // documentvisible is entirely separate from Moodle's own course_
-    // modules.visible (never touched here) — see install.xml's own
-    // comment on that column for the full reasoning. A teacher always
-    // gets full access regardless of this flag, since they're the one
-    // who'd need it to turn visibility back on. Checks whether ANYTHING
-    // is visible now — bento.document itself, or any deck — not just
-    // bento.document's own flag, since any number of decks can
-    // independently be visible even while bento.document itself isn't.
-    $anyvisible = $bento->documentvisible || $DB->record_exists('bento_decks', ['bentoid' => $bento->id, 'visible' => 1]);
+    // documentvisible/bento_decks.visible are three-state now: 0 = hidden,
+    // 1 = visible to everyone, 2 = visible only when the current viewer
+    // can edit the master document (a teacher) — see install.xml's own
+    // comments on both columns for the full reasoning. Never touches
+    // Moodle's own course_modules.visible.
+    $visiblestatesforviewer = $caneditmaster ? [1, 2] : [1];
+    list($visinsql, $visinparams) = $DB->get_in_or_equal($visiblestatesforviewer, SQL_PARAMS_QM);
+    $anyvisible = in_array((int) $bento->documentvisible, $visiblestatesforviewer, true)
+        || $DB->record_exists_select('bento_decks', "bentoid = ? AND visible $visinsql", array_merge([$bento->id], $visinparams));
     if (!$caneditmaster && !$anyvisible) {
         $PAGE->set_url('/mod/bento/view.php', ['id' => $cm->id]);
         $PAGE->set_context($context);
@@ -98,19 +98,19 @@ if (!$bento->allowstudentsubmissions || $showmaster) {
     // full reasoning on that half).
     $visibledecks = array_values($DB->get_records_select(
         'bento_decks',
-        'bentoid = ? AND visible = 1',
-        [$bento->id],
+        "bentoid = ? AND visible $visinsql",
+        array_merge([$bento->id], $visinparams),
         'sortorder ASC'
     ));
 
     $startdeckid = 0; // 0 = bento.document itself starts the sequence
     $playlistdecks = $visibledecks;
-    if (!$bento->documentvisible) {
-        // bento.document itself isn't visible (checked above — execution
-        // only reaches here because at least one visible deck exists) —
-        // the first visible deck takes its place as the sequence's own
-        // starting point instead, with every OTHER visible deck as its
-        // playlist.
+    if (!in_array((int) $bento->documentvisible, $visiblestatesforviewer, true)) {
+        // bento.document itself isn't visible to THIS viewer (checked
+        // above — execution only reaches here because at least one
+        // visible deck exists) — the first visible deck takes its place
+        // as the sequence's own starting point instead, with every OTHER
+        // visible deck as its playlist.
         $startdeckid = (int) $visibledecks[0]->id;
         $playlistdecks = array_slice($visibledecks, 1);
     }

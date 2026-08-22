@@ -47,7 +47,23 @@ require_login($course, true, $cm);
 $context = context_module::instance($cm->id);
 bento_require_current_schema();
 
-$deck = $DB->get_record('bento_decks', ['id' => $deckid, 'bentoid' => $cm->instance, 'visible' => 1], '*', MUST_EXIST);
+// Same per-viewer visibility rule as view.php's own playlist
+// construction: state 1 (visible to everyone) always qualifies; state 2
+// (visible only when a teacher is presenting) only qualifies for
+// whoever can edit the master document. Never state 0 (hidden) for
+// anyone — this is not a general "read any deck's content" endpoint,
+// even for someone with edit rights, since a hidden draft's content
+// shouldn't be fetchable by guessing its id.
+$caneditmaster = has_capability('mod/bento:edit', $context);
+$visiblestatesforviewer = $caneditmaster ? [1, 2] : [1];
+list($visinsql, $visinparams) = $DB->get_in_or_equal($visiblestatesforviewer, SQL_PARAMS_QM);
+$deck = $DB->get_record_select(
+    'bento_decks',
+    "id = ? AND bentoid = ? AND visible $visinsql",
+    array_merge([$deckid, $cm->instance], $visinparams),
+    '*',
+    MUST_EXIST
+);
 
 header('Content-Type: application/json; charset=utf-8');
 header('X-Frame-Options: SAMEORIGIN');

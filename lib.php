@@ -925,14 +925,15 @@ function bento_touch_coursemodule(int $cmid): void {
  * @param int $cmid 0 for a brand-new activity that doesn't exist yet
  * @param array $decks bento_decks rows for this activity (empty for a
  *   brand-new activity, which has no bentoid yet to look any up under)
- * @param bool $documentvisible the row's own documentvisible flag — true
- *   for a brand-new activity, which has nothing to hide yet
+ * @param int $documentvisible the row's own documentvisible flag (0/1/2,
+ *   three-state) — 1 (visible to everyone) for a brand-new activity,
+ *   which has nothing to hide yet
  * @param ?context $context this activity's own module context — required
  *   whenever $decks is non-empty (to read each one's own document through
  *   file storage), null only valid for a brand-new activity (empty $decks)
  * @return string HTML
  */
-function bento_render_importer(string $existingjson, int $courseid, int $cmid, array $decks = [], bool $documentvisible = true, ?context $context = null): string {
+function bento_render_importer(string $existingjson, int $courseid, int $cmid, array $decks = [], int $documentvisible = 1, ?context $context = null): string {
     global $USER;
     $seed = '';
     $decoded = $existingjson !== '' ? json_decode($existingjson, true) : null;
@@ -961,7 +962,7 @@ function bento_render_importer(string $existingjson, int $courseid, int $cmid, a
     }
 
     return '
-        <div class="mod-bento-importer" id="mod-bento-importer" data-courseid="' . $courseid . '" data-cmid="' . $cmid . '" data-candeck="1" data-termsagreed="' . (bento_has_agreed_current_terms((int) $USER->id) ? '1' : '0') . '" data-documentvisible="' . ($documentvisible ? '1' : '0') . '" data-savetimeout="' . (int) (get_config('mod_bento', 'savetimeout') ?: 600) . '">
+        <div class="mod-bento-importer" id="mod-bento-importer" data-courseid="' . $courseid . '" data-cmid="' . $cmid . '" data-candeck="1" data-termsagreed="' . (bento_has_agreed_current_terms((int) $USER->id) ? '1' : '0') . '" data-documentvisible="' . (int) $documentvisible . '" data-savetimeout="' . (int) (get_config('mod_bento', 'savetimeout') ?: 600) . '">
             <p class="form-text text-muted mod-bento-edithint">' . get_string('editusehint', 'mod_bento') . '</p>
             ' . $seed . $deckseed . '
             <div class="mod-bento-tiles has-paste' . ($isrealdoc ? ' has-edit' : '') . '">

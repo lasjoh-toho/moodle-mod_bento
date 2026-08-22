@@ -46,6 +46,18 @@
   transition: filter .15s ease, box-shadow .15s ease;
   color: #fff;
 }
+@keyframes bento-tile-pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.55; }
+}
+.mod-bento-tile.mod-bento-tile-loading {
+  animation: bento-tile-pulse 0.9s ease-in-out infinite;
+  cursor: wait;
+}
+.mod-bento-btn-loading {
+  animation: bento-tile-pulse 0.9s ease-in-out infinite;
+  cursor: wait;
+}
 .mod-bento-tile:hover, .mod-bento-tile:focus {
   filter: brightness(1.06);
   box-shadow: 0 4px 14px rgba(0,0,0,.18);
@@ -202,10 +214,11 @@
 }
 .mod-bento-item:active { cursor: grabbing; }
 .mod-bento-item.dragging { opacity: 0.4; }
-.mod-bento-item.unsaved { border-width: 3px; border-color: #c1440e; background: #fff6f0; }
-.mod-bento-item.saved-visible { border-color: #2e7d32; background: #f4fbf4; }
-.mod-bento-item.hidden-item { background: #ececec; border-color: #d5d5d5; }
-.mod-bento-item.hidden-item .mod-bento-item-meta { opacity: 0.65; }
+.mod-bento-item.unsaved { border-width: 3px; border-color: #c1440e; background: #ffd9c2; color: #3d1400; }
+.mod-bento-item.saved-visible { border-color: #2e7d32; background: #b8e6bd; color: #0d2e10; }
+.mod-bento-item.hidden-item { background: #fbb8b9; border-color: #e08083; color: #3d0a0b; }
+.mod-bento-item.teacher-only { background: #94e5f6; border-color: #2fa9c4; color: #062c35; }
+.mod-bento-item.hidden-item .mod-bento-item-meta { opacity: 0.8; }
 .mod-bento-item-grip { color: #9aa3b0; font-size: 15px; padding-top: 2px; user-select: none; }
 .mod-bento-item-info { flex: 1; min-width: 0; }
 .mod-bento-item-name { font-weight: 600; font-size: 0.92rem; word-break: break-word; }
@@ -271,7 +284,7 @@
   background: transparent;
   color: #6b7280;
   cursor: pointer;
-  font-size: 18px;
+  font-size: 22px;
   line-height: 1;
   padding: 4px 6px;
 }
@@ -284,7 +297,7 @@
   background: transparent;
   color: #6b7280;
   cursor: pointer;
-  font-size: 20px;
+  font-size: 28px;
   line-height: 1;
   padding: 4px 8px;
 }
@@ -294,7 +307,7 @@
   background: transparent;
   color: #6b7280;
   cursor: pointer;
-  font-size: 20px;
+  font-size: 23px;
   line-height: 1;
   padding: 2px 6px;
 }
@@ -306,7 +319,7 @@
   background: transparent;
   color: #6b7280;
   cursor: pointer;
-  font-size: 16px;
+  font-size: 21px;
   line-height: 1;
   padding: 4px 6px;
 }
@@ -319,7 +332,7 @@
   background: transparent;
   color: #c0392b;
   cursor: pointer;
-  font-size: 14px;
+  font-size: 19px;
   padding: 2px 4px;
 }
 .mod-bento-item-remove:hover { color: #922b21; }

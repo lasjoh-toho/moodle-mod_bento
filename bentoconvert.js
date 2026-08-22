@@ -658,7 +658,8 @@ function mergeDocs(docA, docB){
     // the new state immediately without needing a full page reload.
     var bentoDocumentVisible = (function () {
       var el = document.getElementById('mod-bento-importer');
-      return el ? el.dataset.documentvisible === '1' : true;
+      var v = el ? parseInt(el.dataset.documentvisible, 10) : 1;
+      return isNaN(v) ? 1 : v;
     })();
     // Global save-in-flight lock — defense in depth against two save/
     // promote operations on this page (Speichern, the eye toggle, the
@@ -853,7 +854,7 @@ function mergeDocs(docA, docB){
           warnings: [],
           existing: false,
           deckid: parseInt(el.dataset.deckid, 10) || 0,
-          visible: el.dataset.visible === '1',
+          visible: parseInt(el.dataset.visible, 10) || 0,
         });
       } catch (e) { console.warn('mod_bento: could not parse a draft deck', e); }
     });
@@ -901,16 +902,24 @@ function mergeDocs(docA, docB){
       var card = document.createElement('div');
       var isTop = items[0] === it;
       var isPersisted = it.existing || it.deckid > 0;
-      var eyeOpen = !!it.visible;
-      card.className = 'mod-bento-item' + (!isPersisted ? ' unsaved' : (eyeOpen ? ' saved-visible' : ' hidden-item'));
+      var visState = it.visible | 0; // 0 = hidden, 1 = visible to everyone, 2 = teacher-only
+      var cardStateClass = !isPersisted ? 'unsaved' : (visState === 1 ? 'saved-visible' : (visState === 2 ? 'teacher-only' : 'hidden-item'));
+      card.className = 'mod-bento-item ' + cardStateClass;
       card.draggable = true;
-      var eyeOpenSvg = '<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M1 12s4-7 11-7 11 7 11 7-4 7-11 7-11-7-11-7z"/><circle cx="12" cy="12" r="3"/></svg>';
-      var eyeClosedSvg = '<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2 13c2.5-3 6-5 10-5s7.5 2 10 5"/><path d="M6 16.5l1-1.8M18 16.5l-1-1.8M12 18l0-2"/></svg>';
+      var eyeOpenSvg = '<svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M1 12s4-7 11-7 11 7 11 7-4 7-11 7-11-7-11-7z"/><circle cx="12" cy="12" r="3"/></svg>';
+      var eyeClosedSvg = '<svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2 13c2.5-3 6-5 10-5s7.5 2 10 5"/><path d="M6 16.5l1-1.8M18 16.5l-1-1.8M12 18l0-2"/></svg>';
+      // A stylized figure presenting at a board — the third eye state
+      // ("visible only when a teacher is presenting"), matching the
+      // reference icon this was modeled on.
+      var teacherSvg = '<svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="1" y="3" width="13" height="9" rx="1"/><path d="M4 6.5h7M4 9h5"/><circle cx="19" cy="8" r="2.3"/><path d="M15.5 21v-4.2c0-1.9 1.6-3.3 3.5-3.3s3.5 1.4 3.5 3.3V21"/></svg>';
+      var eyeSvg = visState === 1 ? eyeOpenSvg : (visState === 2 ? teacherSvg : eyeClosedSvg);
+      var eyeTitle = visState === 1 ? 'Sichtbar für alle — klicken für „nur bei Lehrer-Präsentation“'
+        : (visState === 2 ? 'Nur sichtbar, wenn ein Lehrer präsentiert — klicken zum Ausblenden' : 'Nicht sichtbar — klicken, um sie für alle zu zeigen');
       card.innerHTML =
         '<span class="mod-bento-item-grip" title="Ziehen zum Sortieren">⠿</span>' +
         '<div class="mod-bento-item-info">' +
           '<div class="mod-bento-item-name">' +
-            '<button type="button" class="mod-bento-item-eye' + (eyeOpen ? ' open' : '') + '" title="' + (eyeOpen ? 'Sichtbar — klicken, um sie auszublenden' : 'Nicht sichtbar — klicken, um sie zu zeigen') + '">' + (eyeOpen ? eyeOpenSvg : eyeClosedSvg) + '</button> ' +
+            '<button type="button" class="mod-bento-item-eye' + (visState ? ' open' : '') + '" title="' + eyeTitle + '">' + eyeSvg + '</button> ' +
             escapeHtml((it.doc && it.doc.title) || it.baseName) +
             '</div>' +
           '<div class="mod-bento-item-meta">' + it.slideCount + ' Folie' + (it.slideCount === 1 ? '' : 'n') + ' · ' + bentoFormatBytes(JSON.stringify(it.doc).length) + '</div>' +
@@ -925,12 +934,24 @@ function mergeDocs(docA, docB){
         '<button type="button" class="mod-bento-item-remove" title="Entfernen">✕</button>';
 
       card.querySelector('.mod-bento-item-remove').addEventListener('click', function () {
-        if (it.existing) { alert('Die veröffentlichte Präsentation kann hier nicht entfernt werden — eine andere Karte nach oben stellen und speichern, um sie zu ersetzen.'); return; }
         var doRemove = function () {
           var i = items.indexOf(it);
           if (i >= 0) items.splice(i, 1);
           renderItems();
         };
+        if (it.existing) {
+          if (!confirm('Das Hauptdokument wird dabei geleert und ausgeblendet (es gibt kein „Löschen“ dafür, nur „Leeren“). Fortfahren?')) return;
+          var blankMainDoc = { format: 'bento/slides', title: '', slides: [{ id: 's1', elements: [] }] };
+          bentoWithSaveLock(function () {
+            return saveDocToMoodle(bentoCmId, blankMainDoc).then(function () {
+              return setDocumentVisible(bentoCmId, 0);
+            });
+          }).then(doRemove).catch(function (e) {
+            console.error(e);
+            if (e.message !== 'save already in flight') alert('Konnte das Hauptdokument nicht leeren: ' + (e.message || e));
+          });
+          return;
+        }
         if (it.deckid > 0) {
           if (!confirm('Dieser gespeicherte Entwurf wird dabei endgültig gelöscht. Fortfahren?')) return;
           deleteDeckFromMoodle(bentoCmId, it.deckid).then(doRemove).catch(function (e) {
@@ -980,7 +1001,7 @@ function mergeDocs(docA, docB){
             return;
           }
           eyeBtn.disabled = true;
-          var newVisible = !it.visible;
+          var newVisible = (visState + 1) % 3;
           bentoWithSaveLock(function () {
             return it.existing
               ? setDocumentVisible(bentoCmId, newVisible)
@@ -1015,7 +1036,7 @@ function mergeDocs(docA, docB){
             + (hash ? '#' + hash : '');
           window.location.href = url;
         };
-        if (isPersisted) { goTo(it.deckid); return; }
+        if (isPersisted) { btn.classList.add('mod-bento-btn-loading'); goTo(it.deckid); return; }
         // Not yet saved anywhere — save it first (transparently, the
         // button's own tooltip already says so), then open it for real.
         btn.disabled = true;
@@ -1150,8 +1171,9 @@ function mergeDocs(docA, docB){
             btn.addEventListener('click', function () { mergeItems(idxCopy, idxCopy + 1); });
           })(idx);
           connector.appendChild(btn);
-          var canSwap = items[idx].deckid > 0 && items[idx + 1].deckid > 0;
-          if (canSwap) {
+          var bothDecks = items[idx].deckid > 0 && items[idx + 1].deckid > 0;
+          var mainAndDeck = (items[idx].existing && items[idx + 1].deckid > 0) || (items[idx].deckid > 0 && items[idx + 1].existing);
+          if (bothDecks || mainAndDeck) {
             var swapBtn = document.createElement('button');
             swapBtn.type = 'button';
             swapBtn.className = 'mod-bento-connector-btn mod-bento-connector-swap';
@@ -1159,11 +1181,30 @@ function mergeDocs(docA, docB){
             swapBtn.title = 'Reihenfolge tauschen';
             (function (idxCopy) {
               swapBtn.addEventListener('click', function () {
-                var tmp = items[idxCopy];
-                items[idxCopy] = items[idxCopy + 1];
-                items[idxCopy + 1] = tmp;
-                renderItems();
-                bentoPersistDeckOrder();
+                if (bothDecks) {
+                  var tmp = items[idxCopy];
+                  items[idxCopy] = items[idxCopy + 1];
+                  items[idxCopy + 1] = tmp;
+                  renderItems();
+                  bentoPersistDeckOrder();
+                  return;
+                }
+                // One side is the main document — swap CONTENT via the
+                // same promote mechanism the visibility model used
+                // before, not a position swap (the main document has no
+                // sortorder to swap in the first place).
+                swapBtn.disabled = true;
+                var mainItem = items[idxCopy].existing ? items[idxCopy] : items[idxCopy + 1];
+                var deckItem = items[idxCopy].existing ? items[idxCopy + 1] : items[idxCopy];
+                bentoWithSaveLock(function () {
+                  return promoteDeckToMoodle(bentoCmId, deckItem.deckid);
+                }).then(function () {
+                  location.reload();
+                }).catch(function (e) {
+                  console.error(e);
+                  if (e.message !== 'save already in flight') alert('Konnte nicht tauschen: ' + (e.message || e));
+                  swapBtn.disabled = false;
+                });
               });
             })(idx);
             connector.appendChild(swapBtn);
@@ -1240,7 +1281,7 @@ function mergeDocs(docA, docB){
           slideCount = (doc.slides || []).length;
           baseName = file.name.replace(/\.bento\.json$/i, '').replace(/\.json$/i, '');
         }
-        items.push({ baseName: baseName, doc: doc, slideCount: slideCount, warnings: warnings, existing: false, deckid: 0, visible: false });
+        items.push({ baseName: baseName, doc: doc, slideCount: slideCount, warnings: warnings, existing: false, deckid: 0, visible: 0 });
         renderItems();
       } catch (e) {
         console.error(e);
@@ -1291,6 +1332,7 @@ function mergeDocs(docA, docB){
      *  away, so there's nothing left to re-enable). */
     function bentoSaveThenOpen(btn, doc, pathAndQuery) {
       btn.disabled = true;
+      btn.classList.add('mod-bento-tile-loading');
       bentoWithSaveLock(function () {
         return saveDocToMoodle(bentoCmId, doc);
       }).then(function () {
@@ -1299,6 +1341,7 @@ function mergeDocs(docA, docB){
         console.error(e);
         if (e.message !== 'save already in flight') alert('Konnte nicht in Moodle speichern: ' + (e.message || e));
         btn.disabled = false;
+        btn.classList.remove('mod-bento-tile-loading');
       });
     }
 
@@ -1325,6 +1368,7 @@ function mergeDocs(docA, docB){
           win.document.write('<!doctype html><meta charset="utf-8"><title>Bento wird geladen…</title>' +
             '<body style="font-family:system-ui,sans-serif;padding:2.5rem;color:#667">Bento wird geladen…</body>');
           newBtn.disabled = true;
+          newBtn.classList.add('mod-bento-tile-loading');
           getShell().then(function (shell) {
             var html = spliceDoc(shell, docToShow);
             win.document.open();
@@ -1334,12 +1378,12 @@ function mergeDocs(docA, docB){
             console.error(e);
             win.close();
             alert('Konnte die Präsentation nicht öffnen: ' + (e.message || e));
-          }).finally(function () { newBtn.disabled = false; });
+          }).finally(function () { newBtn.disabled = false; newBtn.classList.remove('mod-bento-tile-loading'); });
         } else {
           var blankDoc;
           try { blankDoc = JSON.parse(docField.value); } catch (e) { blankDoc = null; }
           if (!blankDoc || blankDoc.format !== 'bento/slides') return; // shouldn't happen — data_preprocessing() always seeds a blank doc server-side
-          items.push({ baseName: 'Neue-Praesentation', doc: blankDoc, slideCount: (blankDoc.slides || []).length, warnings: [], existing: false, deckid: 0, visible: false });
+          items.push({ baseName: 'Neue-Praesentation', doc: blankDoc, slideCount: (blankDoc.slides || []).length, warnings: [], existing: false, deckid: 0, visible: 0 });
           renderItems();
         }
       });

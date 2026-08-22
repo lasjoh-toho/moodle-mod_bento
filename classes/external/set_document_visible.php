@@ -50,7 +50,7 @@ class set_document_visible extends external_api {
     public static function execute_parameters(): external_function_parameters {
         return new external_function_parameters([
             'cmid' => new external_value(PARAM_INT, 'course module id'),
-            'visible' => new external_value(PARAM_BOOL, 'true to show the published document, false to hide it'),
+            'visible' => new external_value(PARAM_INT, '0 = hidden, 1 = visible to everyone, 2 = visible only when the viewer can edit the master document (a teacher)'),
         ]);
     }
 
@@ -62,7 +62,7 @@ class set_document_visible extends external_api {
 
     /**
      * @param int $cmid
-     * @param bool $visible
+     * @param int $visible 0, 1, or 2 — see execute_parameters() for meaning
      * @return array
      */
     public static function execute($cmid, $visible): array {
@@ -72,6 +72,9 @@ class set_document_visible extends external_api {
             'cmid' => $cmid,
             'visible' => $visible,
         ]);
+        if ($params['visible'] < 0 || $params['visible'] > 2) {
+            throw new \invalid_parameter_exception('visible must be 0, 1, or 2');
+        }
 
         $cm = get_coursemodule_from_id('bento', $params['cmid'], 0, false, MUST_EXIST);
         $context = context_module::instance($cm->id);
@@ -79,7 +82,7 @@ class set_document_visible extends external_api {
         bento_require_current_schema();
         require_capability('mod/bento:edit', $context);
 
-        $DB->set_field('bento', 'documentvisible', $params['visible'] ? 1 : 0, ['id' => $cm->instance]);
+        $DB->set_field('bento', 'documentvisible', $params['visible'], ['id' => $cm->instance]);
         bento_touch_coursemodule($cm->id);
 
         return ['ok' => true];
