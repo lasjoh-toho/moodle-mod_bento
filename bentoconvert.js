@@ -913,6 +913,34 @@ function mergeDocs(docA, docB){
       return 'Folie ' + (idx + 1) + ' — ' + text;
     }
 
+    function buildSlideThumbnail(doc, idx) {
+      var wrap = document.createElement('div');
+      wrap.className = 'mod-bento-split-thumb';
+      var w = (doc.size && doc.size.width) || 1280;
+      var h = (doc.size && doc.size.height) || 720;
+      var iframe = document.createElement('iframe');
+      iframe.className = 'mod-bento-split-thumb-frame';
+      iframe.style.width = w + 'px';
+      iframe.style.height = h + 'px';
+      var scale = 120 / w;
+      iframe.style.transform = 'scale(' + scale + ')';
+      iframe.setAttribute('tabindex', '-1');
+      iframe.setAttribute('aria-hidden', 'true');
+      wrap.appendChild(iframe);
+      getShell().then(function (shell) {
+        var slideDoc = {
+          format: doc.format, version: doc.version || 1,
+          docId: 'thumb-' + idx, title: doc.title || '',
+          size: doc.size || { width: 1280, height: 720 },
+          theme: doc.theme || { background: '#FFFFFF', color: '#111111', accent: '#FF9E5E', fontFamily: 'system-ui, sans-serif' },
+          assets: doc.assets, slides: [doc.slides[idx]],
+        };
+        var html = spliceDoc(shell, slideDoc).replace('<head>', '<head><script>location.hash="present";<\/script>');
+        iframe.srcdoc = html;
+      }).catch(function (e) { console.warn('Thumbnail konnte nicht geladen werden:', e); });
+      return wrap;
+    }
+
     function openSplitModal(it) {
       var slides = it.doc.slides || [];
       var breakAfter = new Array(slides.length - 1).fill(false); // breakAfter[i] = true means a new part starts after slide i
@@ -934,33 +962,45 @@ function mergeDocs(docA, docB){
 
       var listEl = box.querySelector('.mod-bento-split-list');
       var confirmBtn = box.querySelector('.mod-bento-split-confirm');
+      var breakBtns = [];
 
-      function renderList() {
-        listEl.innerHTML = '';
-        slides.forEach(function (slide, idx) {
-          var row = document.createElement('div');
-          row.className = 'mod-bento-split-row';
-          row.textContent = slideLabel(slide, idx);
-          listEl.appendChild(row);
-          if (idx < slides.length - 1) {
-            var brk = document.createElement('button');
-            brk.type = 'button';
-            brk.className = 'mod-bento-split-break' + (breakAfter[idx] ? ' active' : '');
-            brk.textContent = breakAfter[idx] ? '✂ Trennung hier — klicken zum Entfernen' : '+ Trennung hier einfügen';
-            (function (i) {
-              brk.addEventListener('click', function () {
-                breakAfter[i] = !breakAfter[i];
-                renderList();
-              });
-            })(idx);
-            listEl.appendChild(brk);
-          }
-        });
+      function updateConfirmState() {
         var partCount = breakAfter.filter(Boolean).length + 1;
         confirmBtn.textContent = partCount > 1 ? ('In ' + partCount + ' Teile aufteilen') : 'Keine Trennung gewählt';
         confirmBtn.disabled = partCount <= 1;
       }
-      renderList();
+
+      // Built ONCE — each thumbnail is a real iframe render, expensive
+      // enough that rebuilding the whole list on every break-point toggle
+      // (as a naive full re-render would) would reload every one of them
+      // needlessly. Toggling only ever updates that one break button below.
+      slides.forEach(function (slide, idx) {
+        var row = document.createElement('div');
+        row.className = 'mod-bento-split-row';
+        row.appendChild(buildSlideThumbnail(it.doc, idx));
+        var label = document.createElement('div');
+        label.className = 'mod-bento-split-label';
+        label.textContent = slideLabel(slide, idx);
+        row.appendChild(label);
+        listEl.appendChild(row);
+        if (idx < slides.length - 1) {
+          var brk = document.createElement('button');
+          brk.type = 'button';
+          brk.className = 'mod-bento-split-break';
+          (function (i) {
+            brk.addEventListener('click', function () {
+              breakAfter[i] = !breakAfter[i];
+              brk.className = 'mod-bento-split-break' + (breakAfter[i] ? ' active' : '');
+              brk.textContent = breakAfter[i] ? '✂ Trennung hier — klicken zum Entfernen' : '+ Trennung hier einfügen';
+              updateConfirmState();
+            });
+          })(idx);
+          brk.textContent = '+ Trennung hier einfügen';
+          breakBtns.push(brk);
+          listEl.appendChild(brk);
+        }
+      });
+      updateConfirmState();
 
       function close() { overlay.remove(); }
       box.querySelector('.mod-bento-split-cancel').addEventListener('click', close);
