@@ -58,7 +58,7 @@ $string['pastectxtogglemode'] = '↕ Switch slide/companion text';
 $string['pastegeneratebtn'] = 'Create materials';
 
 $string['editpresentation'] = 'Edit presentation';
-$string['managepresentation'] = 'Distribute/Import';
+$string['managepresentation'] = 'Import/Edit/Distribute';
 $string['moresettings'] = 'More settings';
 $string['nopresentationvisible'] = 'No presentation is currently available.';
 $string['gradepresentation'] = 'Grade';

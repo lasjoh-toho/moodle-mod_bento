@@ -58,7 +58,7 @@ $string['pastectxtogglemode'] = '↕ Wechsel Folientext/Zusatztext';
 $string['pastegeneratebtn'] = 'Materialien anlegen';
 
 $string['editpresentation'] = 'Präsentation bearbeiten';
-$string['managepresentation'] = 'Verteilen/Importieren';
+$string['managepresentation'] = 'Importieren/Bearbeiten/Verteilen';
 $string['moresettings'] = 'Weitere Einstellungen';
 $string['nopresentationvisible'] = 'Derzeit ist keine Präsentation verfügbar.';
 $string['gradepresentation'] = 'Bewerten';

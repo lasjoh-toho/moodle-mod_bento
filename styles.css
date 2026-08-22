@@ -202,11 +202,10 @@
 }
 .mod-bento-item:active { cursor: grabbing; }
 .mod-bento-item.dragging { opacity: 0.4; }
-.mod-bento-item.existing { border-color: #ff9e5e; background: #fff8f4; }
-.mod-bento-item.unsaved { border-style: dashed; }
+.mod-bento-item.unsaved { border-width: 3px; border-color: #c1440e; background: #fff6f0; }
+.mod-bento-item.saved-visible { border-color: #2e7d32; background: #f4fbf4; }
 .mod-bento-item.hidden-item { background: #ececec; border-color: #d5d5d5; }
 .mod-bento-item.hidden-item .mod-bento-item-meta { opacity: 0.65; }
-.mod-bento-item-unsaved-tag { color: #b3261e !important; font-weight: 600 !important; }
 .mod-bento-item-grip { color: #9aa3b0; font-size: 15px; padding-top: 2px; user-select: none; }
 .mod-bento-item-info { flex: 1; min-width: 0; }
 .mod-bento-item-name { font-weight: 600; font-size: 0.92rem; word-break: break-word; }
@@ -255,7 +254,7 @@
   z-index: 0;
 }
 .mod-bento-item-save-progress.active { opacity: 1; }
-.mod-bento-item-save > span { position: relative; z-index: 1; }
+.mod-bento-item-save > span:last-child { position: relative; z-index: 1; }
 .mod-bento-item-saved-check {
   display: inline-flex;
   align-items: center;
@@ -278,6 +277,9 @@
 }
 .mod-bento-item-promote:hover { color: #ff9e5e; }
 .mod-bento-item-play {
+  position: relative;
+  overflow: hidden;
+  border-radius: 4px;
   border: none;
   background: transparent;
   color: #6b7280;
@@ -286,6 +288,7 @@
   line-height: 1;
   padding: 4px 8px;
 }
+.mod-bento-item-play > span:last-child { position: relative; z-index: 1; }
 .mod-bento-item-download {
   border: none;
   background: transparent;
@@ -296,6 +299,9 @@
   padding: 2px 6px;
 }
 .mod-bento-item-edit {
+  position: relative;
+  overflow: hidden;
+  border-radius: 4px;
   border: none;
   background: transparent;
   color: #6b7280;
@@ -305,6 +311,7 @@
   padding: 4px 6px;
 }
 .mod-bento-item-edit:hover { color: #a374a0; }
+.mod-bento-item-edit > span:last-child { position: relative; z-index: 1; }
 .mod-bento-item-play:hover { color: #ff9e5e; }
 .mod-bento-item-download:hover { color: #16273e; }
 .mod-bento-item-remove {
