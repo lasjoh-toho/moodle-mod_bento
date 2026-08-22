@@ -1500,21 +1500,6 @@ function escapeHtml(s) {
         }
       });
 
-      var existingAddPart = document.getElementById('mod-bento-add-part');
-      if (existingAddPart) existingAddPart.remove();
-      var addPartBtn = document.createElement('button');
-      addPartBtn.type = 'button';
-      addPartBtn.id = 'mod-bento-add-part';
-      addPartBtn.className = 'mod-bento-add-part-btn';
-      addPartBtn.textContent = '+ Neuer leerer Teil';
-      addPartBtn.title = 'Einen neuen, leeren Teil zur Kette hinzufügen';
-      itemsEl.parentNode.insertBefore(addPartBtn, itemsEl.nextSibling);
-      addPartBtn.addEventListener('click', function () {
-        var blankPart = { format: 'bento/slides', title: '', slides: [{ id: 's1', elements: [] }] };
-        items.push({ baseName: 'Neuer-Teil', doc: blankPart, slideCount: 1, warnings: [], existing: false, deckid: 0, visible: 0 });
-        renderItems();
-      });
-
       var existingWarn = document.getElementById('mod-bento-multi-warn');
       if (existingWarn) existingWarn.remove();
       if (items.length > 1) {
@@ -1522,7 +1507,7 @@ function escapeHtml(s) {
         w.id = 'mod-bento-multi-warn';
         w.className = 'mod-bento-warn';
         w.textContent = 'Jede Karte einzeln über ihren eigenen Speichern-Knopf sichern — nichts wird automatisch verbunden. Über das Augen-Symbol entscheiden, welche Karten in der Aktivität gezeigt werden (alle sichtbaren werden nacheinander abgespielt).';
-        itemsEl.parentNode.insertBefore(w, addPartBtn.nextSibling);
+        itemsEl.parentNode.insertBefore(w, itemsEl.nextSibling);
       }
 
       syncDocField();

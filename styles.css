@@ -217,19 +217,6 @@
   flex-direction: column;
   margin-top: 36px;
 }
-.mod-bento-add-part-btn {
-  margin: 10px 0 0;
-  align-self: flex-start;
-  border: 1px dashed #9aa3b0;
-  background: transparent;
-  color: #4a5568;
-  font-size: 0.85rem;
-  font-weight: 600;
-  padding: 7px 14px;
-  border-radius: 8px;
-  cursor: pointer;
-}
-.mod-bento-add-part-btn:hover { background: #f0f2f5; border-color: #6b7280; color: #1f2937; }
 .mod-bento-item {
   display: flex;
   align-items: flex-start;
