@@ -1048,8 +1048,8 @@ function splitDocBySlideGroups(doc, groups) {
       version: doc.version || 1,
       docId: (crypto.randomUUID ? crypto.randomUUID() : 'part-' + Date.now() + '-' + partNum),
       title: (doc.title || 'Deck') + ' — Teil ' + (partNum + 1),
-      size: doc.size ? JSON.parse(JSON.stringify(doc.size)) : undefined,
-      theme: doc.theme ? JSON.parse(JSON.stringify(doc.theme)) : undefined,
+      size: doc.size ? JSON.parse(JSON.stringify(doc.size)) : { width: 1280, height: 720 },
+      theme: doc.theme ? JSON.parse(JSON.stringify(doc.theme)) : { background: '#FFFFFF', color: '#111111', accent: '#FF9E5E', fontFamily: 'system-ui, sans-serif' },
       slides: slides,
       modified: new Date().toISOString(),
     };
@@ -1218,7 +1218,7 @@ function escapeHtml(s) {
         };
         if (it.existing) {
           if (!confirm('Das Hauptdokument wird dabei geleert und ausgeblendet (es gibt kein „Löschen“ dafür, nur „Leeren“). Fortfahren?')) return;
-          var blankMainDoc = { format: 'bento/slides', title: '', size: { width: 1280, height: 720 }, slides: [{ id: 's1', elements: [] }] };
+          var blankMainDoc = { format: 'bento/slides', title: '', size: { width: 1280, height: 720 }, theme: { background: '#FFFFFF', color: '#111111', accent: '#FF9E5E', fontFamily: 'system-ui, sans-serif' }, slides: [{ id: 's1', background: '#FFFFFF', transition: 'none', elements: [], notes: '' }] };
           bentoWithSaveLock(function () {
             return saveDocToMoodle(bentoCmId, blankMainDoc).then(function () {
               return setDocumentVisible(bentoCmId, 0);
@@ -1592,7 +1592,7 @@ function escapeHtml(s) {
       while (newPartBtn.childNodes.length > 1) newPartLabel.appendChild(newPartBtn.childNodes[1]);
       newPartBtn.appendChild(newPartLabel);
       newPartBtn.addEventListener('click', function () {
-        var blankDoc = { format: 'bento/slides', title: '', size: { width: 1280, height: 720 }, slides: [{ id: 's1', elements: [] }] };
+        var blankDoc = { format: 'bento/slides', title: '', size: { width: 1280, height: 720 }, theme: { background: '#FFFFFF', color: '#111111', accent: '#FF9E5E', fontFamily: 'system-ui, sans-serif' }, slides: [{ id: 's1', background: '#FFFFFF', transition: 'none', elements: [], notes: '' }] };
         if (!bentoCmId) {
           items.push({ baseName: 'Neuer-Teil', doc: blankDoc, slideCount: 1, warnings: [], existing: false, deckid: 0, visible: 0 });
           renderItems();
