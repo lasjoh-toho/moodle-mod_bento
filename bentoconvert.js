@@ -1508,7 +1508,7 @@ function escapeHtml(s) {
         var w = document.createElement('p');
         w.id = 'mod-bento-multi-warn';
         w.className = 'mod-bento-warn';
-        w.textContent = 'Jede Karte einzeln über ihren eigenen Speichern-Knopf sichern — nichts wird automatisch verbunden. Über das Augen-Symbol entscheiden, welche Karten in der Aktivität gezeigt werden (alle sichtbaren werden nacheinander abgespielt).';
+        w.textContent = 'Das Sichtbarkeitssymbol vor dem Titel entscheidet, ob das Element ausgeblendet wird, nur in der Lehrerpräsentation oder auch für die Schüler sichtbar ist.';
         itemsEl.parentNode.insertBefore(w, itemsEl.nextSibling);
       }
 
@@ -1525,12 +1525,9 @@ function escapeHtml(s) {
       if (newBtnEl) {
         var hasDoc = items.length > 0;
         newBtnEl.dataset.hasdoc = hasDoc ? '1' : '0';
-        var titleEl = document.getElementById('mod-bento-newbtn-title');
         var subEl = document.getElementById('mod-bento-newbtn-sub');
-        var docTitle = hasDoc ? ((items[0].doc && items[0].doc.title) || items[0].title || '') : '';
-        if (titleEl) titleEl.textContent = hasDoc ? (docTitle || M.util.get_string('playtile', 'mod_bento')) : M.util.get_string('newtile', 'mod_bento');
         if (subEl) {
-          var visibleNames = items.filter(function (i) { return i.visible; }).map(function (i) { return (i.doc && i.doc.title) || i.baseName; });
+          var visibleNames = items.filter(function (i) { return i.visible; }).map(function (i) { return (i.doc && i.doc.title) || i.title || i.baseName; });
           if (hasDoc && visibleNames.length) {
             subEl.innerHTML = visibleNames.map(function (n, idx) { return (idx > 0 ? '→ ' : '') + escapeHtml(n); }).join('<br>');
           } else {

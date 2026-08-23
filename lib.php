@@ -988,11 +988,10 @@ function bento_render_importer(string $existingjson, int $courseid, int $cmid, a
 
     return '
         <div class="mod-bento-importer" id="mod-bento-importer" data-courseid="' . $courseid . '" data-cmid="' . $cmid . '" data-candeck="1" data-termsagreed="' . (bento_has_agreed_current_terms((int) $USER->id) ? '1' : '0') . '" data-documentvisible="' . (int) $documentvisible . '" data-savetimeout="' . (int) (get_config('mod_bento', 'savetimeout') ?: 600) . '">
-            <p class="form-text text-muted mod-bento-edithint">' . get_string('editusehint', 'mod_bento') . '</p>
             ' . $seed . $deckseed . '
             <div class="mod-bento-tiles has-paste' . ($isrealdoc ? ' has-edit' : '') . '">
                 <button type="button" class="mod-bento-tile mod-bento-tile-new" id="mod-bento-newbtn" data-hasdoc="' . ($isrealdoc ? '1' : '0') . '">
-                    <span class="mod-bento-tile-title" id="mod-bento-newbtn-title">' . ($isrealdoc ? s($decoded['title'] ?? '') ?: get_string('playtile', 'mod_bento') : get_string('newtile', 'mod_bento')) . '</span>
+                    <span class="mod-bento-tile-title" id="mod-bento-newbtn-title">' . get_string('playbacksectionheading', 'mod_bento') . '</span>
                     <span class="mod-bento-tile-sub" id="mod-bento-newbtn-sub">' . ($isrealdoc ? get_string('playtilesub', 'mod_bento') : get_string('newtilesub', 'mod_bento')) . '</span>
                 </button>' . ($isrealdoc ? '
                 <button type="button" class="mod-bento-tile mod-bento-tile-edit" id="mod-bento-editbtn">
