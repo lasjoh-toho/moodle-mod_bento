@@ -786,31 +786,6 @@ function mergeDocs(docA, docB){
 
     var items = [];
     var draggedItem = null;
-    var shellCache = null;
-
-    /** mod_bento's own bento-shell.html — served over HTTP by Moodle
-     *  itself, so a plain same-origin fetch (no CORS concern, no need for
-     *  the standalone converter's base64-embedded-copy complexity, which
-     *  exists there specifically because that tool has no server backing
-     *  it beyond static hosting). */
-    function getShell() {
-      if (shellCache) return Promise.resolve(shellCache);
-      return fetch(M.cfg.wwwroot + '/mod/bento/asset/bento-shell.html').then(function (res) {
-        if (!res.ok) throw new Error('HTTP ' + res.status);
-        return res.text();
-      }).then(function (text) {
-        if (!/id=["']bento-doc["']/.test(text)) throw new Error('Antwort enthält keinen bento-doc-Block');
-        shellCache = text;
-        return text;
-      });
-    }
-
-    function spliceDoc(shellHtml, doc) {
-      var jsonStr = JSON.stringify(doc).replace(/</g, '\\u003c');
-      var re = /(<script[^>]*id=["']bento-doc["'][^>]*>)([\s\S]*?)(<\/script>)/;
-      if (!re.test(shellHtml)) throw new Error('bento-doc-Block nicht in der Hülle gefunden');
-      return shellHtml.replace(re, function (m, open, _old, close) { return open + '\n' + jsonStr + '\n' + close; });
-    }
 
     /** Same request shape as the Bento editor's own moodle.ts saveToMoodle()
      *  — calling the SAME mod_bento_save_document web service directly,
@@ -926,6 +901,9 @@ function mergeDocs(docA, docB){
     function buildSlideThumbnail(doc, idx) {
       var wrap = document.createElement('div');
       wrap.className = 'mod-bento-split-thumb';
+      var spinner = document.createElement('div');
+      spinner.className = 'mod-bento-split-thumb-spinner';
+      wrap.appendChild(spinner);
       var w = (doc.size && doc.size.width) || 1280;
       var h = (doc.size && doc.size.height) || 720;
       var iframe = document.createElement('iframe');
@@ -945,6 +923,7 @@ function mergeDocs(docA, docB){
       // once made the whole modal feel unresponsive (every iframe fighting
       // for the main thread simultaneously). One loads, THEN the next.
       thumbnailQueue.push(function (done) {
+        var finish = function () { spinner.remove(); done(); };
         getShell().then(function (shell) {
           var slideDoc = {
             format: doc.format, version: doc.version || 1,
@@ -955,11 +934,11 @@ function mergeDocs(docA, docB){
             readonly: true, // minimal "present"-only render, not the full editor — this is the actual fix for how long thumbnails took
           };
           var html = spliceDoc(shell, slideDoc);
-          iframe.addEventListener('load', done, { once: true });
+          iframe.addEventListener('load', finish, { once: true });
           iframe.srcdoc = html;
         }).catch(function (e) {
           console.warn('Thumbnail konnte nicht geladen werden:', e);
-          done();
+          finish();
         });
       });
       pumpThumbnailQueue();
@@ -1038,16 +1017,18 @@ function mergeDocs(docA, docB){
           if (breakAfter[idx]) { groups.push(current); current = []; }
         });
         if (current.length) groups.push(current);
-        var parts = splitDocBySlideGroups(it.doc, groups);
         var i = items.indexOf(it);
-        var newItems = parts.map(function (partDoc) {
+        var newItems = groups.map(function (g, partNum) {
+          var partDoc = bentoBuildSplitDoc(it.doc, g[0], g[g.length - 1] + 1);
+          partDoc.title = (it.doc.title || 'Deck') + ' — Teil ' + (partNum + 1);
+          partDoc.docId = (crypto.randomUUID ? crypto.randomUUID() : 'part-' + Date.now() + '-' + partNum);
           return { baseName: partDoc.title, doc: partDoc, slideCount: partDoc.slides.length, warnings: [], existing: false, deckid: 0, visible: 0 };
         });
         if (i >= 0) items.splice.apply(items, [i, 1].concat(newItems));
         else items.push.apply(items, newItems);
         close();
         renderItems();
-        toastMsg('In ' + parts.length + ' Teile aufgeteilt — noch nicht gespeichert.');
+        toastMsg('In ' + newItems.length + ' Teile aufgeteilt — noch nicht gespeichert.');
       });
     }
 
@@ -1088,40 +1069,6 @@ function mergeDocs(docA, docB){
       } catch (e) { console.warn('mod_bento: could not parse a draft deck', e); }
     });
 
-    function collectUsedAssetKeys(node, out) {
-  if (typeof node === 'string') {
-    var m = /^asset:(.+)$/.exec(node);
-    if (m) out.add(m[1]);
-    return;
-  }
-  if (Array.isArray(node)) { node.forEach(function (n) { collectUsedAssetKeys(n, out); }); return; }
-  if (node && typeof node === 'object') { for (var k in node) collectUsedAssetKeys(node[k], out); }
-}
-function splitDocBySlideGroups(doc, groups) {
-  // groups: array of arrays of slide INDEXES (into doc.slides), one entry
-  // per resulting part, in order.
-  return groups.map(function (idxs, partNum) {
-    var slides = idxs.map(function (i) { return JSON.parse(JSON.stringify(doc.slides[i])); });
-    var usedKeys = new Set();
-    collectUsedAssetKeys(slides, usedKeys);
-    var assets = {};
-    if (doc.assets) {
-      Object.keys(doc.assets).forEach(function (k) { if (usedKeys.has(k)) assets[k] = doc.assets[k]; });
-    }
-    var part = {
-      format: 'bento/slides',
-      version: doc.version || 1,
-      docId: (crypto.randomUUID ? crypto.randomUUID() : 'part-' + Date.now() + '-' + partNum),
-      title: (doc.title || 'Deck') + ' — Teil ' + (partNum + 1),
-      size: doc.size ? JSON.parse(JSON.stringify(doc.size)) : { width: 1280, height: 720 },
-      theme: doc.theme ? JSON.parse(JSON.stringify(doc.theme)) : { background: '#FFFFFF', color: '#111111', accent: '#FF9E5E', fontFamily: 'system-ui, sans-serif' },
-      slides: slides,
-      modified: new Date().toISOString(),
-    };
-    if (Object.keys(assets).length) part.assets = assets;
-    return part;
-  });
-}
 function escapeHtml(s) {
       return String(s).replace(/[&<>"']/g, function (c) {
         return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c];
@@ -1161,83 +1108,6 @@ function escapeHtml(s) {
       return Math.round(bytes / 1024) + ' KB';
     }
 
-    function bentoOpenSplitModal(it) {
-      var slides = it.doc.slides || [];
-      var breaks = {}; // index i means "break BEFORE slide i" (1 <= i <= slides.length-1)
-      var overlay = document.createElement('div');
-      overlay.className = 'mod-bento-split-overlay';
-      var modal = document.createElement('div');
-      modal.className = 'mod-bento-split-modal';
-      modal.innerHTML =
-        '<h3>In mehrere Teile aufteilen</h3>' +
-        '<p class="mod-bento-split-hint">Klicke zwischen zwei Folien, um dort eine Trennung zu setzen. Jeder entstehende Teil wird eine eigene, unabhängige Karte — nur mit den Bildern/Schriften, die er tatsächlich braucht.</p>' +
-        '<div class="mod-bento-split-list" id="mod-bento-split-list"></div>' +
-        '<div class="mod-bento-split-actions">' +
-          '<button type="button" class="mod-bento-split-cancel">Abbrechen</button>' +
-          '<button type="button" class="mod-bento-split-confirm" disabled>Aufteilen</button>' +
-        '</div>';
-      overlay.appendChild(modal);
-      document.body.appendChild(overlay);
-
-      var listEl = modal.querySelector('#mod-bento-split-list');
-      var confirmBtn = modal.querySelector('.mod-bento-split-confirm');
-
-      function slideLabel(s, idx) {
-        var firstText = (s.elements || []).find(function (e) { return e.type === 'text' && e.text; });
-        var title = firstText ? String(firstText.text).replace(/<[^>]+>/g, '').trim().slice(0, 40) : '';
-        return 'Folie ' + (idx + 1) + (title ? ' — ' + title : '');
-      }
-      function updateConfirmState() {
-        confirmBtn.disabled = Object.keys(breaks).length === 0;
-      }
-      function render() {
-        listEl.innerHTML = '';
-        slides.forEach(function (s, idx) {
-          var row = document.createElement('div');
-          row.className = 'mod-bento-split-row';
-          row.textContent = slideLabel(s, idx);
-          listEl.appendChild(row);
-          if (idx < slides.length - 1) {
-            var divider = document.createElement('button');
-            divider.type = 'button';
-            divider.className = 'mod-bento-split-divider' + (breaks[idx + 1] ? ' active' : '');
-            divider.textContent = breaks[idx + 1] ? '✂ Trennung hier — klicken zum Entfernen' : '+ Trennung hier einfügen';
-            divider.addEventListener('click', function () {
-              if (breaks[idx + 1]) delete breaks[idx + 1]; else breaks[idx + 1] = true;
-              render();
-              updateConfirmState();
-            });
-            listEl.appendChild(divider);
-          }
-        });
-      }
-      render();
-
-      modal.querySelector('.mod-bento-split-cancel').addEventListener('click', function () { overlay.remove(); });
-      overlay.addEventListener('click', function (ev) { if (ev.target === overlay) overlay.remove(); });
-
-      confirmBtn.addEventListener('click', function () {
-        var points = [0].concat(Object.keys(breaks).map(Number).sort(function (a, b) { return a - b; })).concat([slides.length]);
-        var i = items.indexOf(it);
-        var newParts = [];
-        for (var p = 0; p < points.length - 1; p++) {
-          var partDoc = bentoBuildSplitDoc(it.doc, points[p], points[p + 1]);
-          newParts.push({
-            baseName: it.baseName + ' (Teil ' + (p + 1) + ')',
-            doc: partDoc,
-            slideCount: partDoc.slides.length,
-            warnings: [],
-            existing: false,
-            deckid: 0,
-            visible: 0,
-          });
-        }
-        if (i >= 0) items.splice.apply(items, [i, 1].concat(newParts)); else items.push.apply(items, newParts);
-        renderItems();
-        overlay.remove();
-      });
-    }
-
     function buildItemCard(it) {
       var card = document.createElement('div');
       var isTop = items[0] === it;
@@ -1271,8 +1141,7 @@ function escapeHtml(s) {
         ('<button type="button" class="mod-bento-item-edit' + (isPersisted ? '' : ' unsaved-edit') + '" title="' + (isPersisted ? 'Bearbeiten (im vollen Editor, mit Speichern)' : 'Bearbeiten — speichert diese Karte zuerst als Entwurf') + '"><span class="mod-bento-item-save-progress"></span><span>✎</span></button>') +
         '<button type="button" class="mod-bento-item-play" title="Präsentation starten (kann danach bearbeitet werden)"><span class="mod-bento-item-save-progress"></span><span>▶</span></button>' +
         '<button type="button" class="mod-bento-item-download" title="Als .bento.html herunterladen">&#8681;</button>' +
-        (it.slideCount > 1 ? '<button type="button" class="mod-bento-item-split" title="In mehrere Teile aufteilen">⑂</button>' : '') +
-        (it.slideCount > 1 ? '<button type="button" class="mod-bento-item-split" title="In mehrere Teile aufteilen">&#9986;</button>' : '') +
+        (it.slideCount > 1 ? '<button type="button" class="mod-bento-item-split" title="In mehrere Teile aufteilen"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="6" cy="6" r="3"/><circle cx="6" cy="18" r="3"/><line x1="20" y1="4" x2="8.12" y2="15.88"/><line x1="14.47" y1="14.48" x2="20" y2="20"/><line x1="8.12" y1="8.12" x2="12" y2="12"/></svg></button>' : '') +
         '<button type="button" class="mod-bento-item-remove" title="Entfernen">✕</button>';
 
       card.querySelector('.mod-bento-item-remove').addEventListener('click', function () {
@@ -1459,12 +1328,6 @@ function escapeHtml(s) {
       var splitBtn = card.querySelector('.mod-bento-item-split');
       if (splitBtn) {
         splitBtn.addEventListener('click', function () { openSplitModal(it); });
-      }
-      var splitBtn = card.querySelector('.mod-bento-item-split');
-      if (splitBtn) {
-        splitBtn.addEventListener('click', function () {
-          bentoOpenSplitModal(it);
-        });
       }
       card.addEventListener('dragstart', function () { draggedItem = it; card.classList.add('dragging'); });
       card.addEventListener('dragend', function () { card.classList.remove('dragging'); draggedItem = null; });
