@@ -120,6 +120,82 @@ function hasNoFill(fillParent){
   return !!first(fillParent, 'a:noFill');
 }
 
+// PowerPoint's own group-to-child coordinate mapping (off/ext = the
+// group's own slide-absolute position; chOff/chExt = the coordinate
+// space its children's own off/ext values are expressed in) — see
+// ECMA-376 Part 1, §20.1.7.6 (xfrm). Reads p:grpSpPr/a:xfrm directly
+// rather than reusing extractFrame() (which reads p:spPr, not
+// p:grpSpPr, and has no chOff/chExt concept at all).
+function extractGroupXfrm(grpSpEl){
+  const grpSpPr = first(grpSpEl, 'p:grpSpPr');
+  const xfrm = grpSpPr ? first(grpSpPr, 'a:xfrm') : null;
+  if (!xfrm) return null;
+  const off = first(xfrm, 'a:off'), ext = first(xfrm, 'a:ext');
+  const chOff = first(xfrm, 'a:chOff'), chExt = first(xfrm, 'a:chExt');
+  if (!off || !ext || !chOff || !chExt) return null;
+  return {
+    offX: parseInt(off.getAttribute('x'), 10) || 0,
+    offY: parseInt(off.getAttribute('y'), 10) || 0,
+    extW: parseInt(ext.getAttribute('cx'), 10) || 0,
+    extH: parseInt(ext.getAttribute('cy'), 10) || 0,
+    chOffX: parseInt(chOff.getAttribute('x'), 10) || 0,
+    chOffY: parseInt(chOff.getAttribute('y'), 10) || 0,
+    chExtW: parseInt(chExt.getAttribute('cx'), 10) || 0,
+    chExtH: parseInt(chExt.getAttribute('cy'), 10) || 0,
+    rot: parseInt(xfrm.getAttribute('rot'), 10) || 0,
+  };
+}
+
+// Rewrites ONE descendant's own a:xfrm (found via its own p:spPr or
+// p:grpSpPr, whichever the node actually has) from group-relative EMU
+// coordinates to slide-absolute EMU coordinates, in place — after this,
+// extractFrame()/extractGroupXfrm() read exactly the same attributes
+// they always have, just already carrying the group's own transform
+// baked in, so nothing downstream needs to know groups were ever
+// involved at all.
+function applyGroupXfrmToChild(childEl, g){
+  const spPr = first(childEl, 'p:spPr') || first(childEl, 'p:grpSpPr');
+  const xfrm = spPr ? first(spPr, 'a:xfrm') : null;
+  if (!xfrm) return;
+  const off = first(xfrm, 'a:off'), ext = first(xfrm, 'a:ext');
+  if (!off || !ext) return;
+  const scaleX = g.chExtW ? g.extW / g.chExtW : 1;
+  const scaleY = g.chExtH ? g.extH / g.chExtH : 1;
+  const childX = parseInt(off.getAttribute('x'), 10) || 0;
+  const childY = parseInt(off.getAttribute('y'), 10) || 0;
+  const childW = parseInt(ext.getAttribute('cx'), 10) || 0;
+  const childH = parseInt(ext.getAttribute('cy'), 10) || 0;
+  off.setAttribute('x', Math.round(g.offX + (childX - g.chOffX) * scaleX));
+  off.setAttribute('y', Math.round(g.offY + (childY - g.chOffY) * scaleY));
+  ext.setAttribute('cx', Math.round(childW * scaleX));
+  ext.setAttribute('cy', Math.round(childH * scaleY));
+  if (g.rot) xfrm.setAttribute('rot', String((parseInt(xfrm.getAttribute('rot'), 10) || 0) + g.rot));
+}
+
+// Recursively flattens any nesting depth of p:grpSp into the SAME flat,
+// document-ordered node list the existing per-shape loop already
+// expects — each descendant node comes out with its own coordinates
+// already made slide-absolute (see applyGroupXfrmToChild above), so the
+// existing p:sp/p:pic/p:graphicFrame/p:cxnSp handling further down never
+// needs to change at all.
+function flattenGroupedShapes(nodes){
+  const out = [];
+  for (const node of nodes){
+    if (node.nodeType !== 1) continue;
+    if (node.tagName === 'p:grpSp'){
+      const g = extractGroupXfrm(node);
+      const children = Array.from(node.childNodes).filter(n =>
+        n.nodeType === 1 && ['p:sp','p:pic','p:graphicFrame','p:cxnSp','p:grpSp'].includes(n.tagName)
+      );
+      if (g) children.forEach(child => applyGroupXfrmToChild(child, g));
+      out.push(...flattenGroupedShapes(children)); // handles nested groups too
+      continue;
+    }
+    if (['p:sp','p:pic','p:graphicFrame','p:cxnSp'].includes(node.tagName)) out.push(node);
+  }
+  return out;
+}
+
 function extractFrame(spEl){
   const spPr = first(spEl, 'p:spPr') || first(spEl, 'a:spPr');
   if (!spPr) return null;
@@ -365,10 +441,14 @@ async function convertPptx(file, log){
     let elCounter = 1;
 
     if (spTree){
-      // iterate direct meaningful children in document order
-      const nodes = Array.from(spTree.childNodes).filter(n =>
-        n.nodeType === 1 && ['p:sp','p:pic','p:graphicFrame','p:cxnSp'].includes(n.tagName)
+      // iterate direct meaningful children in document order — p:grpSp
+      // gets recursively flattened into its own descendants (each with
+      // slide-absolute coordinates already baked in) rather than being
+      // silently skipped, the way it previously was entirely.
+      const rawNodes = Array.from(spTree.childNodes).filter(n =>
+        n.nodeType === 1 && ['p:sp','p:pic','p:graphicFrame','p:cxnSp','p:grpSp'].includes(n.tagName)
       );
+      const nodes = flattenGroupedShapes(rawNodes);
 
       for (const node of nodes){
         const tag = node.tagName;
