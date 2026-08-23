@@ -157,13 +157,11 @@ function applyColorMods(baseHex, colorNode){
   return rgbToHex(r,g,b);
 }
 
-function resolveColor(fillParent, themeColors, fallback){
-  if (!fillParent) return fallback;
-  const solid = first(fillParent, 'a:solidFill');
-  if (!solid) return fallback;
-  const srgb = first(solid, 'a:srgbClr');
+function colorFromContainer(container, themeColors, fallback){
+  if (!container) return fallback;
+  const srgb = first(container, 'a:srgbClr');
   if (srgb) return applyColorMods('#'+srgb.getAttribute('val'), srgb);
-  const scheme = first(solid, 'a:schemeClr');
+  const scheme = first(container, 'a:schemeClr');
   if (scheme){
     const val = scheme.getAttribute('val');
     const aliasMap = { tx1:'dk1', bg1:'lt1', tx2:'dk2', bg2:'lt2' };
@@ -171,6 +169,38 @@ function resolveColor(fillParent, themeColors, fallback){
     if (themeColors[key]) return applyColorMods(themeColors[key], scheme);
   }
   return fallback;
+}
+function resolveColor(fillParent, themeColors, fallback){
+  if (!fillParent) return fallback;
+  const solid = first(fillParent, 'a:solidFill');
+  if (!solid) return fallback;
+  return colorFromContainer(solid, themeColors, fallback);
+}
+// Many real-world shapes (especially ones created via PowerPoint's own
+// "shape styles" gallery — very common for arrow/timeline-style elements,
+// exactly the reported case) carry their fill through <p:style><a:fillRef>
+// instead of a direct <a:solidFill> inside <p:spPr> at all — p:style is a
+// SIBLING of p:spPr (both direct children of p:sp), never something
+// resolveColor's own p:spPr-rooted search would ever find. Reads the color
+// straight off a:fillRef itself (no a:solidFill wrapper exists there) as a
+// deliberately simplified approximation: the fully correct behavior would
+// also fold in the theme's own a:fmtScheme/a:fillStyleLst[idx] variant
+// (subtle/moderate/intense), which this does not attempt — using fillRef's
+// own base color directly is still a large improvement over the plain gray
+// fallback shapes without any a:solidFill were getting entirely.
+function resolveStyleRefColor(spNode, themeColors, fallback){
+  const style = first(spNode, 'p:style');
+  if (!style) return fallback;
+  const fillRef = first(style, 'a:fillRef');
+  if (!fillRef) return fallback;
+  return colorFromContainer(fillRef, themeColors, fallback);
+}
+function resolveStyleRefTextColor(spNode, themeColors, fallback){
+  const style = first(spNode, 'p:style');
+  if (!style) return fallback;
+  const fontRef = first(style, 'a:fontRef');
+  if (!fontRef) return fallback;
+  return colorFromContainer(fontRef, themeColors, fallback);
 }
 
 function hasNoFill(fillParent){
@@ -293,7 +323,8 @@ function fallbackFrame(phType, slideW, slideH){
 }
 
 // Build inline html for a txBody, applying per-run b/i/u and paragraph-level align/color/size from first run
-function extractText(txBody, themeColors, themeFonts){
+function extractText(txBody, themeColors, themeFonts, styleRefColor){
+  styleRefColor = styleRefColor || null;
   const paras = all(txBody, 'a:p');
   if (!paras.length) return null;
   let html = [];
@@ -334,7 +365,7 @@ function extractText(txBody, themeColors, themeFonts){
       const underline = (rPr ? (rPr.getAttribute('u')||'none') : 'none') !== 'none';
 
       const sz = (rPr && rPr.getAttribute('sz')) || (defRPr && defRPr.getAttribute('sz'));
-      const col = resolveColor(rPr, themeColors, null) || (defRPr ? resolveColor(defRPr, themeColors, null) : null);
+      const col = resolveColor(rPr, themeColors, null) || (defRPr ? resolveColor(defRPr, themeColors, null) : null) || styleRefColor;
       const latinNode = (rPr && first(rPr, 'a:latin')) || (defRPr && first(defRPr, 'a:latin'));
       const rawTypeface = latinNode ? latinNode.getAttribute('typeface') : null;
       // No <a:latin> at all (the overwhelmingly common case — most runs
@@ -538,11 +569,12 @@ async function convertPptx(file, log){
           const spPr = first(node, 'p:spPr');
           const prstGeom = spPr ? first(spPr, 'a:prstGeom') : null;
           const geomPrst = prstGeom ? prstGeom.getAttribute('prst') : null;
-          const shapeFill = spPr ? resolveColor(spPr, themeColors, null) : null;
           const noFill = spPr ? hasNoFill(spPr) : true;
+          const shapeFill = (spPr ? resolveColor(spPr, themeColors, null) : null)
+            || (!noFill ? resolveStyleRefColor(node, themeColors, null) : null);
 
           const txBody = first(node, 'p:txBody');
-          const textInfo = txBody ? extractText(txBody, themeColors, themeFonts) : null;
+          const textInfo = txBody ? extractText(txBody, themeColors, themeFonts, resolveStyleRefTextColor(node, themeColors, null)) : null;
 
           const emitsShape = (geomPrst && geomPrst !== 'rect' ) ? true : (!noFill && shapeFill);
 
