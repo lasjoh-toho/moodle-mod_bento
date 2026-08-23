@@ -1090,6 +1090,7 @@ function mergeDocs(docA, docB){
         } catch (e) { console.warn('mod_bento: could not parse the existing document metadata', e); }
       }
     }
+    var bentoOriginalMainDocItem = items.length ? items[0] : null;
 
     // Existing drafts (bento_decks) — each its OWN separate item, carrying
     // the real deckid so buildItemCard's own Speichern/Entfernen/Nach-oben
@@ -1675,6 +1676,16 @@ function escapeHtml(s) {
       newBtn.addEventListener('click', function () {
         if (newBtn.dataset.hasdoc === '1') {
           if (!items.length) return;
+          if (bentoCmId && items[0] === bentoOriginalMainDocItem) {
+            // Nothing changed since load — the server already has exactly
+            // this content, so skip straight to navigating, synchronously,
+            // right here in the click handler's own gesture context (see
+            // this block's own doc comment for why that matters).
+            newBtn.classList.add('mod-bento-tile-loading');
+            window.location.href = M.cfg.wwwroot + '/mod/bento/view.php?id=' + bentoCmId + '&master=1'
+              + '&returnurl=' + encodeURIComponent(location.pathname + location.search + location.hash);
+            return;
+          }
           ensureDocLoaded(items[0]).then(function (docToShow) {
           if (bentoCmId) {
             bentoSaveThenOpen(newBtn, docToShow, '/mod/bento/view.php?id=' + bentoCmId + '&master=1');
@@ -1718,6 +1729,12 @@ function escapeHtml(s) {
     if (editBtn) {
       editBtn.addEventListener('click', function () {
         if (!items.length || !bentoCmId) return;
+        if (items[0] === bentoOriginalMainDocItem) {
+          editBtn.classList.add('mod-bento-tile-loading');
+          window.location.href = M.cfg.wwwroot + '/mod/bento/edit.php?id=' + bentoCmId
+            + '&returnurl=' + encodeURIComponent(location.pathname + location.search + location.hash);
+          return;
+        }
         ensureDocLoaded(items[0]).then(function (docToEdit) {
           bentoSaveThenOpen(editBtn, docToEdit, '/mod/bento/edit.php?id=' + bentoCmId);
         }).catch(function (e) {
