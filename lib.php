@@ -991,7 +991,7 @@ function bento_render_importer(string $existingjson, int $courseid, int $cmid, a
             ' . $seed . $deckseed . '
             <div class="mod-bento-tiles has-paste' . ($isrealdoc ? ' has-edit' : '') . '">
                 <button type="button" class="mod-bento-tile mod-bento-tile-new" id="mod-bento-newbtn" data-hasdoc="' . ($isrealdoc ? '1' : '0') . '">
-                    <span class="mod-bento-tile-title" id="mod-bento-newbtn-title">' . get_string('playbacksectionheading', 'mod_bento') . '</span>
+                    <span class="mod-bento-tile-title" id="mod-bento-newbtn-title">' . get_string('playtile', 'mod_bento') . '</span>
                     <span class="mod-bento-tile-sub" id="mod-bento-newbtn-sub">' . ($isrealdoc ? get_string('playtilesub', 'mod_bento') : get_string('newtilesub', 'mod_bento')) . '</span>
                 </button>' . ($isrealdoc ? '
                 <button type="button" class="mod-bento-tile mod-bento-tile-edit" id="mod-bento-editbtn">

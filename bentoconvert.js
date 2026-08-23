@@ -99,18 +99,76 @@ function resolveFontFamily(raw, themeFonts){
   return raw;
 }
 
+function rgbToHsl(r, g, b){
+  r/=255; g/=255; b/=255;
+  const max = Math.max(r,g,b), min = Math.min(r,g,b);
+  let h=0, s=0; const l=(max+min)/2;
+  const d = max-min;
+  if (d !== 0){
+    s = l > 0.5 ? d/(2-max-min) : d/(max+min);
+    if (max===r) h=((g-b)/d + (g<b?6:0));
+    else if (max===g) h=(b-r)/d + 2;
+    else h=(r-g)/d + 4;
+    h/=6;
+  }
+  return [h,s,l];
+}
+function hslToRgb(h,s,l){
+  if (s===0){ const v=Math.round(l*255); return [v,v,v]; }
+  const hue2rgb=(p,q,t)=>{ if(t<0)t+=1; if(t>1)t-=1; if(t<1/6)return p+(q-p)*6*t; if(t<1/2)return q; if(t<2/3)return p+(q-p)*(2/3-t)*6; return p; };
+  const q = l < 0.5 ? l*(1+s) : l+s-l*s;
+  const p = 2*l-q;
+  return [Math.round(hue2rgb(p,q,h+1/3)*255), Math.round(hue2rgb(p,q,h)*255), Math.round(hue2rgb(p,q,h-1/3)*255)];
+}
+function hexToRgb(hex){
+  const h = hex.replace('#','');
+  return [parseInt(h.substr(0,2),16), parseInt(h.substr(2,2),16), parseInt(h.substr(4,2),16)];
+}
+function rgbToHex(r,g,b){
+  const c = v => Math.max(0,Math.min(255,Math.round(v))).toString(16).padStart(2,'0');
+  return '#'+c(r)+c(g)+c(b);
+}
+// Reads lumMod/lumOff/shade/tint from whichever color node actually carries
+// them (a:srgbClr or a:schemeClr — both can have these as children) and
+// applies them to a base hex color. Percent values in pptx XML are
+// thousandths-of-a-percent (val="60000" = 60%), hence /100000 throughout.
+function applyColorMods(baseHex, colorNode){
+  const lumMod = first(colorNode, 'a:lumMod');
+  const lumOff = first(colorNode, 'a:lumOff');
+  const shade = first(colorNode, 'a:shade');
+  const tint = first(colorNode, 'a:tint');
+  if (!lumMod && !lumOff && !shade && !tint) return baseHex;
+  let [r,g,b] = hexToRgb(baseHex);
+  if (shade){
+    const f = parseInt(shade.getAttribute('val'),10)/100000;
+    r*=f; g*=f; b*=f;
+  }
+  if (tint){
+    const f = parseInt(tint.getAttribute('val'),10)/100000;
+    r = r*f + 255*(1-f); g = g*f + 255*(1-f); b = b*f + 255*(1-f);
+  }
+  if (lumMod || lumOff){
+    let [h,s,l] = rgbToHsl(r,g,b);
+    if (lumMod) l *= parseInt(lumMod.getAttribute('val'),10)/100000;
+    if (lumOff) l += parseInt(lumOff.getAttribute('val'),10)/100000;
+    l = Math.max(0, Math.min(1, l));
+    [r,g,b] = hslToRgb(h,s,l);
+  }
+  return rgbToHex(r,g,b);
+}
+
 function resolveColor(fillParent, themeColors, fallback){
   if (!fillParent) return fallback;
   const solid = first(fillParent, 'a:solidFill');
   if (!solid) return fallback;
   const srgb = first(solid, 'a:srgbClr');
-  if (srgb) return '#'+srgb.getAttribute('val');
+  if (srgb) return applyColorMods('#'+srgb.getAttribute('val'), srgb);
   const scheme = first(solid, 'a:schemeClr');
   if (scheme){
     const val = scheme.getAttribute('val');
     const aliasMap = { tx1:'dk1', bg1:'lt1', tx2:'dk2', bg2:'lt2' };
     const key = aliasMap[val] || val;
-    if (themeColors[key]) return themeColors[key];
+    if (themeColors[key]) return applyColorMods(themeColors[key], scheme);
   }
   return fallback;
 }
@@ -318,7 +376,25 @@ const GEOM_MAP = {
   ellipse: 'ellipse',
   triangle: 'triangle',
   roundRect: 'rect',
-  rect: 'rect'
+  rect: 'rect',
+  rightArrow: 'arrow',
+  leftArrow: 'arrow',
+  upArrow: 'arrow',
+  downArrow: 'arrow',
+  chevron: 'arrow',
+  homePlate: 'arrow',
+  pentagon: 'arrow'
+};
+// Extra rotation (degrees, added to the shape's own existing rotation) and
+// whether w/h need swapping first — see this block's own reasoning above.
+const ARROW_ORIENTATION = {
+  rightArrow: { extraRotation: 0, swapWH: false },
+  leftArrow: { extraRotation: 180, swapWH: false },
+  upArrow: { extraRotation: 270, swapWH: true },
+  downArrow: { extraRotation: 90, swapWH: true },
+  chevron: { extraRotation: 0, swapWH: false },
+  homePlate: { extraRotation: 0, swapWH: false },
+  pentagon: { extraRotation: 0, swapWH: false }
 };
 
 async function loadImageAsset(zip, embedId, relsMap, slideDir, assets, assetCounter, pathToKey){
@@ -477,11 +553,21 @@ async function convertPptx(file, log){
               const lnColor = resolveColor(ln, themeColors, null);
               if (lnColor){ stroke = lnColor; strokeWidth = emuToPx(parseInt(ln.getAttribute('w')||'0',10)) || 1; }
             }
+            const orient = ARROW_ORIENTATION[geomPrst];
+            const shapeW = (orient && orient.swapWH) ? frame.h : frame.w;
+            const shapeH = (orient && orient.swapWH) ? frame.w : frame.h;
+            // keep the same visual center when the box's own w/h swap —
+            // rotation pivots around the center, so an uncorrected x/y
+            // would shift the shape away from its original position for
+            // anything non-square (always true for up/down arrows).
+            const shapeX = (orient && orient.swapWH) ? frame.x + (frame.w - shapeW) / 2 : frame.x;
+            const shapeY = (orient && orient.swapWH) ? frame.y + (frame.h - shapeH) / 2 : frame.y;
+            const shapeRotation = frame.rotation + (orient ? orient.extraRotation : 0);
             elements.push({
               id: elId, type: 'shape',
               shape: GEOM_MAP[geomPrst] || 'rect',
-              x: frame.x, y: frame.y, w: frame.w, h: frame.h,
-              rotation: frame.rotation, opacity: 1,
+              x: shapeX, y: shapeY, w: shapeW, h: shapeH,
+              rotation: shapeRotation, opacity: 1,
               fill: noFill ? 'transparent' : (shapeFill || '#CCCCCC'),
               stroke, strokeWidth,
               radius: geomPrst === 'roundRect' ? 12 : 0
