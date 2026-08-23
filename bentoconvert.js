@@ -800,6 +800,28 @@ function mergeDocs(docA, docB){
      *  progress at all, while XHR's own upload.onprogress event gives real
      *  loaded/total byte counts as the request actually streams out.
      *  onProgress (optional) is called repeatedly with a 0..1 fraction. */
+    /** Lazily fetches a card's own full document (images/assets and all) —
+     *  bento_render_importer() (lib.php) now only ever embeds lightweight
+     *  metadata (title, slide count, byte size) per card at page load, not
+     *  every card's own full content regardless of whether it's ever
+     *  opened. This is what an action that genuinely needs the full
+     *  document (download, split-into-parts) calls first; a no-op
+     *  resolving immediately once it.doc is already loaded (every
+     *  freshly-imported/pasted, not-yet-saved card always has it from the
+     *  start, and this stays a safe no-op after the first successful
+     *  lazy-load too). */
+    function ensureDocLoaded(it) {
+      if (it.doc) return Promise.resolve(it.doc);
+      var url = M.cfg.wwwroot + '/mod/bento/lazydoc.php?id=' + bentoCmId + '&deckid=' + (it.existing ? 0 : it.deckid);
+      return fetch(url, { credentials: 'same-origin' }).then(function (res) {
+        if (!res.ok) throw new Error('HTTP ' + res.status);
+        return res.json();
+      }).then(function (doc) {
+        it.doc = doc;
+        return doc;
+      });
+    }
+
     function callBentoWebservice(methodname, args, onProgress) {
       var url = M.cfg.wwwroot + '/lib/ajax/service.php?sesskey=' + encodeURIComponent(M.cfg.sesskey) + '&info=' + methodname;
       var body = [{ index: 0, methodname: methodname, args: args }];
@@ -1038,8 +1060,10 @@ function mergeDocs(docA, docB){
         if (existingDoc && existingDoc.format === 'bento/slides') {
           items.push({
             baseName: 'Aktuell gespeichert',
+            title: existingDoc.title || '',
             doc: existingDoc,
             slideCount: (existingDoc.slides || []).length,
+            byteSize: existingScript.textContent.length,
             warnings: [],
             existing: true,
             deckid: 0,
@@ -1047,6 +1071,24 @@ function mergeDocs(docA, docB){
           });
         }
       } catch (e) { console.warn('mod_bento: could not parse the existing document', e); }
+    } else {
+      var existingMetaScript = document.getElementById('mod-bento-existing-doc-meta');
+      if (existingMetaScript) {
+        try {
+          var meta = JSON.parse(existingMetaScript.textContent);
+          items.push({
+            baseName: 'Aktuell gespeichert',
+            title: meta.title || '',
+            doc: null, // lazy-loaded on demand — see ensureDocLoaded()
+            slideCount: meta.slideCount || 0,
+            byteSize: meta.byteSize || 0,
+            warnings: [],
+            existing: true,
+            deckid: 0,
+            visible: bentoDocumentVisible,
+          });
+        } catch (e) { console.warn('mod_bento: could not parse the existing document metadata', e); }
+      }
     }
 
     // Existing drafts (bento_decks) — each its OWN separate item, carrying
@@ -1054,19 +1096,39 @@ function mergeDocs(docA, docB){
     // actions know which database row to act on, rather than being force-
     // merged into the item above.
     Array.prototype.forEach.call(document.querySelectorAll('.mod-bento-deck-seed'), function (el) {
-      try {
-        var deckDoc = JSON.parse(el.textContent);
-        if (!deckDoc || deckDoc.format !== 'bento/slides') return;
-        items.push({
-          baseName: el.dataset.name || 'Entwurf',
-          doc: deckDoc,
-          slideCount: (deckDoc.slides || []).length,
-          warnings: [],
-          existing: false,
-          deckid: parseInt(el.dataset.deckid, 10) || 0,
-          visible: parseInt(el.dataset.visible, 10) || 0,
-        });
-      } catch (e) { console.warn('mod_bento: could not parse a draft deck', e); }
+      var text = el.textContent.trim();
+      if (text) {
+        // mod_form.php's own full-content seeding — never lazy here.
+        try {
+          var deckDoc = JSON.parse(text);
+          if (!deckDoc || deckDoc.format !== 'bento/slides') return;
+          items.push({
+            baseName: el.dataset.name || 'Entwurf',
+            title: deckDoc.title || '',
+            doc: deckDoc,
+            slideCount: (deckDoc.slides || []).length,
+            byteSize: text.length,
+            warnings: [],
+            existing: false,
+            deckid: parseInt(el.dataset.deckid, 10) || 0,
+            visible: parseInt(el.dataset.visible, 10) || 0,
+          });
+        } catch (e) { console.warn('mod_bento: could not parse a draft deck', e); }
+        return;
+      }
+      // manage.php's own lazyload mode — metadata only, doc fetched on
+      // demand later by whichever action actually needs it.
+      items.push({
+        baseName: el.dataset.name || 'Entwurf',
+        title: el.dataset.title || '',
+        doc: null, // lazy-loaded on demand — see ensureDocLoaded()
+        slideCount: parseInt(el.dataset.slidecount, 10) || 0,
+        byteSize: parseInt(el.dataset.bytesize, 10) || 0,
+        warnings: [],
+        existing: false,
+        deckid: parseInt(el.dataset.deckid, 10) || 0,
+        visible: parseInt(el.dataset.visible, 10) || 0,
+      });
     });
 
 function escapeHtml(s) {
@@ -1097,7 +1159,8 @@ function escapeHtml(s) {
      *  just what makes the WHOLE-FORM submit button do the right thing
      *  too, for anyone who never touches a per-card button at all. */
     function syncDocField() {
-      docField.value = items.length ? JSON.stringify(items[0].doc) : '';
+      if (items.length && items[0].doc) docField.value = JSON.stringify(items[0].doc);
+      else if (!items.length) docField.value = '';
     }
 
     /** German-formatted size string (comma decimal, matching the rest of
@@ -1130,9 +1193,9 @@ function escapeHtml(s) {
         '<div class="mod-bento-item-info">' +
           '<div class="mod-bento-item-name">' +
             '<button type="button" class="mod-bento-item-eye' + (visState ? ' open' : '') + '" title="' + eyeTitle + '">' + eyeSvg + '</button> ' +
-            escapeHtml((it.doc && it.doc.title) || it.baseName) +
+            escapeHtml((it.doc && it.doc.title) || it.title || it.baseName) +
             '</div>' +
-          '<div class="mod-bento-item-meta">' + it.slideCount + ' Folie' + (it.slideCount === 1 ? '' : 'n') + ' · ' + bentoFormatBytes(JSON.stringify(it.doc).length) + '</div>' +
+          '<div class="mod-bento-item-meta">' + it.slideCount + ' Folie' + (it.slideCount === 1 ? '' : 'n') + ' · ' + bentoFormatBytes(it.doc ? JSON.stringify(it.doc).length : it.byteSize) + '</div>' +
           (it.warnings && it.warnings.length ? '<ul class="mod-bento-item-warnings">' + it.warnings.map(function (w) { return '<li>' + escapeHtml(w) + '</li>'; }).join('') + '</ul>' : '') +
         '</div>' +
         (isPersisted
@@ -1307,13 +1370,14 @@ function escapeHtml(s) {
       card.querySelector('.mod-bento-item-download').addEventListener('click', function () {
         var btn = card.querySelector('.mod-bento-item-download');
         btn.disabled = true;
-        getShell().then(function (shell) {
-          var html = spliceDoc(shell, it.doc);
+        Promise.all([getShell(), ensureDocLoaded(it)]).then(function (results) {
+          var shell = results[0], doc = results[1];
+          var html = spliceDoc(shell, doc);
           var blob = new Blob([html], { type: 'text/html' });
           var url = URL.createObjectURL(blob);
           var a = document.createElement('a');
           a.href = url;
-          var rawname = (it.doc && it.doc.title) || it.baseName;
+          var rawname = doc.title || it.baseName;
           var safename = rawname.replace(/[^\w\d-]+/g, '_').replace(/^_+|_+$/g, '') || 'Untitled';
           a.download = safename + '.bento.html';
           document.body.appendChild(a);
@@ -1327,7 +1391,17 @@ function escapeHtml(s) {
       });
       var splitBtn = card.querySelector('.mod-bento-item-split');
       if (splitBtn) {
-        splitBtn.addEventListener('click', function () { openSplitModal(it); });
+        splitBtn.addEventListener('click', function () {
+          splitBtn.disabled = true;
+          ensureDocLoaded(it).then(function () {
+            splitBtn.disabled = false;
+            openSplitModal(it);
+          }).catch(function (e) {
+            console.error(e);
+            splitBtn.disabled = false;
+            alert('Konnte die Präsentation nicht laden: ' + (e.message || e));
+          });
+        });
       }
       card.addEventListener('dragstart', function () { draggedItem = it; card.classList.add('dragging'); });
       card.addEventListener('dragend', function () { card.classList.remove('dragging'); draggedItem = null; });
@@ -1453,7 +1527,7 @@ function escapeHtml(s) {
         newBtnEl.dataset.hasdoc = hasDoc ? '1' : '0';
         var titleEl = document.getElementById('mod-bento-newbtn-title');
         var subEl = document.getElementById('mod-bento-newbtn-sub');
-        var docTitle = hasDoc && items[0].doc && items[0].doc.title ? items[0].doc.title : '';
+        var docTitle = hasDoc ? ((items[0].doc && items[0].doc.title) || items[0].title || '') : '';
         if (titleEl) titleEl.textContent = hasDoc ? (docTitle || M.util.get_string('playtile', 'mod_bento')) : M.util.get_string('newtile', 'mod_bento');
         if (subEl) {
           var visibleNames = items.filter(function (i) { return i.visible; }).map(function (i) { return (i.doc && i.doc.title) || i.baseName; });
@@ -1603,8 +1677,8 @@ function escapeHtml(s) {
     if (newBtn) {
       newBtn.addEventListener('click', function () {
         if (newBtn.dataset.hasdoc === '1') {
-          var docToShow = items.length ? items[0].doc : (existingScript ? JSON.parse(existingScript.textContent) : null);
-          if (!docToShow) return;
+          if (!items.length) return;
+          ensureDocLoaded(items[0]).then(function (docToShow) {
           if (bentoCmId) {
             bentoSaveThenOpen(newBtn, docToShow, '/mod/bento/view.php?id=' + bentoCmId + '&master=1');
             return;
@@ -1625,6 +1699,10 @@ function escapeHtml(s) {
             win.close();
             alert('Konnte die Präsentation nicht öffnen: ' + (e.message || e));
           }).finally(function () { newBtn.disabled = false; newBtn.classList.remove('mod-bento-tile-loading'); });
+          }).catch(function (e) {
+            console.error(e);
+            alert('Konnte die Präsentation nicht laden: ' + (e.message || e));
+          });
         } else {
           var blankDoc;
           try { blankDoc = JSON.parse(docField.value); } catch (e) { blankDoc = null; }
@@ -1642,9 +1720,13 @@ function escapeHtml(s) {
     var editBtn = document.getElementById('mod-bento-editbtn');
     if (editBtn) {
       editBtn.addEventListener('click', function () {
-        var docToEdit = items.length ? items[0].doc : (existingScript ? JSON.parse(existingScript.textContent) : null);
-        if (!docToEdit || !bentoCmId) return;
-        bentoSaveThenOpen(editBtn, docToEdit, '/mod/bento/edit.php?id=' + bentoCmId);
+        if (!items.length || !bentoCmId) return;
+        ensureDocLoaded(items[0]).then(function (docToEdit) {
+          bentoSaveThenOpen(editBtn, docToEdit, '/mod/bento/edit.php?id=' + bentoCmId);
+        }).catch(function (e) {
+          console.error(e);
+          alert('Konnte die Präsentation nicht laden: ' + (e.message || e));
+        });
       });
     }
 

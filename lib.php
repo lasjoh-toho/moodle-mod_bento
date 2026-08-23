@@ -931,9 +931,19 @@ function bento_touch_coursemodule(int $cmid): void {
  * @param ?context $context this activity's own module context — required
  *   whenever $decks is non-empty (to read each one's own document through
  *   file storage), null only valid for a brand-new activity (empty $decks)
+ * @param bool $lazyload true to embed only lightweight metadata (title,
+ *   slide count, byte size) per card instead of each one's own full
+ *   document — the corresponding action (download, split-into-parts)
+ *   lazy-fetches the real content on demand via lazydoc.php only once
+ *   genuinely needed. ONLY safe when nothing on the page needs the full
+ *   document just to submit — mod_form.php's own hidden document field
+ *   needs the actual content to save the form correctly, so it must
+ *   always pass false here regardless of whether the activity already
+ *   exists; only manage.php (no such hidden field — every save there is
+ *   its own explicit per-card AJAX action) opts in.
  * @return string HTML
  */
-function bento_render_importer(string $existingjson, int $courseid, int $cmid, array $decks = [], int $documentvisible = 1, ?context $context = null): string {
+function bento_render_importer(string $existingjson, int $courseid, int $cmid, array $decks = [], int $documentvisible = 1, ?context $context = null, bool $lazyload = false): string {
     global $USER;
     $seed = '';
     $decoded = $existingjson !== '' ? json_decode($existingjson, true) : null;
@@ -941,11 +951,20 @@ function bento_render_importer(string $existingjson, int $courseid, int $cmid, a
         && ($decoded['format'] ?? null) === 'bento/slides'
         && !empty($decoded['slides'])
         && !(count($decoded['slides']) === 1 && empty($decoded['slides'][0]['elements']));
-    if ($isrealdoc) {
-        // json_encode it back out (rather than reusing $existingjson
-        // verbatim) purely to guarantee well-formed JSON reaches the
-        // <script> block even if the stored value ever had trailing
-        // whitespace or similar — the parsed/re-encoded form is safe.
+    if ($isrealdoc && $lazyload) {
+        // Metadata-only (manage.php) — only lightweight data, not the full
+        // document (which can be MBs of embedded images) on every single
+        // page load regardless of whether anyone ever opens this card.
+        $seed = '<script type="application/json" id="mod-bento-existing-doc-meta">' . json_encode([
+            'title' => $decoded['title'] ?? '',
+            'slideCount' => count($decoded['slides']),
+            'byteSize' => strlen($existingjson),
+        ]) . '</script>';
+    } else if ($isrealdoc) {
+        // mod_form.php's own hidden document field needs the FULL content
+        // to actually save the form correctly on submit — never safe to
+        // switch this to metadata-only, regardless of whether the
+        // activity already exists.
         $seed = '<script type="application/json" id="mod-bento-existing-doc">'
             . json_encode($decoded) . '</script>';
     }
@@ -957,8 +976,14 @@ function bento_render_importer(string $existingjson, int $courseid, int $cmid, a
         if (!is_array($deckdecoded) || ($deckdecoded['format'] ?? null) !== 'bento/slides') {
             continue; // skip anything that somehow isn't valid rather than breaking the whole page over one bad row
         }
-        $deckseed .= '<script type="application/json" class="mod-bento-deck-seed" data-deckid="' . (int) $deck->id . '" data-name="' . s($deck->name ?? '') . '" data-visible="' . ((int) ($deck->visible ?? 0)) . '">'
-            . json_encode($deckdecoded) . '</script>';
+        if ($lazyload) {
+            // Lightweight metadata only — see the main document's own
+            // comment above for the full reasoning.
+            $deckseed .= '<script type="application/json" class="mod-bento-deck-seed" data-deckid="' . (int) $deck->id . '" data-name="' . s($deck->name ?? '') . '" data-visible="' . ((int) ($deck->visible ?? 0)) . '" data-title="' . s($deckdecoded['title'] ?? '') . '" data-slidecount="' . count($deckdecoded['slides']) . '" data-bytesize="' . strlen($deckdoc) . '"></script>';
+        } else {
+            $deckseed .= '<script type="application/json" class="mod-bento-deck-seed" data-deckid="' . (int) $deck->id . '" data-name="' . s($deck->name ?? '') . '" data-visible="' . ((int) ($deck->visible ?? 0)) . '">'
+                . json_encode($deckdecoded) . '</script>';
+        }
     }
 
     return '
