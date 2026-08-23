@@ -988,8 +988,9 @@ function bento_render_importer(string $existingjson, int $courseid, int $cmid, a
                     <span class="mod-bento-tile-title">' . get_string('pastetile', 'mod_bento') . '</span>
                     <span class="mod-bento-tile-sub">' . get_string('pastetilesub', 'mod_bento') . '</span>
                 </button>
-                <button type="button" class="mod-bento-newpart-btn" id="mod-bento-newpart-btn">' . get_string('newparttile', 'mod_bento') . '</button>
+                <button type="button" class="mod-bento-newpart-btn" id="mod-bento-newpart-btn"><span class="mod-bento-newpart-plus">+</span><span class="mod-bento-newpart-label">' . get_string('newparttile', 'mod_bento') . '</span></button>
             </div>
+            <h4 class="mod-bento-playback-heading">' . get_string('playbacksectionheading', 'mod_bento') . '</h4>
             <div class="mod-bento-items" id="mod-bento-items"></div>
         </div>';
 }

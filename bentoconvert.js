@@ -1516,9 +1516,6 @@ function escapeHtml(s) {
       var newPartProgressEl = document.createElement('span');
       newPartProgressEl.className = 'mod-bento-item-save-progress';
       newPartBtn.insertBefore(newPartProgressEl, newPartBtn.firstChild);
-      var newPartLabel = document.createElement('span');
-      while (newPartBtn.childNodes.length > 1) newPartLabel.appendChild(newPartBtn.childNodes[1]);
-      newPartBtn.appendChild(newPartLabel);
       newPartBtn.addEventListener('click', function () {
         var blankDoc = { format: 'bento/slides', title: '', size: { width: 1280, height: 720 }, theme: { background: '#FFFFFF', color: '#111111', accent: '#FF9E5E', fontFamily: 'system-ui, sans-serif' }, slides: [{ id: 's1', background: '#FFFFFF', transition: 'none', elements: [], notes: '' }] };
         if (!bentoCmId) {
