@@ -1621,26 +1621,33 @@ function escapeHtml(s) {
       return card;
     }
 
-    function mergeItems(i, j) {
+    function mergeItems(i, j, btn) {
       var a = items[i];
       var b = items[j];
-      var merged;
-      try {
-        merged = mergeDocs(a.doc, b.doc);
-      } catch (e) {
+      if (btn) btn.disabled = true;
+      Promise.all([ensureDocLoaded(a), ensureDocLoaded(b)]).then(function () {
+        var merged;
+        try {
+          merged = mergeDocs(a.doc, b.doc);
+        } catch (e) {
+          console.error(e);
+          alert('Verbinden fehlgeschlagen: ' + (e.message || e));
+          return;
+        }
+        items.splice(i, 2, {
+          baseName: a.baseName + ' + ' + b.baseName,
+          doc: merged,
+          slideCount: merged.slides.length,
+          warnings: (a.warnings || []).concat(b.warnings || []),
+          existing: false,
+          deckid: 0,
+        });
+        renderItems();
+      }).catch(function (e) {
         console.error(e);
         alert('Verbinden fehlgeschlagen: ' + (e.message || e));
-        return;
-      }
-      items.splice(i, 2, {
-        baseName: a.baseName + ' + ' + b.baseName,
-        doc: merged,
-        slideCount: merged.slides.length,
-        warnings: (a.warnings || []).concat(b.warnings || []),
-        existing: false,
-        deckid: 0,
+        if (btn) btn.disabled = false;
       });
-      renderItems();
     }
 
     function renderItems() {
@@ -1656,7 +1663,7 @@ function escapeHtml(s) {
           btn.textContent = '✚';
           btn.title = 'Verbinden';
           (function (idxCopy) {
-            btn.addEventListener('click', function () { mergeItems(idxCopy, idxCopy + 1); });
+            btn.addEventListener('click', function () { mergeItems(idxCopy, idxCopy + 1, btn); });
           })(idx);
           connector.appendChild(btn);
           var bothDecks = items[idx].deckid > 0 && items[idx + 1].deckid > 0;
