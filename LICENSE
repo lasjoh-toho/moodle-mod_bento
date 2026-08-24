@@ -1,21 +1,22 @@
-MIT License
+This repository contains a Moodle plugin (mod_bento) made up of parts
+under different licenses:
+
+  - The PHP files (everything needed to run as a Moodle plugin —
+    lib.php, view.php, manage.php, classes/, db/, etc.) are licensed
+    under the GNU GPL v3 or later, per each file's own @license
+    doc-block header. This follows Moodle's own licensing
+    requirements for plugins that use Moodle's core APIs. Full text:
+    http://www.gnu.org/copyleft/gpl.html
+
+  - The plugin's own original client-side JavaScript — bentoconvert.js,
+    bentopaste.js, and addsubmissiontile.js — is licensed separately,
+    under the terms in LICENSE-JS.md (non-commercial use freely
+    permitted; commercial use requires the author's express written
+    permission).
+
+  - Third-party libraries under thirdpartylibs/ (e.g. JSZip) remain
+    under their own respective licenses, unaffected by either of the
+    above.
 
 Copyright (c) 2026 lasjoh-toho
 
-Permission is hereby granted, free of charge, to any person obtaining a copy
-of this software and associated documentation files (the "Software"), to deal
-in the Software without restriction, including without limitation the rights
-to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
-copies of the Software, and to permit persons to whom the Software is
-furnished to do so, subject to the following conditions:
-
-The above copyright notice and this permission notice shall be included in all
-copies or substantial portions of the Software.
-
-THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
-IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
-FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
-AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
-LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
-OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
-SOFTWARE.

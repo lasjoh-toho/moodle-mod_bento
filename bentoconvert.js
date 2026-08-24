@@ -1,3 +1,10 @@
+// This file's own original code is licensed separately from the rest of
+// this Moodle plugin — see LICENSE-JS.md in the repository root.
+// Non-commercial use is freely permitted; commercial use requires the
+// author's express written permission. (The bundled third-party JSZip
+// code below keeps its own MIT/GPLv3 dual license — see its own notice
+// further down where it's actually embedded.)
+
 // JSZip, forced onto window regardless of the surrounding script-loading
 // environment: its own UMD wrapper below checks `typeof exports` /
 // `typeof module` to decide whether it's in a CommonJS context — if

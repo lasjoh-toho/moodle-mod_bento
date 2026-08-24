@@ -12,7 +12,7 @@
  *
  * @package     mod_bento
  * @copyright   2026 The Bento authors
- * @license     http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
+ * @license     See LICENSE-JS.md in the repository root
  */
 (function () {
   document.addEventListener('DOMContentLoaded', function () {
