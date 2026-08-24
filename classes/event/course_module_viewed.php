@@ -16,8 +16,6 @@
 
 namespace mod_bento\event;
 
-defined('MOODLE_INTERNAL') || die();
-
 /**
  * course_module_viewed event — standard "someone opened this activity" event,
  * feeds logs, the "recent activity" block, and (via lib.php's bento_view())
