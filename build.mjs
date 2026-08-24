@@ -23,7 +23,7 @@ const REPO_ROOT = import.meta.dirname
 
 // Anything in the repo root that ISN'T part of the actual Moodle plugin —
 // left out of the zip entirely.
-const EXCLUDE = new Set(['.git', '.github', '.gitignore', 'build.mjs', 'LICENSE', 'README.md', 'dist', 'node_modules', 'scripts'])
+const EXCLUDE = new Set(['.git', '.github', '.gitignore', 'build.mjs', 'README.md', 'dist', 'node_modules', 'scripts'])
 
 function run(cmd, cwd) {
   console.log(`$ ${cmd}`)
