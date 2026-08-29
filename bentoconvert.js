@@ -1496,9 +1496,11 @@ function escapeHtml(s) {
           };
           var nowTop = items[0] === it; // re-check at click time — order may have changed since the card was built
           bentoWithSaveLock(function () {
-            return (!bentoCanDeck || nowTop)
-              ? saveDocToMoodle(bentoCmId, it.doc, onProgress)
-              : saveDeckToMoodle(bentoCmId, it.deckid || 0, it.baseName, it.doc, onProgress).then(function (res) { it.deckid = res.deckid; });
+            return ensureDocLoaded(it).then(function () {
+              return (!bentoCanDeck || nowTop)
+                ? saveDocToMoodle(bentoCmId, it.doc, onProgress)
+                : saveDeckToMoodle(bentoCmId, it.deckid || 0, it.baseName, it.doc, onProgress).then(function (res) { it.deckid = res.deckid; });
+            });
           }).then(function () {
             if (!bentoCanDeck || nowTop) it.existing = true;
             toastMsg((!bentoCanDeck || nowTop) ? 'Gespeichert.' : 'Entwurf gespeichert.');
@@ -1566,9 +1568,11 @@ function escapeHtml(s) {
           if (progressEl) progressEl.style.width = Math.round(fraction * 100) + '%';
         };
         bentoWithSaveLock(function () {
-          return (!bentoCanDeck || nowTop)
-            ? saveDocToMoodle(bentoCmId, it.doc, onProgress)
-            : saveDeckToMoodle(bentoCmId, 0, it.baseName, it.doc, onProgress);
+          return ensureDocLoaded(it).then(function () {
+            return (!bentoCanDeck || nowTop)
+              ? saveDocToMoodle(bentoCmId, it.doc, onProgress)
+              : saveDeckToMoodle(bentoCmId, 0, it.baseName, it.doc, onProgress);
+          });
         }).then(function (res) {
           if (!bentoCanDeck || nowTop) { it.existing = true; goTo(0); return; }
           it.deckid = res.deckid;
