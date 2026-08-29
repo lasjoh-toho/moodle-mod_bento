@@ -1128,48 +1128,61 @@ function mergeDocs(docA, docB){
     function buildSlideThumbnail(doc, idx) {
       var wrap = document.createElement('div');
       wrap.className = 'mod-bento-split-thumb';
-      var spinner = document.createElement('div');
-      spinner.className = 'mod-bento-split-thumb-spinner';
-      wrap.appendChild(spinner);
-      var w = (doc.size && doc.size.width) || 1280;
-      var h = (doc.size && doc.size.height) || 720;
-      var iframe = document.createElement('iframe');
-      iframe.className = 'mod-bento-split-thumb-frame';
-      iframe.style.width = w + 'px';
-      iframe.style.height = h + 'px';
-      var scale = 120 / w;
-      iframe.style.transform = 'scale(' + scale + ')';
-      iframe.setAttribute('tabindex', '-1');
-      iframe.setAttribute('aria-hidden', 'true');
-      // No allow-same-origin: this iframe gets its own opaque origin, with
-      // zero script-level access back into this page — a preview render
-      // has no legitimate reason to ever touch the parent window at all.
-      iframe.setAttribute('sandbox', 'allow-scripts');
-      wrap.appendChild(iframe);
-      // Queued rather than started immediately — building all of these at
-      // once made the whole modal feel unresponsive (every iframe fighting
-      // for the main thread simultaneously). One loads, THEN the next.
-      thumbnailQueue.push(function (done) {
-        var finish = function () { spinner.remove(); done(); };
-        getShell().then(function (shell) {
-          var slideDoc = {
-            format: doc.format, version: doc.version || 1,
-            docId: 'thumb-' + idx, title: doc.title || '',
-            size: doc.size || { width: 1280, height: 720 },
-            theme: doc.theme || { background: '#FFFFFF', color: '#111111', accent: '#FF9E5E', fontFamily: 'system-ui, sans-serif' },
-            assets: doc.assets, slides: [doc.slides[idx]],
-            readonly: true, // minimal "present"-only render, not the full editor — this is the actual fix for how long thumbnails took
-          };
-          var html = spliceDoc(shell, slideDoc);
-          iframe.addEventListener('load', finish, { once: true });
-          iframe.srcdoc = html;
-        }).catch(function (e) {
-          console.warn('Thumbnail konnte nicht geladen werden:', e);
-          finish();
+      var placeholder = document.createElement('button');
+      placeholder.type = 'button';
+      placeholder.className = 'mod-bento-split-thumb-placeholder';
+      placeholder.textContent = '▶';
+      placeholder.title = 'Vorschau laden';
+      wrap.appendChild(placeholder);
+      var loaded = false;
+      function load() {
+        if (loaded) return;
+        loaded = true;
+        placeholder.remove();
+        var spinner = document.createElement('div');
+        spinner.className = 'mod-bento-split-thumb-spinner';
+        wrap.appendChild(spinner);
+        var w = (doc.size && doc.size.width) || 1280;
+        var h = (doc.size && doc.size.height) || 720;
+        var iframe = document.createElement('iframe');
+        iframe.className = 'mod-bento-split-thumb-frame';
+        iframe.style.width = w + 'px';
+        iframe.style.height = h + 'px';
+        var scale = 120 / w;
+        iframe.style.transform = 'scale(' + scale + ')';
+        iframe.setAttribute('tabindex', '-1');
+        iframe.setAttribute('aria-hidden', 'true');
+        // No allow-same-origin: this iframe gets its own opaque origin, with
+        // zero script-level access back into this page — a preview render
+        // has no legitimate reason to ever touch the parent window at all.
+        iframe.setAttribute('sandbox', 'allow-scripts');
+        wrap.appendChild(iframe);
+        // Queued rather than started immediately — building all of these at
+        // once made the whole modal feel unresponsive (every iframe fighting
+        // for the main thread simultaneously). One loads, THEN the next.
+        thumbnailQueue.push(function (done) {
+          var finish = function () { spinner.remove(); done(); };
+          getShell().then(function (shell) {
+            var slideDoc = {
+              format: doc.format, version: doc.version || 1,
+              docId: 'thumb-' + idx, title: doc.title || '',
+              size: doc.size || { width: 1280, height: 720 },
+              theme: doc.theme || { background: '#FFFFFF', color: '#111111', accent: '#FF9E5E', fontFamily: 'system-ui, sans-serif' },
+              assets: doc.assets, slides: [doc.slides[idx]],
+              readonly: true, // minimal "present"-only render, not the full editor — this is the actual fix for how long thumbnails took
+            };
+            var html = spliceDoc(shell, slideDoc);
+            iframe.addEventListener('load', finish, { once: true });
+            iframe.srcdoc = html;
+          }).catch(function (e) {
+            console.warn('Thumbnail konnte nicht geladen werden:', e);
+            finish();
+          });
         });
-      });
-      pumpThumbnailQueue();
-      return wrap;
+        pumpThumbnailQueue();
+      }
+      placeholder.addEventListener('click', load);
+      return { el: wrap, load: load };
     }
 
     function openSplitModal(it) {
@@ -1183,6 +1196,7 @@ function mergeDocs(docA, docB){
       box.innerHTML =
         '<h3>In Teile aufteilen</h3>' +
         '<p class="form-text text-muted">Zwischen zwei Folien klicken, um dort eine Trennung einzufügen. Jeder entstehende Teil bekommt nur die Assets, die seine eigenen Folien tatsächlich verwenden.</p>' +
+        '<button type="button" class="btn btn-secondary mod-bento-split-load-all">Alle Thumbnails öffnen</button>' +
         '<div class="mod-bento-split-list"></div>' +
         '<div class="mod-bento-split-actions">' +
           '<button type="button" class="btn btn-secondary mod-bento-split-cancel">Abbrechen</button>' +
@@ -1194,6 +1208,7 @@ function mergeDocs(docA, docB){
       var listEl = box.querySelector('.mod-bento-split-list');
       var confirmBtn = box.querySelector('.mod-bento-split-confirm');
       var breakBtns = [];
+      var thumbLoaders = [];
 
       function updateConfirmState() {
         var partCount = breakAfter.filter(Boolean).length + 1;
@@ -1208,7 +1223,9 @@ function mergeDocs(docA, docB){
       slides.forEach(function (slide, idx) {
         var row = document.createElement('div');
         row.className = 'mod-bento-split-row';
-        row.appendChild(buildSlideThumbnail(it.doc, idx));
+        var thumb = buildSlideThumbnail(it.doc, idx);
+        thumbLoaders.push(thumb.load);
+        row.appendChild(thumb.el);
         var label = document.createElement('div');
         label.className = 'mod-bento-split-label';
         label.textContent = slideLabel(slide, idx);
@@ -1232,6 +1249,9 @@ function mergeDocs(docA, docB){
         }
       });
       updateConfirmState();
+      box.querySelector('.mod-bento-split-load-all').addEventListener('click', function () {
+        thumbLoaders.forEach(function (load) { load(); });
+      });
 
       function close() { overlay.remove(); }
       box.querySelector('.mod-bento-split-cancel').addEventListener('click', close);

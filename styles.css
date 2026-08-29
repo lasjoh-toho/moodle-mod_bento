@@ -468,6 +468,19 @@
   background: #fff;
   position: relative;
 }
+.mod-bento-split-thumb-placeholder {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  border: none;
+  background: #f3f4f6;
+  color: #9099a8;
+  font-size: 20px;
+  cursor: pointer;
+}
+.mod-bento-split-thumb-placeholder:hover { background: #e9ebef; color: #6b7280; }
+.mod-bento-split-load-all { margin-bottom: 10px; }
 .mod-bento-split-thumb-spinner {
   position: absolute;
   top: 50%;
