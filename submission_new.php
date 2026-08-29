@@ -95,7 +95,7 @@ $pastetilehtml = $bento->allowstudentpaste
     : '';
 
 echo '
-    <div class="mod-bento-importer" id="mod-bento-importer" data-courseid="' . (int) $course->id . '" data-cmid="' . (int) $cm->id . '" data-termsagreed="' . (bento_has_agreed_current_terms((int) $USER->id) ? '1' : '0') . '">
+    <div class="mod-bento-importer" id="mod-bento-importer" data-courseid="' . (int) $course->id . '" data-cmid="' . (int) $cm->id . '" data-termsagreed="' . (bento_has_agreed_current_terms((int) $USER->id) ? '1' : '0') . '" data-maxbytes="' . bento_effective_max_document_bytes($bento, true) . '">
         <div class="mod-bento-tiles' . ($bento->allowstudentpaste ? ' has-paste' : '') . '">
             <button type="button" class="mod-bento-tile mod-bento-tile-new" id="mod-bento-newbtn" data-hasdoc="0">
                 <span class="mod-bento-tile-title" id="mod-bento-newbtn-title">' . get_string('newtile', 'mod_bento') . '</span>

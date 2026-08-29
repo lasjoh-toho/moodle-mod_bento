@@ -41,6 +41,14 @@ $functions = [
         'ajax'        => true,
         'capabilities' => 'mod/bento:edit',
     ],
+    'mod_bento_create_empty_deck' => [
+        'classname'   => 'mod_bento\external\create_empty_deck',
+        'methodname'  => 'execute',
+        'description' => 'Allocates a real, empty draft deck row with no client-supplied content, so a caller has a genuine deckid to write into before it has anything worth saving.',
+        'type'        => 'write',
+        'ajax'        => true,
+        'capabilities' => 'mod/bento:edit',
+    ],
     'mod_bento_delete_deck' => [
         'classname'   => 'mod_bento\external\delete_deck',
         'methodname'  => 'execute',

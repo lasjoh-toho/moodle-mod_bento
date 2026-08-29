@@ -171,7 +171,11 @@ class mod_bento_mod_form extends moodleform_mod {
             ? $DB->get_records('bento_decks', ['bentoid' => $this->_cm->instance], 'sortorder ASC')
             : [];
         $documentvisible = isset($this->current->documentvisible) ? (int) $this->current->documentvisible : 1;
-        return bento_render_importer($existingjson, (int) $COURSE->id, (int) ($this->_cm->id ?? 0), $decks, $documentvisible, $this->context);
+        $sizesettings = (object) [
+            'maxdocumentsize' => (int) ($this->current->maxdocumentsize ?? 0),
+            'maxstudentdocumentsize' => (int) ($this->current->maxstudentdocumentsize ?? 0),
+        ];
+        return bento_render_importer($existingjson, (int) $COURSE->id, (int) ($this->_cm->id ?? 0), $decks, $documentvisible, $this->context, false, bento_effective_max_document_bytes($sizesettings));
     }
 
     public function data_preprocessing(&$defaultvalues) {

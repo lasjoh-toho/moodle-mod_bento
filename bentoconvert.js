@@ -934,6 +934,11 @@ function mergeDocs(docA, docB){
       var v = el && parseInt(el.dataset.savetimeout, 10);
       return (v && v > 0 ? v : 600) * 1000;
     })();
+    var bentoMaxBytes = (function () {
+      var el = document.getElementById('mod-bento-importer');
+      var v = el && parseInt(el.dataset.maxbytes, 10);
+      return (v && v > 0) ? v : 20 * 1024 * 1024;
+    })();
     // Mutable (not const) — updated in place whenever the eye-icon toggle
     // below actually succeeds, so re-rendering the cards afterward shows
     // the new state immediately without needing a full page reload.
@@ -1057,6 +1062,14 @@ function mergeDocs(docA, docB){
     }
     function saveDeckToMoodle(cmid, deckid, name, doc, onProgress) {
       return callBentoWebservice('mod_bento_save_deck', { cmid: cmid, deckid: deckid || 0, name: name || '', document: JSON.stringify(doc) }, onProgress);
+    }
+    /** Allocates a real, empty draft deck server-side (no document content
+     *  sent) — used by the ✎ edit button on a not-yet-saved item, to get a
+     *  genuine deckid to write into before opening the editor at all, so a
+     *  save from inside that session can never fall through to deckid=0
+     *  (the shared MASTER document — see edit.php's own doc comment). */
+    function createEmptyDeckOnMoodle(cmid) {
+      return callBentoWebservice('mod_bento_create_empty_deck', { cmid: cmid });
     }
     function deleteDeckFromMoodle(cmid, deckid) {
       return callBentoWebservice('mod_bento_delete_deck', { cmid: cmid, deckid: deckid });
@@ -1414,6 +1427,14 @@ function escapeHtml(s) {
       var eyeSvg = visState === 1 ? eyeOpenSvg : (visState === 2 ? teacherSvg : eyeClosedSvg);
       var eyeTitle = visState === 1 ? 'Sichtbar für alle — klicken für „nur bei Lehrer-Präsentation“'
         : (visState === 2 ? 'Nur sichtbar, wenn ein Lehrer präsentiert — klicken zum Ausblenden' : 'Nicht sichtbar — klicken, um sie für alle zu zeigen');
+      var byteSize = it.doc ? JSON.stringify(it.doc).length : it.byteSize;
+      var sizeWarnings = [];
+      if (byteSize >= bentoMaxBytes) {
+        sizeWarnings.push('Zu groß zum Speichern (' + bentoFormatBytes(byteSize) + ' von maximal ' + bentoFormatBytes(bentoMaxBytes) + ') — vorher verkleinern (z.B. Bilder, Videos).');
+      } else if (byteSize >= bentoMaxBytes * 0.9) {
+        sizeWarnings.push('Fast am Größenlimit (' + bentoFormatBytes(byteSize) + ' von maximal ' + bentoFormatBytes(bentoMaxBytes) + ').');
+      }
+      var allWarnings = sizeWarnings.concat(it.warnings || []);
       card.innerHTML =
         '<span class="mod-bento-item-grip" title="Ziehen zum Sortieren">⠿</span>' +
         '<div class="mod-bento-item-info">' +
@@ -1421,8 +1442,8 @@ function escapeHtml(s) {
             '<button type="button" class="mod-bento-item-eye' + (visState ? ' open' : '') + '" title="' + eyeTitle + '">' + eyeSvg + '</button> ' +
             escapeHtml((it.doc && it.doc.title) || it.title || it.baseName) +
             '</div>' +
-          '<div class="mod-bento-item-meta">' + it.slideCount + ' Folie' + (it.slideCount === 1 ? '' : 'n') + ' · ' + bentoFormatBytes(it.doc ? JSON.stringify(it.doc).length : it.byteSize) + '</div>' +
-          (it.warnings && it.warnings.length ? '<ul class="mod-bento-item-warnings">' + it.warnings.map(function (w) { return '<li>' + escapeHtml(w) + '</li>'; }).join('') + '</ul>' : '') +
+          '<div class="mod-bento-item-meta' + (sizeWarnings.length ? ' mod-bento-item-meta-oversize' : '') + '">' + it.slideCount + ' Folie' + (it.slideCount === 1 ? '' : 'n') + ' · ' + bentoFormatBytes(byteSize) + '</div>' +
+          (allWarnings.length ? '<ul class="mod-bento-item-warnings">' + allWarnings.map(function (w) { return '<li>' + escapeHtml(w) + '</li>'; }).join('') + '</ul>' : '') +
         '</div>' +
         (isPersisted
           ? '<span class="mod-bento-item-saved-check" title="Gespeichert — nichts zu tun">✓</span>'
@@ -1594,14 +1615,17 @@ function escapeHtml(s) {
         editBtn.addEventListener('click', function () {
           if (isPersisted) { saveThenGoTo(editBtn, editProgressEl, null); return; }
           editBtn.disabled = true;
-          ensureDocLoaded(it).then(function () {
-            sessionStorage.setItem('bento-unsaved-edit', JSON.stringify(it.doc));
-            var url = M.cfg.wwwroot + '/mod/bento/edit.php?id=' + bentoCmId + '&unsaved=1'
+          bentoWithSaveLock(function () {
+            return Promise.all([ensureDocLoaded(it), createEmptyDeckOnMoodle(bentoCmId)]);
+          }).then(function (results) {
+            var deckid = results[1].deckid;
+            sessionStorage.setItem('bento-unsaved-edit-' + deckid, JSON.stringify(it.doc));
+            var url = M.cfg.wwwroot + '/mod/bento/edit.php?id=' + bentoCmId + '&deckid=' + deckid
               + '&returnurl=' + encodeURIComponent(location.pathname + location.search + location.hash);
             window.location.href = url;
           }).catch(function (e) {
             console.error(e);
-            alert('Konnte nicht öffnen: ' + (e.message || e));
+            if (e.message !== 'save already in flight') alert('Konnte nicht öffnen: ' + (e.message || e));
             editBtn.disabled = false;
           });
         });

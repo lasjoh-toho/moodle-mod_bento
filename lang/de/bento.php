@@ -106,7 +106,6 @@ $string['editmypresentation'] = 'Meine Präsentation bearbeiten';
 $string['presentmypresentation'] = 'Meine Präsentation ansehen';
 $string['draftlabel'] = 'Entwurf: {$a}';
 $string['untitleddraft'] = 'Unbenannter Entwurf';
-$string['unsavedlabel'] = 'noch nicht gespeichert';
 $string['presentmasterpresentation'] = 'Präsentation ansehen';
 $string['createmypresentation'] = 'Präsentation anlegen';
 $string['nosubmissionyet'] = 'Du hast hier noch keine eigene Präsentation angelegt.';
