@@ -56,7 +56,17 @@ bento_require_current_schema();
 $caneditmaster = has_capability('mod/bento:edit', $context);
 $pastdue = false;
 $deck = null;
-if ($deckid > 0) {
+$unsaved = optional_param('unsaved', 0, PARAM_BOOL);
+if ($unsaved) {
+    // Not yet persisted anywhere — the real content is supplied client-side
+    // via sessionStorage (see below), never touching the database at all.
+    require_capability('mod/bento:edit', $context);
+    if (!empty($bento->loginonly)) {
+        bento_require_not_guest();
+    }
+    $document = '{}';
+    $ownerlabel = ' — ' . get_string('unsavedlabel', 'mod_bento');
+} else if ($deckid > 0) {
     // Drafts are a teacher/master-document concept only — a student's own
     // bento_submissions row has no equivalent, so this branch requires
     // exactly the same capability the published document itself does.
@@ -110,9 +120,21 @@ if ($shell === false) {
 
 $jsonforembed = str_replace('<', '\u003c', $document);
 
+$unsavedScript = '';
+if ($unsaved) {
+    $unsavedScript = '<script>(function(){' .
+        'var raw = sessionStorage.getItem("bento-unsaved-edit");' .
+        'if (raw) {' .
+        '  sessionStorage.removeItem("bento-unsaved-edit");' .
+        '  var el = document.getElementById("bento-doc");' .
+        '  if (el) el.textContent = raw;' .
+        '}' .
+        '})();</script>';
+}
+
 $html = preg_replace(
     '/(<script[^>]*id=["\']bento-doc["\'][^>]*>)([\s\S]*?)(<\/script>)/',
-    '$1' . str_replace('$', '\\$', $jsonforembed) . '$3',
+    '$1' . str_replace('$', '\\$', $jsonforembed) . '$3' . str_replace('$', '\\$', $unsavedScript),
     $shell,
     1
 );

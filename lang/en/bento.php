@@ -106,6 +106,7 @@ $string['editmypresentation'] = 'Edit my presentation';
 $string['presentmypresentation'] = 'Present my presentation';
 $string['draftlabel'] = 'Draft: {$a}';
 $string['untitleddraft'] = 'Untitled draft';
+$string['unsavedlabel'] = 'not yet saved';
 $string['presentmasterpresentation'] = 'View presentation';
 $string['createmypresentation'] = 'Create my presentation';
 $string['nosubmissionyet'] = 'You haven\'t created your own presentation here yet.';

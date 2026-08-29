@@ -1427,7 +1427,7 @@ function escapeHtml(s) {
         (isPersisted
           ? '<span class="mod-bento-item-saved-check" title="Gespeichert — nichts zu tun">✓</span>'
           : '<button type="button" class="mod-bento-item-save" title="Diese Karte einzeln speichern"><span class="mod-bento-item-save-progress"></span><span>Speichern</span></button>') +
-        ('<button type="button" class="mod-bento-item-edit' + (isPersisted ? '' : ' unsaved-edit') + '" title="' + (isPersisted ? 'Bearbeiten (im vollen Editor, mit Speichern)' : 'Bearbeiten — speichert diese Karte zuerst als Entwurf') + '"><span class="mod-bento-item-save-progress"></span><span>✎</span></button>') +
+        ('<button type="button" class="mod-bento-item-edit' + (isPersisted ? '' : ' unsaved-edit') + '" title="' + (isPersisted ? 'Bearbeiten (im vollen Editor, mit Speichern)' : 'Bearbeiten (im vollen Editor) — z.B. um die Präsentation vorher zu verkleinern, ohne sie erst zu speichern') + '"><span class="mod-bento-item-save-progress"></span><span>✎</span></button>') +
         '<button type="button" class="mod-bento-item-play" title="Präsentation starten (kann danach bearbeitet werden)"><span class="mod-bento-item-save-progress"></span><span>▶</span></button>' +
         '<button type="button" class="mod-bento-item-download" title="Als .bento.html herunterladen">&#8681;</button>' +
         (it.slideCount > 1 ? '<button type="button" class="mod-bento-item-split" title="In mehrere Teile aufteilen"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="6" cy="6" r="3"/><circle cx="6" cy="18" r="3"/><line x1="20" y1="4" x2="8.12" y2="15.88"/><line x1="14.47" y1="14.48" x2="20" y2="20"/><line x1="8.12" y1="8.12" x2="12" y2="12"/></svg></button>' : '') +
@@ -1591,7 +1591,20 @@ function escapeHtml(s) {
       var editBtn = card.querySelector('.mod-bento-item-edit');
       if (editBtn && bentoCmId) {
         var editProgressEl = editBtn.querySelector('.mod-bento-item-save-progress');
-        editBtn.addEventListener('click', function () { saveThenGoTo(editBtn, editProgressEl, null); });
+        editBtn.addEventListener('click', function () {
+          if (isPersisted) { saveThenGoTo(editBtn, editProgressEl, null); return; }
+          editBtn.disabled = true;
+          ensureDocLoaded(it).then(function () {
+            sessionStorage.setItem('bento-unsaved-edit', JSON.stringify(it.doc));
+            var url = M.cfg.wwwroot + '/mod/bento/edit.php?id=' + bentoCmId + '&unsaved=1'
+              + '&returnurl=' + encodeURIComponent(location.pathname + location.search + location.hash);
+            window.location.href = url;
+          }).catch(function (e) {
+            console.error(e);
+            alert('Konnte nicht öffnen: ' + (e.message || e));
+            editBtn.disabled = false;
+          });
+        });
       }
       card.querySelector('.mod-bento-item-download').addEventListener('click', function () {
         var btn = card.querySelector('.mod-bento-item-download');
