@@ -1071,6 +1071,25 @@ function mergeDocs(docA, docB){
     function createEmptyDeckOnMoodle(cmid) {
       return callBentoWebservice('mod_bento_create_empty_deck', { cmid: cmid });
     }
+    /** Must match bento/slides/src/editor/moodle.ts's own HANDOFF_DB/
+     *  HANDOFF_STORE constants exactly — see this function's own doc
+     *  comment above. Stashes the JSON STRING (not the parsed object) so
+     *  the read side can reuse parseDoc()'s own validation directly. */
+    function stashUnsavedDocForBento(deckid, doc) {
+      return new Promise(function (resolve, reject) {
+        if (!('indexedDB' in window)) { reject(new Error('IndexedDB nicht verfügbar in diesem Browser.')); return; }
+        var openReq = indexedDB.open('bento-moodle-handoff', 1);
+        openReq.onupgradeneeded = function () { openReq.result.createObjectStore('docs'); };
+        openReq.onerror = function () { reject(openReq.error || new Error('IndexedDB konnte nicht geöffnet werden.')); };
+        openReq.onsuccess = function () {
+          var db = openReq.result;
+          var tx = db.transaction('docs', 'readwrite');
+          tx.objectStore('docs').put(JSON.stringify(doc), deckid);
+          tx.oncomplete = function () { db.close(); resolve(); };
+          tx.onerror = function () { db.close(); reject(tx.error || new Error('IndexedDB-Schreibvorgang fehlgeschlagen.')); };
+        };
+      });
+    }
     function deleteDeckFromMoodle(cmid, deckid) {
       return callBentoWebservice('mod_bento_delete_deck', { cmid: cmid, deckid: deckid });
     }
@@ -1623,10 +1642,11 @@ function escapeHtml(s) {
             return Promise.all([ensureDocLoaded(it), createEmptyDeckOnMoodle(bentoCmId)]);
           }).then(function (results) {
             var deckid = results[1].deckid;
-            sessionStorage.setItem('bento-unsaved-edit-' + deckid, JSON.stringify(it.doc));
-            var url = M.cfg.wwwroot + '/mod/bento/edit.php?id=' + bentoCmId + '&deckid=' + deckid
-              + '&returnurl=' + encodeURIComponent(location.pathname + location.search + location.hash);
-            window.location.href = url;
+            return stashUnsavedDocForBento(deckid, it.doc).then(function () {
+              var url = M.cfg.wwwroot + '/mod/bento/edit.php?id=' + bentoCmId + '&deckid=' + deckid
+                + '&returnurl=' + encodeURIComponent(location.pathname + location.search + location.hash);
+              window.location.href = url;
+            });
           }).catch(function (e) {
             console.error(e);
             if (e.message !== 'save already in flight') alert('Konnte nicht öffnen: ' + (e.message || e));

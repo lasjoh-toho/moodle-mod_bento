@@ -110,22 +110,9 @@ if ($shell === false) {
 
 $jsonforembed = str_replace('<', '\u003c', $document);
 
-$unsavedScript = '';
-if ($deckid > 0) {
-    $storagekey = 'bento-unsaved-edit-' . $deckid;
-    $unsavedScript = '<script>(function(){' .
-        'var raw = sessionStorage.getItem(' . json_encode($storagekey) . ');' .
-        'if (raw) {' .
-        '  sessionStorage.removeItem(' . json_encode($storagekey) . ');' .
-        '  var el = document.getElementById("bento-doc");' .
-        '  if (el) el.textContent = raw;' .
-        '}' .
-        '})();</script>';
-}
-
 $html = preg_replace(
-    '/(<script[^>]*id=["\']bento-doc["\'][^>]*>)([\s\S]*?)(<\/script>)/',
-    '$1' . str_replace('$', '\\$', $jsonforembed) . '$3' . str_replace('$', '\\$', $unsavedScript),
+    '/(<script[^>]*id=["\']bento-doc["\'][^>]*>)([\\s\\S]*?)(<\\/script>)/',
+    '$1' . str_replace('$', '\\\\$', $jsonforembed) . '$3',
     $shell,
     1
 );
