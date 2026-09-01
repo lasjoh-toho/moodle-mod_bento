@@ -52,6 +52,14 @@
  *    timeout error, rather than hanging indefinitely with no feedback —
  *    read by edit.php into the same bento-moodle-config meta tag the
  *    cmid/sesskey/wwwroot already travel in, consumed by moodle.ts.
+ *  - imagemaxdim / imagequality: site-wide defaults for the editor's own
+ *    automatic image-downscaling (an oversized paste/drop/insert gets
+ *    re-encoded via canvas before it's embedded) — imagemaxdim is the
+ *    longest-edge pixel ceiling before that kicks in, imagequality the
+ *    JPEG quality (1-100) used for the re-encode. Read the same way as
+ *    savetimeout above; the editor's own prior hardcoded values (1920px,
+ *    85%) are this setting's own defaults, so an unconfigured site
+ *    behaves exactly as before.
  *
  * @package     mod_bento
  * @copyright   2026 The Bento authors
@@ -88,6 +96,22 @@ if ($ADMIN->fulltree) {
         get_string('settings_savetimeout', 'mod_bento'),
         get_string('settings_savetimeout_desc', 'mod_bento'),
         600,
+        PARAM_INT
+    ));
+
+    $settings->add(new admin_setting_configtext(
+        'mod_bento/imagemaxdim',
+        get_string('settings_imagemaxdim', 'mod_bento'),
+        get_string('settings_imagemaxdim_desc', 'mod_bento'),
+        1920,
+        PARAM_INT
+    ));
+
+    $settings->add(new admin_setting_configtext(
+        'mod_bento/imagequality',
+        get_string('settings_imagequality', 'mod_bento'),
+        get_string('settings_imagequality_desc', 'mod_bento'),
+        85,
         PARAM_INT
     ));
 }

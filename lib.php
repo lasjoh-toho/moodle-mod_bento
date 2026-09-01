@@ -342,6 +342,8 @@ function bento_moodle_config_meta(int $cmid, int $deckid = 0, array $playlistdec
         'sesskey' => sesskey(),
         'wwwroot' => $CFG->wwwroot,
         'savetimeout' => (int) (get_config('mod_bento', 'savetimeout') ?: 600),
+        'imagemaxdim' => (int) (get_config('mod_bento', 'imagemaxdim') ?: 1920),
+        'imagequality' => (int) (get_config('mod_bento', 'imagequality') ?: 85),
     ];
     if ($deckid > 0) {
         $moodleconfig['deckid'] = $deckid;
