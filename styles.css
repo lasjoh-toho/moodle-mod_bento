@@ -351,6 +351,17 @@
   padding: 2px 6px;
 }
 .mod-bento-item-split:hover { color: #a374a0; }
+.mod-bento-item-shrink {
+  border: none;
+  background: transparent;
+  color: #6b7280;
+  cursor: pointer;
+  font-size: 16px;
+  line-height: 1;
+  padding: 2px 6px;
+}
+.mod-bento-item-shrink:hover { color: #a374a0; }
+.mod-bento-item-shrink:disabled { opacity: 0.5; cursor: default; }
 .mod-bento-item-edit {
   position: relative;
   overflow: hidden;
@@ -447,6 +458,59 @@
   box-shadow: 0 12px 40px rgba(0,0,0,.3);
 }
 .mod-bento-modal-box h3 { margin: 0 0 6px; }
+.mod-bento-shrink-settings {
+  display: flex;
+  gap: 18px;
+  margin: 12px 0;
+}
+.mod-bento-shrink-settings label {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  font-size: 0.82rem;
+  color: #4b5563;
+}
+.mod-bento-shrink-settings input[type="number"] {
+  width: 90px;
+  padding: 5px 8px;
+  border: 1px solid #d1d5db;
+  border-radius: 6px;
+  font-size: 0.88rem;
+}
+.mod-bento-shrink-dupes {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 0.85rem;
+  color: #8a6d55;
+  background: rgba(192, 129, 43, 0.1);
+  border-radius: 8px;
+  padding: 8px 12px;
+  margin-bottom: 10px;
+}
+.mod-bento-shrink-list { margin: 14px 0; display: flex; flex-direction: column; gap: 6px; max-height: 320px; overflow-y: auto; }
+.mod-bento-shrink-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 6px 10px;
+  border: 1px solid #dfe3e8;
+  border-radius: 8px;
+  background: #f9fafb;
+  font-size: 0.85rem;
+  color: #1f2937;
+}
+.mod-bento-shrink-thumb {
+  flex: none;
+  width: 48px;
+  height: 48px;
+  object-fit: cover;
+  border-radius: 4px;
+  border: 1px solid #d1d5db;
+  background: #fff;
+}
+.mod-bento-shrink-size { margin-left: auto; font-variant-numeric: tabular-nums; color: #6b7280; }
+
 .mod-bento-split-list { margin: 14px 0; }
 .mod-bento-split-row {
   display: flex;
@@ -533,6 +597,8 @@
   .mod-bento-split-thumb { border-color: #3d4455; background: #12151c; }
   .mod-bento-split-break { border-color: #4a5568; color: #9db4d6; }
   .mod-bento-split-break.active { background: #ff9e5e; border-color: #ff9e5e; color: #241205; }
+  .mod-bento-shrink-row { background: #2a3040; border-color: #3d4455; color: #e5e7eb; }
+  .mod-bento-shrink-thumb { border-color: #3d4455; background: #12151c; }
 }
 .darkmode .mod-bento-modal-box,
 body.dark .mod-bento-modal-box {
@@ -546,5 +612,9 @@ body.dark .mod-bento-split-row { background: #2a3040; border-color: #3d4455; col
 body.dark .mod-bento-split-thumb { border-color: #3d4455; background: #12151c; }
 .darkmode .mod-bento-split-break,
 body.dark .mod-bento-split-break { border-color: #4a5568; color: #9db4d6; }
+.darkmode .mod-bento-shrink-row,
+body.dark .mod-bento-shrink-row { background: #2a3040; border-color: #3d4455; color: #e5e7eb; }
+.darkmode .mod-bento-shrink-thumb,
+body.dark .mod-bento-shrink-thumb { border-color: #3d4455; background: #12151c; }
 .darkmode .mod-bento-split-break.active,
 body.dark .mod-bento-split-break.active { background: #ff9e5e; border-color: #ff9e5e; color: #241205; }

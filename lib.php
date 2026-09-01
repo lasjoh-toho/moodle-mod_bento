@@ -996,7 +996,7 @@ function bento_render_importer(string $existingjson, int $courseid, int $cmid, a
     }
 
     return '
-        <div class="mod-bento-importer" id="mod-bento-importer" data-courseid="' . $courseid . '" data-cmid="' . $cmid . '" data-candeck="1" data-termsagreed="' . (bento_has_agreed_current_terms((int) $USER->id) ? '1' : '0') . '" data-documentvisible="' . (int) $documentvisible . '" data-savetimeout="' . (int) (get_config('mod_bento', 'savetimeout') ?: 600) . '" data-maxbytes="' . $maxbytes . '">
+        <div class="mod-bento-importer" id="mod-bento-importer" data-courseid="' . $courseid . '" data-cmid="' . $cmid . '" data-candeck="1" data-termsagreed="' . (bento_has_agreed_current_terms((int) $USER->id) ? '1' : '0') . '" data-documentvisible="' . (int) $documentvisible . '" data-savetimeout="' . (int) (get_config('mod_bento', 'savetimeout') ?: 600) . '" data-maxbytes="' . $maxbytes . '" data-imagemaxdim="' . (int) (get_config('mod_bento', 'imagemaxdim') ?: 1920) . '" data-imagequality="' . (int) (get_config('mod_bento', 'imagequality') ?: 85) . '">
             ' . $seed . $deckseed . '
             <div class="mod-bento-tiles has-paste' . ($isrealdoc ? ' has-edit' : '') . '">
                 <button type="button" class="mod-bento-tile mod-bento-tile-new" id="mod-bento-newbtn" data-hasdoc="' . ($isrealdoc ? '1' : '0') . '">

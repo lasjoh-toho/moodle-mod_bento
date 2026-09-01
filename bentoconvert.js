@@ -849,6 +849,25 @@ function bentoBuildSplitDoc(doc, startIdx, endIdx) {
   return part;
 }
 
+/** Walks an arbitrary doc/slide/element subtree, replacing any
+ *  "asset:<oldKey>" string reference found in keyMap with
+ *  "asset:<keyMap[oldKey]>" — used wherever asset keys get renamed or
+ *  merged onto an existing key (mergeDocs' own dedup-by-content below, and
+ *  the shrink-assets modal's own duplicate removal). */
+function bentoRemapAssetRefs(node, keyMap) {
+  if (typeof node === 'string') {
+    var m = /^asset:(.+)$/.exec(node);
+    return (m && keyMap[m[1]]) ? 'asset:' + keyMap[m[1]] : node;
+  }
+  if (Array.isArray(node)) return node.map(function (n) { return bentoRemapAssetRefs(n, keyMap); });
+  if (node && typeof node === 'object') {
+    var out = {};
+    for (var k in node) out[k] = bentoRemapAssetRefs(node[k], keyMap);
+    return out;
+  }
+  return node;
+}
+
 function mergeDocs(docA, docB){
   const merged = JSON.parse(JSON.stringify(docA));
   merged.assets = merged.assets || {};
@@ -889,19 +908,7 @@ function mergeDocs(docA, docB){
     usedIds.add(newId);
     idMap[slide.id] = newId;
   }
-  const remapAssetRefs = (node) => {
-    if (typeof node === 'string'){
-      const m = /^asset:(.+)$/.exec(node);
-      return (m && keyMap[m[1]]) ? 'asset:' + keyMap[m[1]] : node;
-    }
-    if (Array.isArray(node)) return node.map(remapAssetRefs);
-    if (node && typeof node === 'object'){
-      const out = {};
-      for (const k in node) out[k] = remapAssetRefs(node[k]);
-      return out;
-    }
-    return node;
-  };
+  const remapAssetRefs = (node) => bentoRemapAssetRefs(node, keyMap);
   for (const slide of slidesB){
     slide.id = idMap[slide.id] || slide.id;
     if (slide.stateOf && idMap[slide.stateOf]) slide.stateOf = idMap[slide.stateOf];
@@ -938,6 +945,16 @@ function mergeDocs(docA, docB){
       var el = document.getElementById('mod-bento-importer');
       var v = el && parseInt(el.dataset.maxbytes, 10);
       return (v && v > 0) ? v : 20 * 1024 * 1024;
+    })();
+    var bentoImageMaxDim = (function () {
+      var el = document.getElementById('mod-bento-importer');
+      var v = el && parseInt(el.dataset.imagemaxdim, 10);
+      return (v && v > 0) ? v : 1920;
+    })();
+    var bentoImageQuality = (function () {
+      var el = document.getElementById('mod-bento-importer');
+      var v = el && parseInt(el.dataset.imagequality, 10);
+      return (v && v > 0) ? v / 100 : 0.85;
     })();
     // Mutable (not const) — updated in place whenever the eye-icon toggle
     // below actually succeeds, so re-rendering the cards afterward shows
@@ -1311,6 +1328,114 @@ function mergeDocs(docA, docB){
       });
     }
 
+    function openShrinkAssetsModal(it) {
+      var assets = it.doc.assets || {};
+      var imageEntries = Object.keys(assets)
+        .map(function (key) { return { key: key, value: assets[key], bytes: bentoDataUriByteSize(assets[key]) }; })
+        .filter(function (e) { return e.value.indexOf('data:image/') === 0; })
+        .sort(function (a, b) { return b.bytes - a.bytes; });
+
+      if (imageEntries.length === 0) {
+        alert('Keine eingebetteten Bilder in dieser Präsentation.');
+        return;
+      }
+
+      // Duplicate detection: identical data URI VALUE under different keys
+      // — the simplest, unambiguous definition (near-duplicates, e.g. the
+      // same photo resaved at a different size, are deliberately NOT
+      // caught here to avoid a false-positive removal of two genuinely
+      // different images).
+      var byValue = {};
+      imageEntries.forEach(function (e) { (byValue[e.value] = byValue[e.value] || []).push(e.key); });
+      var dupCount = 0;
+      Object.keys(byValue).forEach(function (v) { if (byValue[v].length > 1) dupCount += byValue[v].length - 1; });
+
+      var overlay = document.createElement('div');
+      overlay.className = 'mod-bento-modal-overlay';
+      var box = document.createElement('div');
+      box.className = 'mod-bento-modal-box';
+      box.innerHTML =
+        '<h3>Medien verkleinern</h3>' +
+        '<p class="form-text text-muted">Ausgewählte Bilder werden auf die angegebene Kantenlänge verkleinert und neu komprimiert (PNG bleibt PNG, alles andere wird JPEG).</p>' +
+        '<div class="mod-bento-shrink-settings">' +
+          '<label>Max. Kantenlänge (px)<input type="number" class="mod-bento-shrink-maxdim" min="200" max="8000" value="' + bentoImageMaxDim + '"></label>' +
+          '<label>Qualität (%)<input type="number" class="mod-bento-shrink-quality" min="10" max="100" value="' + Math.round(bentoImageQuality * 100) + '"></label>' +
+        '</div>' +
+        (dupCount > 0
+          ? '<label class="mod-bento-shrink-dupes"><input type="checkbox" class="mod-bento-shrink-dedupe" checked> ' + dupCount + ' doppelte Bilder gefunden — entfernen</label>'
+          : '') +
+        '<div class="mod-bento-shrink-list"></div>' +
+        '<div class="mod-bento-split-actions">' +
+          '<button type="button" class="btn btn-secondary mod-bento-shrink-cancel">Abbrechen</button>' +
+          '<button type="button" class="btn btn-primary mod-bento-shrink-confirm">Anwenden</button>' +
+        '</div>';
+      overlay.appendChild(box);
+      document.body.appendChild(overlay);
+
+      var listEl = box.querySelector('.mod-bento-shrink-list');
+      var maxDimInput = box.querySelector('.mod-bento-shrink-maxdim');
+      var qualityInput = box.querySelector('.mod-bento-shrink-quality');
+      var dedupeCb = box.querySelector('.mod-bento-shrink-dedupe');
+      var rows = [];
+      imageEntries.forEach(function (e) {
+        var row = document.createElement('div');
+        row.className = 'mod-bento-shrink-row';
+        var cb = document.createElement('input');
+        cb.type = 'checkbox';
+        cb.checked = true;
+        row.appendChild(cb);
+        var thumb = document.createElement('img');
+        thumb.className = 'mod-bento-shrink-thumb';
+        thumb.src = e.value;
+        thumb.loading = 'lazy';
+        row.appendChild(thumb);
+        var sizeEl = document.createElement('span');
+        sizeEl.className = 'mod-bento-shrink-size';
+        sizeEl.textContent = bentoFormatBytes(e.bytes);
+        row.appendChild(sizeEl);
+        listEl.appendChild(row);
+        rows.push({ entry: e, checkbox: cb });
+      });
+
+      function close() { overlay.remove(); }
+      box.querySelector('.mod-bento-shrink-cancel').addEventListener('click', close);
+      overlay.addEventListener('click', function (e) { if (e.target === overlay) close(); });
+
+      var confirmBtn = box.querySelector('.mod-bento-shrink-confirm');
+      confirmBtn.addEventListener('click', function () {
+        confirmBtn.disabled = true;
+        confirmBtn.textContent = 'Wird verarbeitet…';
+        var maxDim = parseInt(maxDimInput.value, 10) || bentoImageMaxDim;
+        var quality = (parseInt(qualityInput.value, 10) || Math.round(bentoImageQuality * 100)) / 100;
+        var toShrink = rows.filter(function (r) { return r.checkbox.checked; });
+        Promise.all(toShrink.map(function (r) {
+          return bentoDownscaleImageDataUrl(r.entry.value, maxDim, quality).then(function (shrunk) {
+            it.doc.assets[r.entry.key] = shrunk;
+          });
+        })).then(function () {
+          if (dedupeCb && dedupeCb.checked) {
+            var byValue2 = {};
+            var keyMap = {};
+            Object.keys(it.doc.assets).forEach(function (key) {
+              var val = it.doc.assets[key];
+              if (Object.prototype.hasOwnProperty.call(byValue2, val)) keyMap[key] = byValue2[val];
+              else byValue2[val] = key;
+            });
+            Object.keys(keyMap).forEach(function (oldKey) { delete it.doc.assets[oldKey]; });
+            it.doc.slides = bentoRemapAssetRefs(it.doc.slides, keyMap);
+            if (it.doc.fonts) {
+              it.doc.fonts = it.doc.fonts.map(function (f) {
+                return keyMap[f.asset] ? Object.assign({}, f, { asset: keyMap[f.asset] }) : f;
+              });
+            }
+          }
+          close();
+          renderItems();
+          toastMsg('Medien verkleinert — noch nicht gespeichert.');
+        });
+      });
+    }
+
     if (existingScript) {
       try {
         var existingDoc = JSON.parse(existingScript.textContent);
@@ -1429,6 +1554,45 @@ function escapeHtml(s) {
       return Math.round(bytes / 1024) + ' KB';
     }
 
+    /** Must match bento/slides/src/model.ts's own dataUriByteSize() exactly
+     *  — real decoded byte size (base64's ~4/3 expansion + padding), not
+     *  the raw string length. */
+    function bentoDataUriByteSize(dataUri) {
+      var comma = dataUri.indexOf(',');
+      if (comma < 0) return dataUri.length;
+      var payload = dataUri.slice(comma + 1);
+      if (!/;base64$/.test(dataUri.slice(0, comma))) return payload.length;
+      var padding = payload.slice(-2) === '==' ? 2 : payload.slice(-1) === '=' ? 1 : 0;
+      return Math.floor((payload.length * 3) / 4) - padding;
+    }
+
+    /** Must match bento/slides/src/model.ts's own downscaleImageDataUrl()
+     *  exactly — see that function's own doc comment for the reasoning
+     *  (PNG stays PNG for transparency, everything else becomes JPEG;
+     *  resolves to the original unchanged if already small enough or on
+     *  any decode failure). Duplicated here rather than shared since this
+     *  file is plain JS with no build step / no access to bento's own TS
+     *  modules — this codebase's own README explains why. */
+    function bentoDownscaleImageDataUrl(dataUrl, maxDim, quality) {
+      return new Promise(function (resolve) {
+        var img = new Image();
+        img.onload = function () {
+          var scale = Math.min(1, maxDim / Math.max(img.naturalWidth, img.naturalHeight));
+          if (scale >= 1) { resolve(dataUrl); return; }
+          var canvas = document.createElement('canvas');
+          canvas.width = Math.round(img.naturalWidth * scale);
+          canvas.height = Math.round(img.naturalHeight * scale);
+          var ctx = canvas.getContext('2d');
+          if (!ctx) { resolve(dataUrl); return; }
+          ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+          var isPng = dataUrl.indexOf('data:image/png') === 0;
+          resolve(canvas.toDataURL(isPng ? 'image/png' : 'image/jpeg', quality));
+        };
+        img.onerror = function () { resolve(dataUrl); };
+        img.src = dataUrl;
+      });
+    }
+
     function buildItemCard(it) {
       var card = document.createElement('div');
       var isTop = items[0] === it;
@@ -1471,6 +1635,7 @@ function escapeHtml(s) {
         '<button type="button" class="mod-bento-item-play" title="Präsentation starten (kann danach bearbeitet werden)"><span class="mod-bento-item-save-progress"></span><span>▶</span></button>' +
         '<button type="button" class="mod-bento-item-download" title="Als .bento.html herunterladen">&#8681;</button>' +
         (it.slideCount > 1 ? '<button type="button" class="mod-bento-item-split" title="In mehrere Teile aufteilen"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="6" cy="6" r="3"/><circle cx="6" cy="18" r="3"/><line x1="20" y1="4" x2="8.12" y2="15.88"/><line x1="14.47" y1="14.48" x2="20" y2="20"/><line x1="8.12" y1="8.12" x2="12" y2="12"/></svg></button>' : '') +
+        '<button type="button" class="mod-bento-item-shrink" title="Medien verkleinern">\u{1F5DC}</button>' +
         '<button type="button" class="mod-bento-item-remove" title="Entfernen">✕</button>';
 
       card.querySelector('.mod-bento-item-remove').addEventListener('click', function () {
@@ -1686,6 +1851,20 @@ function escapeHtml(s) {
           }).catch(function (e) {
             console.error(e);
             splitBtn.disabled = false;
+            alert('Konnte die Präsentation nicht laden: ' + (e.message || e));
+          });
+        });
+      }
+      var shrinkBtn = card.querySelector('.mod-bento-item-shrink');
+      if (shrinkBtn) {
+        shrinkBtn.addEventListener('click', function () {
+          shrinkBtn.disabled = true;
+          ensureDocLoaded(it).then(function () {
+            shrinkBtn.disabled = false;
+            openShrinkAssetsModal(it);
+          }).catch(function (e) {
+            console.error(e);
+            shrinkBtn.disabled = false;
             alert('Konnte die Präsentation nicht laden: ' + (e.message || e));
           });
         });
