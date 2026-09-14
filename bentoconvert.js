@@ -1237,6 +1237,7 @@ function mergeDocs(docA, docB){
     function openSplitModal(it) {
       var slides = it.doc.slides || [];
       var breakAfter = new Array(slides.length - 1).fill(false); // breakAfter[i] = true means a new part starts after slide i
+      var customNames = []; // index = part number (0-based) -> user-typed name, if any
 
       var overlay = document.createElement('div');
       overlay.className = 'mod-bento-modal-overlay';
@@ -1247,6 +1248,7 @@ function mergeDocs(docA, docB){
         '<p class="form-text text-muted">Zwischen zwei Folien klicken, um dort eine Trennung einzufügen. Jeder entstehende Teil bekommt nur die Assets, die seine eigenen Folien tatsächlich verwenden.</p>' +
         '<button type="button" class="btn btn-secondary mod-bento-split-load-all">Alle Thumbnails öffnen</button>' +
         '<div class="mod-bento-split-list"></div>' +
+        '<div class="mod-bento-split-names"></div>' +
         '<div class="mod-bento-split-actions">' +
           '<button type="button" class="btn btn-secondary mod-bento-split-cancel">Abbrechen</button>' +
           '<button type="button" class="btn btn-primary mod-bento-split-confirm">Aufteilen</button>' +
@@ -1255,14 +1257,46 @@ function mergeDocs(docA, docB){
       document.body.appendChild(overlay);
 
       var listEl = box.querySelector('.mod-bento-split-list');
+      var namesEl = box.querySelector('.mod-bento-split-names');
       var confirmBtn = box.querySelector('.mod-bento-split-confirm');
       var breakBtns = [];
       var thumbLoaders = [];
+
+      function computeGroups() {
+        var groups = [];
+        var current = [];
+        slides.forEach(function (_, idx) {
+          current.push(idx);
+          if (breakAfter[idx]) { groups.push(current); current = []; }
+        });
+        if (current.length) groups.push(current);
+        return groups;
+      }
+
+      function renderNameInputs() {
+        var groups = computeGroups();
+        namesEl.innerHTML = '';
+        if (groups.length <= 1) return; // nothing to name yet — no split defined
+        groups.forEach(function (g, partNum) {
+          var row = document.createElement('label');
+          row.className = 'mod-bento-split-name-row';
+          var span = document.createElement('span');
+          span.textContent = 'Teil ' + (partNum + 1) + ' (' + g.length + ' Folie' + (g.length === 1 ? '' : 'n') + ')';
+          var input = document.createElement('input');
+          input.type = 'text';
+          input.className = 'mod-bento-split-name-input';
+          input.value = customNames[partNum] || ((it.doc.title || 'Deck') + ' — Teil ' + (partNum + 1));
+          input.addEventListener('input', function () { customNames[partNum] = input.value; });
+          row.append(span, input);
+          namesEl.appendChild(row);
+        });
+      }
 
       function updateConfirmState() {
         var partCount = breakAfter.filter(Boolean).length + 1;
         confirmBtn.textContent = partCount > 1 ? ('In ' + partCount + ' Teile aufteilen') : 'Keine Trennung gewählt';
         confirmBtn.disabled = partCount <= 1;
+        renderNameInputs();
       }
 
       // Built ONCE — each thumbnail is a real iframe render, expensive
@@ -1306,19 +1340,14 @@ function mergeDocs(docA, docB){
       box.querySelector('.mod-bento-split-cancel').addEventListener('click', close);
       overlay.addEventListener('click', function (e) { if (e.target === overlay) close(); });
       confirmBtn.addEventListener('click', function () {
-        var groups = [];
-        var current = [];
-        slides.forEach(function (_, idx) {
-          current.push(idx);
-          if (breakAfter[idx]) { groups.push(current); current = []; }
-        });
-        if (current.length) groups.push(current);
+        var groups = computeGroups();
         var i = items.indexOf(it);
         var newItems = groups.map(function (g, partNum) {
           var partDoc = bentoBuildSplitDoc(it.doc, g[0], g[g.length - 1] + 1);
-          partDoc.title = (it.doc.title || 'Deck') + ' — Teil ' + (partNum + 1);
+          var name = (customNames[partNum] || '').trim() || ((it.doc.title || 'Deck') + ' — Teil ' + (partNum + 1));
+          partDoc.title = name;
           partDoc.docId = (crypto.randomUUID ? crypto.randomUUID() : 'part-' + Date.now() + '-' + partNum);
-          return { baseName: partDoc.title, doc: partDoc, slideCount: partDoc.slides.length, warnings: [], existing: false, deckid: 0, visible: 0 };
+          return { baseName: name, doc: partDoc, slideCount: partDoc.slides.length, warnings: [], existing: false, deckid: 0, visible: 0 };
         });
         if (i >= 0) items.splice.apply(items, [i, 1].concat(newItems));
         else items.push.apply(items, newItems);

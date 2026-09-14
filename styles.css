@@ -583,6 +583,10 @@
 }
 .mod-bento-split-break.active { border-style: solid; background: #ff9e5e; border-color: #ff9e5e; color: #241205; font-weight: 600; }
 .mod-bento-split-actions { display: flex; justify-content: flex-end; gap: 10px; margin-top: 12px; }
+.mod-bento-split-names { display: flex; flex-direction: column; gap: 8px; margin-top: 14px; }
+.mod-bento-split-name-row { display: flex; align-items: center; gap: 10px; font-size: 0.82rem; color: #4b5563; }
+.mod-bento-split-name-row span { flex: none; width: 130px; }
+.mod-bento-split-name-input { flex: 1; padding: 5px 8px; border: 1px solid #d1d5db; border-radius: 6px; font-size: 0.85rem; }
 
 /* Dark mode for the split modal — prefers-color-scheme (OS/browser level,
    theme-independent) plus common Moodle dark-mode toggle class names, since
