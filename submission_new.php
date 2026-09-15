@@ -76,7 +76,7 @@ $PAGE->requires->js(new moodle_url('/mod/bento/bentoconvert.js'));
 $PAGE->requires->strings_for_js([
     'pastetile', 'pastetilesub', 'pastestep1title', 'pastestep1desc', 'pastecatcherplaceholder',
     'pastestep2title', 'pastestep2desc', 'pasteviewtoggle', 'pastectxendslide', 'pastectxtogglemode',
-    'pastegeneratebtn', 'newtile', 'newtilesub', 'playtile', 'playtilesub',
+    'pastegeneratebtn', 'pastetitlelabel', 'pastetitleplaceholder', 'newtile', 'newtilesub', 'playtile', 'playtilesub',
 ], 'mod_bento');
 $PAGE->requires->js(new moodle_url('/mod/bento/bentopaste.js'));
 

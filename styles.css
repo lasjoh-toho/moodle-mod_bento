@@ -115,6 +115,9 @@
 }
 .mod-bento-paste-catcher:focus { border-color: #ff9e5e; }
 .mod-bento-paste-step2head { display: flex; align-items: flex-start; justify-content: space-between; gap: 16px; }
+.mod-bento-paste-step2info { cursor: help; color: #8a94a3; font-size: 1rem; }
+.mod-bento-paste-titlerow { display: block; margin-top: 8px; font-size: 0.85rem; color: #4b5563; }
+.mod-bento-paste-title { font: inherit; font-size: 0.95rem; font-weight: 600; padding: 5px 8px; border: 1px solid #d1d5db; border-radius: 6px; width: 260px; max-width: 100%; }
 .mod-bento-paste-viewtoggle {
   flex: none; font-size: 12px; font-weight: 700; padding: 7px 14px; border-radius: 999px;
   border: 1px solid #c7ccd6; background: #fff; cursor: pointer; white-space: nowrap;
@@ -254,6 +257,9 @@
 .mod-bento-item-name em { font-weight: 400; color: #5c3d26; font-style: normal; }
 .mod-bento-item-name-clickable { cursor: pointer; }
 .mod-bento-item-name-clickable:hover { color: #ff9e5e; text-decoration: underline; }
+.mod-bento-item-title { cursor: text; }
+.mod-bento-item-title:hover { text-decoration: underline dotted; }
+.mod-bento-item-title-input { font: inherit; font-weight: 600; width: 100%; padding: 1px 4px; border: 1px solid #ff9e5e; border-radius: 4px; }
 .mod-bento-item-eye {
   display: inline-flex;
   align-items: center;

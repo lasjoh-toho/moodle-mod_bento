@@ -1652,7 +1652,7 @@ function escapeHtml(s) {
         '<div class="mod-bento-item-info">' +
           '<div class="mod-bento-item-name">' +
             '<button type="button" class="mod-bento-item-eye' + (visState ? ' open' : '') + '" title="' + eyeTitle + '">' + eyeSvg + '</button> ' +
-            escapeHtml((it.doc && it.doc.title) || it.title || it.baseName) +
+            '<span class="mod-bento-item-title" title="Doppelklick zum Umbenennen">' + escapeHtml((it.doc && it.doc.title) || it.title || it.baseName) + '</span>' +
             '</div>' +
           '<div class="mod-bento-item-meta' + (sizeWarnings.length ? ' mod-bento-item-meta-oversize' : '') + '">' + it.slideCount + ' Folie' + (it.slideCount === 1 ? '' : 'n') + ' · ' + bentoFormatBytes(byteSize) + '</div>' +
           (allWarnings.length ? '<ul class="mod-bento-item-warnings">' + allWarnings.map(function (w) { return '<li>' + escapeHtml(w) + '</li>'; }).join('') + '</ul>' : '') +
@@ -1750,6 +1750,57 @@ function escapeHtml(s) {
             if (e.message !== 'save already in flight') alert('Konnte die Sichtbarkeit nicht ändern: ' + (e.message || e));
             eyeBtn.disabled = false;
           });
+        });
+      }
+
+      var titleSpan = card.querySelector('.mod-bento-item-title')
+      if (titleSpan) {
+        titleSpan.addEventListener('click', function (ev) { ev.stopPropagation(); });
+        titleSpan.addEventListener('dblclick', function (ev) {
+          ev.stopPropagation();
+          var input = document.createElement('input');
+          input.type = 'text';
+          input.className = 'mod-bento-item-title-input';
+          input.value = (it.doc && it.doc.title) || it.title || it.baseName;
+          card.draggable = false;
+          titleSpan.replaceWith(input);
+          input.focus();
+          input.select();
+          var committing = false;
+          function commit(save) {
+            if (committing) return;
+            committing = true;
+            card.draggable = true;
+            var next = input.value.trim();
+            if (!save || !next) { renderItems(); return; }
+            it.title = next;
+            it.baseName = next;
+            if (!isPersisted) {
+              if (it.doc) it.doc.title = next;
+              renderItems();
+              return;
+            }
+            input.disabled = true;
+            bentoWithSaveLock(function () {
+              return ensureDocLoaded(it).then(function (doc) {
+                doc.title = next;
+                return it.existing
+                  ? saveDocToMoodle(bentoCmId, doc)
+                  : saveDeckToMoodle(bentoCmId, it.deckid, next, doc);
+              });
+            }).then(function () {
+              renderItems();
+            }).catch(function (e) {
+              console.error(e);
+              if (e.message !== 'save already in flight') alert('Konnte den Namen nicht speichern: ' + (e.message || e));
+              renderItems();
+            });
+          }
+          input.addEventListener('keydown', function (kev) {
+            if (kev.key === 'Enter') { kev.preventDefault(); commit(true); }
+            else if (kev.key === 'Escape') { kev.preventDefault(); commit(false); }
+          });
+          input.addEventListener('blur', function () { commit(true); });
         });
       }
 

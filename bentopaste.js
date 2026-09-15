@@ -51,8 +51,9 @@
       '  </div>' +
       '  <div class="mod-bento-paste-step2" style="display:none">' +
       '    <div class="mod-bento-paste-step2head">' +
-      '      <div><h3 style="display:inline">' + esc(t('pastestep2title')) + '</h3>' +
-      '        <p style="margin-bottom:8px">' + esc(t('pastestep2desc')) + '</p></div>' +
+      '      <div><h3 style="display:inline">' + esc(t('pastestep2title')) + '</h3> ' +
+      '        <span class="mod-bento-paste-step2info" title="' + esc(t('pastestep2desc')) + '">\u24D8</span>' +
+      '        <label class="mod-bento-paste-titlerow">' + esc(t('pastetitlelabel')) + ' <input type="text" class="mod-bento-paste-title" placeholder="' + esc(t('pastetitleplaceholder')) + '"></label></div>' +
       '      <button type="button" class="mod-bento-paste-viewtoggle">' + esc(t('pasteviewtoggle')) + '</button>' +
       '    </div>' +
       '    <div class="mod-bento-paste-doc" contenteditable="true"></div>' +
@@ -74,6 +75,7 @@
     var lrPreview = modal.querySelector('.mod-bento-paste-preview');
     var viewToggle = modal.querySelector('.mod-bento-paste-viewtoggle');
     var generateBtn = modal.querySelector('.mod-bento-paste-generatebtn');
+    var titleInput = modal.querySelector('.mod-bento-paste-title');
     var closeBtn = modal.querySelector('.mod-bento-paste-modal-close');
 
     function esc(s) {
@@ -102,6 +104,7 @@
       step2.style.display = 'none';
       pasteCatcher.textContent = t('pastecatcherplaceholder');
       pasteCatcher.dataset.filled = '0';
+      titleInput.value = '';
       modal.classList.add('show');
       pasteCatcher.focus();
     }
@@ -1184,9 +1187,11 @@
 
     generateBtn.addEventListener('click', function () {
       var doc = buildDocFromBlocks(parseDocToBlocks());
+      var name = titleInput.value.trim() || 'Eingefuegter-Text';
+      doc.title = name;
       if (window.bentoConvertApi && window.bentoConvertApi.addItem) {
         window.bentoConvertApi.addItem({
-          baseName: 'Eingefuegter-Text', doc: doc, slideCount: doc.slides.length, warnings: [], existing: false, deckid: 0,
+          baseName: name, doc: doc, slideCount: doc.slides.length, warnings: [], existing: false, deckid: 0,
         });
       }
       closeModal();
