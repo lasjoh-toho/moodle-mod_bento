@@ -35,6 +35,34 @@ shows up as a card too, so dropping in another file merges it with what's
 already there — same drag-to-reorder-then-✚-to-connect flow as the
 standalone tool.
 
+### What the PPTX import carries over
+
+- **Colours with PowerPoint's inheritance**: text sizes/colours/fonts/bullets
+  from the slide master and layout (`txStyles`, placeholder `lstStyle`s, the
+  presentation's default text style), the master's colour map (dark
+  templates keep light text), theme shape styles (`fillRef`/`lnRef`,
+  including their gradients), alpha, and shade/tint in linear light.
+  Deviating runs keep their own colour/size/font as inline spans.
+- **Backgrounds** from slide → layout → master (solid, gradient, picture),
+  plus the master's and layout's own artwork (logos, bands).
+- **Click animations**: entrance effects of the main sequence become Bento
+  reveal steps (`fx.step`, with fade/fly-in direction and duration);
+  bullet-by-bullet builds split the text box into one element per
+  paragraph. Emphasis/exit/path animations are dropped (with a warning).
+- **Transitions** (fade / push-like → slide / zoom / **morph**, with
+  PowerPoint's name-based morph pairing), **speaker notes**, hidden slides.
+- **Charts** (bar/column, line, area, pie, doughnut, scatter) with their
+  cached data, series colours, % formats and title; a chart's **data table**
+  becomes a Bento table live-linked to the chart.
+- **Tables** with column widths, header/banding from the table style, cell
+  fills and text styling.
+- **Pictures** with crop and **alt text** (`descr`, falling back to the
+  title; decorative pictures stay empty), SmartArt (via its pre-drawn
+  shapes), lines/connectors with arrowheads.
+
+The standalone converter (`bento-moodle-tools/template.html`) has not been
+updated to this level yet.
+
 ## Student submissions (optional)
 
 Off by default — the activity works exactly like v1 (one teacher-authored

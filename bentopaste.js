@@ -272,8 +272,12 @@
           if (tag === 'img') {
             var src = node.getAttribute('src');
             if (!src) return;
+            // The source page's alternative text travels with the image all
+            // the way into the deck (image element `alt` → <img alt>), so a
+            // screen reader still describes it on the slide.
+            var alt = (node.getAttribute('alt') || '').replace(/\s+/g, ' ').trim();
             slots.push(tryFetchImageAsDataUrl(src).then(function (dataUrl) {
-              return dataUrl ? { kind: 'image', dataUrl: dataUrl, sourceUrl: src, retrievedAt: new Date().toISOString().slice(0, 10) } : null;
+              return dataUrl ? { kind: 'image', dataUrl: dataUrl, sourceUrl: src, retrievedAt: new Date().toISOString().slice(0, 10), alt: alt } : null;
             }));
             return;
           }
@@ -398,6 +402,7 @@
           img.dataset.mbp = 'image';
           if (b.sourceUrl) img.dataset.sourceUrl = b.sourceUrl;
           if (b.retrievedAt) img.dataset.retrievedAt = b.retrievedAt;
+          if (b.alt) { img.alt = b.alt; img.title = 'Alternativtext: ' + b.alt; }
           lrDoc.appendChild(img);
         } else if (b.html) {
           var p = document.createElement('p');
@@ -1037,7 +1042,7 @@
           blocks.push({
             kind: 'image', dataUrl: node.getAttribute('src'), slideBreakBefore: pendingBreak,
             sourceUrl: node.dataset.sourceUrl, retrievedAt: node.dataset.retrievedAt,
-            captionText: node.dataset.captionText,
+            captionText: node.dataset.captionText, alt: node.getAttribute('alt') || '',
           });
           pendingBreak = false;
         } else {
@@ -1083,6 +1088,7 @@
           var img = document.createElement('img');
           img.src = b.dataUrl;
           img.style.cssText = 'max-width:100%;max-height:120px;border-radius:6px;margin-bottom:6px';
+          if (b.alt) { img.alt = b.alt; img.title = 'Alternativtext: ' + b.alt; }
           s.appendChild(img);
         } else {
           var p = document.createElement('p');
@@ -1154,6 +1160,7 @@
             id: uuid(), type: 'image', x: 240, y: 160, w: 800, h: 450, rotation: 0, opacity: 1,
             src: internImage(block.dataUrl), fit: 'contain', radius: 0,
           };
+          if (block.alt) imageEl.alt = block.alt;
           // Only ever set when this image actually came through a traceable
           // fetch (the proxy or a direct-CORS fetch) OR the teacher
           // explicitly assigned a caption via the merge tool — a directly-
