@@ -60,6 +60,23 @@ standalone tool.
   title; decorative pictures stay empty), SmartArt (via its pre-drawn
   shapes), lines/connectors with arrowheads.
 
+- **Freeforms** (`a:custGeom`, with guide formulas) become Bento path shapes.
+
+### Legacy `.ppt` (PowerPoint 97–2003)
+
+`.ppt` files are read directly in the browser too — `bentoconvert.js`
+contains a small OLE2/CFB reader and a parser for the binary PowerPoint
+records ([MS-PPT]/[MS-ODRAW]), mapped onto the same Bento elements as the
+PPTX path: texts with master text styles (colour scheme, sizes, bullets
+incl. Wingdings/Symbol characters, levels), shapes and freeforms, pictures
+(PNG/JPEG/BMP, crop, alt text), backgrounds (colour, gradient, picture),
+master artwork, click animations (both the PowerPoint 2002+ timeline and
+the 97-style AnimationInfo, incl. bullet-by-bullet builds), transitions,
+speaker notes and hidden slides. Not converted: WMF/EMF pictures and the
+charts of old files (MS Graph OLE objects with a WMF/EMF preview) — these
+become marked placeholders; tables of old files arrive as individual shapes.
+Password-protected files are refused with a message.
+
 The standalone converter (`bento-moodle-tools/template.html`) has not been
 updated to this level yet.
 
