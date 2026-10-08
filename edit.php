@@ -108,27 +108,20 @@ if ($shell === false) {
     throw new moodle_exception('shellmissing', 'mod_bento');
 }
 
-$jsonforembed = str_replace('<', '\u003c', $document);
-
-$html = preg_replace(
-    '/(<script[^>]*id=["\']bento-doc["\'][^>]*>)([\\s\\S]*?)(<\\/script>)/',
-    '$1' . str_replace('$', '\\\\$', $jsonforembed) . '$3',
-    $shell,
-    1
-);
+$html = bento_embed_document($shell, $document);
 
 $title = format_string($bento->name) . $ownerlabel;
 
 $configmeta = $pastdue ? '' : bento_moodle_config_meta((int) $cm->id, $deckid);
 
 $jstitle = json_encode($title . ' — Bearbeiten');
-$titlescript = '<script>document.title = ' . str_replace('$', '\\$', $jstitle) . ';</script>';
+$titlescript = '<script>document.title = ' . $jstitle . ';</script>';
 
-$html = preg_replace('/<head[^>]*>/', '$0' . $configmeta . $titlescript, $html, 1);
+$html = bento_inject_after_tag($html, '/<head[^>]*>/', $configmeta . $titlescript);
 
 if ($pastdue) {
     $banner = bento_deadline_passed_banner_html((int) $bento->duedate);
-    $html = preg_replace('/<body[^>]*>/', '$0' . str_replace('$', '\\$', $banner), $html, 1);
+    $html = bento_inject_after_tag($html, '/<body[^>]*>/', $banner);
 }
 
 // x is always a plain "back to course" (or the gallery, for whoever
@@ -142,7 +135,7 @@ $backtarget = $caneditmaster
     : new moodle_url('/mod/bento/view.php', ['id' => $cm->id]);
 $backlabel = $caneditmaster ? get_string('backtocourse', 'mod_bento') : get_string('backtogallery', 'mod_bento');
 $backlink = bento_toolbar_html($backtarget, $backlabel, (int) $cm->id, $caneditmaster);
-$html = preg_replace('/<body[^>]*>/', '$0' . str_replace('$', '\\$', $backlink), $html, 1);
+$html = bento_inject_after_tag($html, '/<body[^>]*>/', $backlink);
 
 header('Content-Type: text/html; charset=utf-8');
 header('X-Frame-Options: SAMEORIGIN');

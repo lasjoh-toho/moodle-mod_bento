@@ -93,23 +93,16 @@ if (!$isowner) {
     }
 }
 
-$jsonforembed = str_replace('<', '\u003c', $submission->document);
-
-$html = preg_replace(
-    '/(<script[^>]*id=["\']bento-doc["\'][^>]*>)([\s\S]*?)(<\/script>)/',
-    '$1' . str_replace('$', '\\$', $jsonforembed) . '$3',
-    $shell,
-    1
-);
+$html = bento_embed_document($shell, $submission->document);
 
 $owneruser = $DB->get_record('user', ['id' => $submission->userid], '*', MUST_EXIST);
 $title = format_string($bento->name) . ' — ' . fullname($owneruser);
 $bootstrap = '<script>location.hash = "present"; document.title = ' . json_encode($title) . ';</script>';
 $headinject = $isowner ? bento_moodle_config_meta((int) $cm->id) . $bootstrap : $bootstrap;
-$html = preg_replace('/<head[^>]*>/', '$0' . str_replace('$', '\\$', $headinject), $html, 1);
+$html = bento_inject_after_tag($html, '/<head[^>]*>/', $headinject);
 
 $backlink = bento_toolbar_html(new moodle_url('/mod/bento/view.php', ['id' => $cm->id]), get_string('backtogallery', 'mod_bento'), (int) $cm->id, false);
-$html = preg_replace('/<body[^>]*>/', '$0' . str_replace('$', '\\$', $backlink), $html, 1);
+$html = bento_inject_after_tag($html, '/<body[^>]*>/', $backlink);
 
 
 header('Content-Type: text/html; charset=utf-8');

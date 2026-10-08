@@ -128,14 +128,7 @@ if (!$bento->allowstudentsubmissions || $showmaster) {
         }
     }
 
-    $jsonforembed = str_replace('<', '\u003c', $bento->document);
-
-    $html = preg_replace(
-        '/(<script[^>]*id=["\']bento-doc["\'][^>]*>)([\s\S]*?)(<\/script>)/',
-        '$1' . str_replace('$', '\\$', $jsonforembed) . '$3',
-        $shell,
-        1
-    );
+    $html = bento_embed_document($shell, $bento->document);
 
     // Auto-launch present mode (main.ts already supports this — it checks
     // location.hash === '#present' once its bundle runs) and set the tab title.
@@ -146,7 +139,7 @@ if (!$bento->allowstudentsubmissions || $showmaster) {
     $bootstrap = '<script>location.hash = "present"; document.title = ' . json_encode($title) . ';</script>';
     $playlistdeckids = array_map(function ($d) { return (int) $d->id; }, $playlistdecks);
     $headinject = ($caneditmaster || $playlistdeckids) ? bento_moodle_config_meta((int) $cm->id, 0, $playlistdeckids) . $bootstrap : $bootstrap;
-    $html = preg_replace('/<head[^>]*>/', '$0' . str_replace('$', '\\$', $headinject), $html, 1);
+    $html = bento_inject_after_tag($html, '/<head[^>]*>/', $headinject);
 
     if ($showmaster) {
         $backtarget = new moodle_url('/mod/bento/view.php', ['id' => $cm->id]);
@@ -160,7 +153,7 @@ if (!$bento->allowstudentsubmissions || $showmaster) {
         $backlabel = get_string('backtocourse', 'mod_bento');
     }
     $backlink = bento_toolbar_html($backtarget, $backlabel, (int) $cm->id, $caneditmaster);
-    $html = preg_replace('/<body[^>]*>/', '$0' . str_replace('$', '\\$', $backlink), $html, 1);
+    $html = bento_inject_after_tag($html, '/<body[^>]*>/', $backlink);
 
     header('Content-Type: text/html; charset=utf-8');
     header('X-Frame-Options: SAMEORIGIN');

@@ -335,6 +335,47 @@ function bento_require_current_schema(): void {
  *   document", same as before this parameter existed.
  * @return string
  */
+/**
+ * Puts a document's JSON into the Bento shell's #bento-doc block.
+ *
+ * Done with a callback on purpose: in a preg_replace() REPLACEMENT string '$'
+ * and '\\' are syntax, so any deck whose text contained "$5" or a
+ * backslash came out as broken JSON — Bento then could not read it and
+ * opened its built-in demo deck instead. A callback's return value is
+ * inserted verbatim. '<' is escaped as \u003c so the JSON can never close
+ * the script element (the same rule as Bento's own save.ts).
+ *
+ * @param string $shell the Bento shell HTML
+ * @param string $json the bento/slides document JSON
+ * @return string the shell with the document embedded
+ */
+function bento_embed_document(string $shell, string $json): string {
+    $safe = str_replace('<', '\u003c', $json);
+    return preg_replace_callback(
+        '/(<script[^>]*id=["\']bento-doc["\'][^>]*>)([\s\S]*?)(<\/script>)/',
+        function (array $m) use ($safe): string {
+            return $m[1] . $safe . $m[3];
+        },
+        $shell,
+        1
+    );
+}
+
+/**
+ * Inserts an HTML snippet right after the first opening tag matching
+ * $tagregex (e.g. '/<head[^>]*>/'), verbatim — no replacement-string syntax.
+ *
+ * @param string $html the page
+ * @param string $tagregex a regex matching the opening tag
+ * @param string $snippet the HTML to insert
+ * @return string
+ */
+function bento_inject_after_tag(string $html, string $tagregex, string $snippet): string {
+    return preg_replace_callback($tagregex, function (array $m) use ($snippet): string {
+        return $m[0] . $snippet;
+    }, $html, 1);
+}
+
 function bento_moodle_config_meta(int $cmid, int $deckid = 0, array $playlistdeckids = []): string {
     global $CFG;
     $moodleconfig = [
@@ -355,11 +396,9 @@ function bento_moodle_config_meta(int $cmid, int $deckid = 0, array $playlistdec
     }
     // json_encode's default escaping already turns '<' into '\u003c' inside
     // string values — safe to drop straight into an HTML attribute — but the
-    // attribute itself still needs its own quotes escaped, and any literal
-    // '$' neutralised too: every caller drops this straight into a
-    // preg_replace() REPLACEMENT string, where '$' has its own special
-    // meaning (backreferences).
-    $configattr = str_replace('$', '\\$', htmlspecialchars(json_encode($moodleconfig), ENT_QUOTES, 'UTF-8'));
+    // attribute itself still needs its own quotes escaped. Callers insert it
+    // with bento_inject_after_tag(), which takes it verbatim.
+    $configattr = htmlspecialchars(json_encode($moodleconfig), ENT_QUOTES, 'UTF-8');
     return '<meta name="bento-moodle-config" content="' . $configattr . '">';
 }
 
