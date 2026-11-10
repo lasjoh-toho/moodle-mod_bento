@@ -2914,15 +2914,14 @@ async function convertPpt(file){
 
 // ---------------- Bento shell fetch + splice ----------------
 
-// Primary source: the base64 blob embedded above (#bento-shell-b64) — a self-built
-// v1.0.11 release of Bento_Slides.bento.html with an added image-crop feature
-// (see the "Crop image…" button this patch adds to the Image properties panel),
-// bundled 2026-08-01. This makes conversion work fully offline / independent of
-// bento.page uptime, and gives you crop even before it's upstreamed.
-// These URLs are only a fallback, used if the embedded copy is ever missing or
-// corrupt (e.g. someone stripped it while editing this file). They point at the
-// OFFICIAL nyblnet/bento build — no crop patch — so falling back here still works,
-// just without the "Crop image…" button until the embedded copy is restored.
+// Primary source: this plugin's OWN shell (asset/bento-shell.html, built from
+// the bento fork into every release — the same file view.php/edit.php embed
+// into), served by shell.php. Downloads and previews therefore carry exactly
+// the editor the activity itself runs. Before, nothing ever provided the
+// #bento-shell-b64 element below, so every download silently came from the
+// official bento.page build instead — without this fork's features.
+// The URLs are only a last resort if the plugin's shell can't be fetched;
+// they point at the OFFICIAL nyblnet/bento build.
 const SHELL_URLS = [
   'https://bento.page/releases/slides/Bento_Slides.bento.html',
   'https://bento.page/slides',
@@ -2949,14 +2948,19 @@ async function getShell(){
     }
   } catch(e){ console.warn('Eingebettete Bento-Hülle unlesbar, versuche Netzwerk:', e); }
 
-  // 2) Fallback — only reached if the bundled copy is missing or corrupt.
+  // 2) The plugin's own shell — what view.php/edit.php run.
+  const own = (typeof M !== 'undefined' && M.cfg && M.cfg.wwwroot)
+    ? [M.cfg.wwwroot + '/mod/bento/shell.php', M.cfg.wwwroot + '/mod/bento/asset/bento-shell.html'] : [];
+  // 3) Fallback — the official build, only if the plugin's shell is unreachable.
   let lastErr = null;
-  for (const url of SHELL_URLS){
+  for (const url of own.concat(SHELL_URLS)){
     try{
-      const res = await fetch(url, { mode: 'cors' });
+      const sameOrigin = own.indexOf(url) >= 0;
+      const res = await fetch(url, sameOrigin ? { credentials: 'same-origin', cache: 'no-cache' } : { mode: 'cors' });
       if (!res.ok) { lastErr = new Error('HTTP ' + res.status + ' von ' + url); continue; }
       const text = await res.text();
       if (!/id=["']bento-doc["']/.test(text)) { lastErr = new Error('Antwort von ' + url + ' enthält keinen bento-doc-Block'); continue; }
+      if (!sameOrigin) console.warn('mod_bento: Bento-Hülle des Plugins nicht erreichbar — verwende ' + url);
       shellCache = text;
       return text;
     } catch(e){ lastErr = e; }
@@ -4008,14 +4012,19 @@ function escapeHtml(s) {
        *  eye toggle's own save/promote elsewhere on the page). */
       var saveThenGoTo = function (btn, progressEl, hash) {
         var nowTop = items[0] === it;
+        // Open what the card IS — the main document (deckid 0) or its own
+        // deck row — never what its position suggests: when the main
+        // document is empty the first card is a deck, and opening "the top
+        // card" as the main document showed an empty presentation while
+        // the card (and its download) held the real one.
         var goTo = function (deckidForUrl) {
           var url = M.cfg.wwwroot + '/mod/bento/edit.php?id=' + bentoCmId
-            + (bentoCanDeck && !nowTop ? '&deckid=' + deckidForUrl : '')
+            + (bentoCanDeck && deckidForUrl > 0 ? '&deckid=' + deckidForUrl : '')
             + '&returnurl=' + encodeURIComponent(location.pathname + location.search + location.hash)
             + (hash ? '#' + hash : '');
           window.location.href = url;
         };
-        if (isPersisted) { btn.classList.add('mod-bento-btn-loading'); goTo(it.deckid); return; }
+        if (isPersisted) { btn.classList.add('mod-bento-btn-loading'); goTo(it.existing ? 0 : it.deckid); return; }
         // Not yet saved anywhere — save it first (transparently, the
         // button's own tooltip already says so), then open it for real.
         btn.disabled = true;

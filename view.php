@@ -105,7 +105,11 @@ if (!$bento->allowstudentsubmissions || $showmaster) {
 
     $startdeckid = 0; // 0 = bento.document itself starts the sequence
     $playlistdecks = $visibledecks;
-    if (!in_array((int) $bento->documentvisible, $visiblestatesforviewer, true)) {
+    $masterdocument = bento_get_document($context, (bool) $bento->documentinfilestore, $bento->id, $bento->document);
+    // An empty main document (the activity was filled only with separate
+    // presentations) never opens the sequence as a blank slide.
+    $masterblank = $visibledecks && bento_is_blank_document($masterdocument);
+    if ($masterblank || !in_array((int) $bento->documentvisible, $visiblestatesforviewer, true)) {
         // bento.document itself isn't visible to THIS viewer (checked
         // above — execution only reaches here because at least one
         // visible deck exists) — the first visible deck takes its place
@@ -118,7 +122,7 @@ if (!$bento->allowstudentsubmissions || $showmaster) {
         $startdeck = $DB->get_record('bento_decks', ['id' => $startdeckid], '*', MUST_EXIST);
         $bento->document = bento_get_document($context, (bool) $startdeck->documentinfilestore, $startdeck->id, $startdeck->document, BENTO_DECK_FILEAREA);
     } else {
-        $bento->document = bento_get_document($context, (bool) $bento->documentinfilestore, $bento->id, $bento->document);
+        $bento->document = $masterdocument;
     }
     if (!$caneditmaster) {
         $decoded = json_decode($bento->document, true);

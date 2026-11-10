@@ -151,6 +151,8 @@ edit.php                raw full-page: full editor, plus a <meta> tag telling Be
 grade.php               normal Moodle page: manual per-student grading
 index.php               standard course-level "list all instances" page
 asset/bento-shell.html  the actual Bento app (same file the standalone build produces)
+shell.php               serves asset/bento-shell.html to the card downloads/previews in bentoconvert.js,
+                          so a downloaded .bento.html carries the same editor as the activity
 db/install.xml          bento, bento_grades tables
 db/access.php           mod/bento:view, :edit, :grade, :addinstance
 db/services.php         mod_bento_save_document web service registration

@@ -260,6 +260,23 @@ function bento_validate_document(string $json): string {
 }
 
 /**
+ * True when $json holds no presentation worth showing: missing, unreadable,
+ * or just bento_blank_document()'s single empty slide. The same test
+ * bento_render_importer() uses to decide whether the main document gets a
+ * card of its own.
+ *
+ * @param string $json a stored document
+ * @return bool
+ */
+function bento_is_blank_document(string $json): bool {
+    $decoded = $json !== '' ? json_decode($json, true) : null;
+    return !is_array($decoded)
+        || ($decoded['format'] ?? null) !== 'bento/slides'
+        || empty($decoded['slides'])
+        || (count($decoded['slides']) === 1 && empty($decoded['slides'][0]['elements']));
+}
+
+/**
  * A minimal valid bento/slides document — one empty slide.
  *
  * @return string
