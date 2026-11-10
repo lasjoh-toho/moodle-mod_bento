@@ -80,6 +80,26 @@ Password-protected files are refused with a message.
 The standalone converter (`bento-moodle-tools/template.html`) has not been
 updated to this level yet.
 
+## Check and repair
+
+Every save keeps the version it replaces as a hidden backup next to the
+document in Moodle's file storage (`document.prev.json`, same filearea and
+itemid — never linked or served). An empty document never overwrites a
+backup that has content, so an accidental blank save cannot wipe the way
+back. Deleting a part deletes its backup too.
+
+`manage.php` runs a health check (`bento_health_issues()` in `lib.php`) and,
+only when something is wrong, shows a "Prüfen und reparieren" box above the
+cards, with one-click fixes handled by `repair.php`:
+
+- the same presentation stored more than once (identical slides, e.g. the
+  main document and a part) → keep one copy;
+- a document that is not a readable Bento deck → restore the previous
+  version, download the raw data, or delete/empty it;
+- an empty document whose previous version still has slides → restore it
+  (or discard the backup);
+- a document flagged as stored whose file is missing → repair.
+
 ## Student submissions (optional)
 
 Off by default — the activity works exactly like v1 (one teacher-authored
@@ -151,6 +171,7 @@ edit.php                raw full-page: full editor, plus a <meta> tag telling Be
 grade.php               normal Moodle page: manual per-student grading
 index.php               standard course-level "list all instances" page
 asset/bento-shell.html  the actual Bento app (same file the standalone build produces)
+repair.php              carries out the fixes offered by manage.php's health check
 shell.php               serves asset/bento-shell.html to the card downloads/previews in bentoconvert.js,
                           so a downloaded .bento.html carries the same editor as the activity
 db/install.xml          bento, bento_grades tables

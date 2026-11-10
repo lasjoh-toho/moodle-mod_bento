@@ -4433,7 +4433,11 @@ function escapeHtml(s) {
       newBtn.addEventListener('click', function () {
         if (newBtn.dataset.hasdoc === '1') {
           if (!items.length) return;
-          if (bentoCmId && items[0] === bentoOriginalMainDocItem) {
+          // A saved part on top (the main document is empty) is played as
+          // it is — view.php starts with it. Copying it into the main
+          // document, as this used to, left the same deck stored twice.
+          var topIsSavedDeck = bentoCmId && items[0].deckid > 0 && !items[0].existing;
+          if (bentoCmId && (items[0] === bentoOriginalMainDocItem || topIsSavedDeck)) {
             // Nothing changed since load — the server already has exactly
             // this content, so skip straight to navigating, synchronously,
             // right here in the click handler's own gesture context (see
@@ -4486,9 +4490,11 @@ function escapeHtml(s) {
     if (editBtn) {
       editBtn.addEventListener('click', function () {
         if (!items.length || !bentoCmId) return;
-        if (items[0] === bentoOriginalMainDocItem) {
+        var topDeckid = (items[0].deckid > 0 && !items[0].existing) ? items[0].deckid : 0;
+        if (items[0] === bentoOriginalMainDocItem || topDeckid) {
           editBtn.classList.add('mod-bento-tile-loading');
           window.location.href = M.cfg.wwwroot + '/mod/bento/edit.php?id=' + bentoCmId
+            + (topDeckid ? '&deckid=' + topDeckid : '')
             + '&returnurl=' + encodeURIComponent(location.pathname + location.search + location.hash);
           return;
         }

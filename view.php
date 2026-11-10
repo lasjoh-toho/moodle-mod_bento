@@ -109,7 +109,7 @@ if (!$bento->allowstudentsubmissions || $showmaster) {
     // An empty main document (the activity was filled only with separate
     // presentations) never opens the sequence as a blank slide.
     $masterblank = $visibledecks && bento_is_blank_document($masterdocument);
-    if ($masterblank || !in_array((int) $bento->documentvisible, $visiblestatesforviewer, true)) {
+    if ($visibledecks && ($masterblank || !in_array((int) $bento->documentvisible, $visiblestatesforviewer, true))) {
         // bento.document itself isn't visible to THIS viewer (checked
         // above — execution only reaches here because at least one
         // visible deck exists) — the first visible deck takes its place

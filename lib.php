@@ -857,6 +857,11 @@ define('BENTO_DECK_FILEAREA', 'deck');
  *  the filename, so this never needs to vary. */
 define('BENTO_DOCUMENT_FILENAME', 'document.json');
 
+/** The previous version of a document, kept by bento_put_document() so a bad
+ * save (an empty or wrong document written over a real one) can be undone
+ * from manage.php's health check. Same filearea and itemid as the document. */
+define('BENTO_DOCUMENT_BACKUP_FILENAME', 'document.prev.json');
+
 /**
  * Reads a row's current document content — from its file-storage entry if
  * `$infilestore` is set (the current, post-migration path every fresh save
@@ -915,18 +920,168 @@ function bento_get_document(context $context, bool $infilestore, int $itemid, ?s
  */
 function bento_put_document(context $context, int $itemid, string $content, string $filearea = BENTO_DOCUMENT_FILEAREA): void {
     $fs = get_file_storage();
-    $existing = $fs->get_file($context->id, BENTO_DOCUMENT_COMPONENT, $filearea, $itemid, '/', BENTO_DOCUMENT_FILENAME);
-    if ($existing) {
-        $existing->delete();
-    }
-    $fs->create_file_from_string([
+    $record = [
         'contextid' => $context->id,
         'component' => BENTO_DOCUMENT_COMPONENT,
         'filearea' => $filearea,
         'itemid' => $itemid,
         'filepath' => '/',
-        'filename' => BENTO_DOCUMENT_FILENAME,
-    ], $content);
+    ];
+    $existing = $fs->get_file($context->id, BENTO_DOCUMENT_COMPONENT, $filearea, $itemid, '/', BENTO_DOCUMENT_FILENAME);
+    if ($existing) {
+        // Keep what is being replaced as the backup — unless it is empty or
+        // identical: an empty deck must never push a real one out of the
+        // backup slot, and re-saving the same bytes would leave no way back.
+        if ($existing->get_contenthash() !== sha1($content)
+                && !($existing->get_filesize() < 4096 && bento_is_blank_document($existing->get_content()))) {
+            $oldbackup = $fs->get_file($context->id, BENTO_DOCUMENT_COMPONENT, $filearea, $itemid, '/', BENTO_DOCUMENT_BACKUP_FILENAME);
+            if ($oldbackup) {
+                $oldbackup->delete();
+            }
+            $fs->create_file_from_storedfile($record + ['filename' => BENTO_DOCUMENT_BACKUP_FILENAME], $existing);
+        }
+        $existing->delete();
+    }
+    $fs->create_file_from_string($record + ['filename' => BENTO_DOCUMENT_FILENAME], $content);
+}
+
+/**
+ * The backup bento_put_document() kept of a document, or null.
+ *
+ * @param context $context the module context
+ * @param int $itemid the row id
+ * @param string $filearea BENTO_DOCUMENT_FILEAREA, BENTO_DECK_FILEAREA or BENTO_SUBMISSION_FILEAREA
+ * @return stored_file|null
+ */
+function bento_get_document_backup(context $context, int $itemid, string $filearea = BENTO_DOCUMENT_FILEAREA): ?stored_file {
+    $file = get_file_storage()->get_file($context->id, BENTO_DOCUMENT_COMPONENT, $filearea, $itemid, '/', BENTO_DOCUMENT_BACKUP_FILENAME);
+    return $file ?: null;
+}
+
+/**
+ * Looks for states manage.php should offer to repair. Each issue carries the
+ * actions repair.php understands. Checks:
+ *  - a document whose file is flagged as stored but missing;
+ *  - a document that is not a readable bento/slides deck;
+ *  - an empty document with a non-empty backup (a real deck was overwritten);
+ *  - the same presentation stored twice (identical slides), e.g. the main
+ *    document and one of the parts.
+ *
+ * @param stdClass $bento the activity row
+ * @param context $context the module context
+ * @param array $decks bento_decks rows
+ * @return array list of ['level' => 'error'|'warning'|'info', 'text' => string, 'actions' => [[action, deckid, label, confirm?]]]
+ */
+function bento_health_issues(stdClass $bento, context $context, array $decks): array {
+    $fs = get_file_storage();
+    $issues = [];
+    $entries = [['deckid' => 0, 'row' => $bento, 'area' => BENTO_DOCUMENT_FILEAREA,
+        'name' => get_string('health_maindoc', 'mod_bento')]];
+    foreach ($decks as $deck) {
+        $entries[] = ['deckid' => (int) $deck->id, 'row' => $deck, 'area' => BENTO_DECK_FILEAREA,
+            'name' => get_string('health_deck', 'mod_bento', format_string($deck->name ?: get_string('untitleddraft', 'mod_bento')))];
+    }
+    $byslides = [];
+    foreach ($entries as $e) {
+        $row = $e['row'];
+        $deckid = $e['deckid'];
+        $a = (object) ['name' => $e['name']];
+        if (!empty($row->documentinfilestore)
+                && !$fs->get_file($context->id, BENTO_DOCUMENT_COMPONENT, $e['area'], $row->id, '/', BENTO_DOCUMENT_FILENAME)) {
+            $issues[] = ['level' => 'error', 'text' => get_string('health_missingfile', 'mod_bento', $a),
+                'actions' => [['fixfile', $deckid, get_string('health_fixfile', 'mod_bento')]]];
+        }
+        $json = bento_get_document($context, (bool) $row->documentinfilestore, $row->id, $row->document, $e['area']);
+        $decoded = $json !== '' ? json_decode($json, true) : null;
+        $backup = bento_get_document_backup($context, $row->id, $e['area']);
+        $backupinfo = null;
+        if ($backup) {
+            $bdecoded = json_decode($backup->get_content(), true);
+            if (bento_document_has_valid_structure($bdecoded) && !bento_is_blank_document($backup->get_content())) {
+                $backupinfo = (object) ['slides' => count($bdecoded['slides']),
+                    'date' => userdate($backup->get_timecreated(), get_string('strftimedatetimeshort', 'langconfig'))];
+            }
+        }
+        $restore = $backupinfo ? [['restoreprev', $deckid, get_string('health_restoreprev', 'mod_bento', $backupinfo)]] : [];
+        if ($json !== '' && !bento_document_has_valid_structure($decoded)) {
+            $issues[] = ['level' => 'error', 'text' => get_string('health_unreadable', 'mod_bento', $a),
+                'actions' => array_merge($restore, [
+                    ['rawdownload', $deckid, get_string('health_rawdownload', 'mod_bento')],
+                    $deckid ? ['deletedeck', $deckid, get_string('health_deletedeck', 'mod_bento'), true]
+                        : ['resetmain', 0, get_string('health_resetmain', 'mod_bento'), true],
+                ])];
+            continue;
+        }
+        if (bento_is_blank_document($json)) {
+            if ($backupinfo) {
+                $a->slides = $backupinfo->slides;
+                $a->date = $backupinfo->date;
+                $issues[] = ['level' => 'warning', 'text' => get_string('health_blankwithbackup', 'mod_bento', $a),
+                    'actions' => array_merge($restore, [['dropprev', $deckid, get_string('health_dropprev', 'mod_bento'), true]])];
+            }
+            continue;
+        }
+        $key = sha1(json_encode($decoded['slides']));
+        $byslides[$key][] = $e + ['slides' => count($decoded['slides']),
+            'modified' => (string) ($decoded['modified'] ?? ''), 'timemodified' => (int) ($row->timemodified ?? 0)];
+    }
+    foreach ($byslides as $group) {
+        if (count($group) < 2) {
+            continue;
+        }
+        $inline = function ($g) {
+            return $g['deckid'] ? $g['name'] : get_string('health_maindoc_inline', 'mod_bento');
+        };
+        $names = implode(', ', array_map($inline, $group));
+        $actions = [];
+        foreach ($group as $keep) {
+            $actions[] = ['keeponly', $keep['deckid'], get_string('health_keeponly', 'mod_bento', $inline($keep)), true,
+                implode(',', array_map(function ($g) { return $g['deckid']; }, $group))];
+        }
+        $issues[] = ['level' => 'warning',
+            'text' => get_string('health_duplicate', 'mod_bento', (object) ['names' => $names, 'slides' => $group[0]['slides']]),
+            'actions' => $actions];
+    }
+    return $issues;
+}
+
+/**
+ * The health-check box shown above manage.php's card list ('' when all is well).
+ *
+ * @param array $issues from bento_health_issues()
+ * @param int $cmid the course module id
+ * @return string HTML
+ */
+function bento_render_health(array $issues, int $cmid): string {
+    if (!$issues) {
+        return '';
+    }
+    $html = '';
+    foreach ($issues as $issue) {
+        $buttons = '';
+        foreach ($issue['actions'] as $act) {
+            [$action, $deckid, $label] = $act;
+            $confirm = !empty($act[3]);
+            if ($action === 'rawdownload') {
+                $url = new moodle_url('/mod/bento/lazydoc.php', ['id' => $cmid, 'deckid' => $deckid]);
+                $buttons .= html_writer::link($url, $label, ['class' => 'btn btn-secondary btn-sm mr-2 me-2 mb-1', 'download' => 'bento-rohdaten.json']);
+                continue;
+            }
+            $params = ['id' => $cmid, 'action' => $action, 'deckid' => $deckid, 'sesskey' => sesskey()];
+            if (isset($act[4])) {
+                $params['group'] = $act[4];
+            }
+            $attrs = ['class' => 'btn btn-sm mr-2 me-2 mb-1 ' . ($confirm ? 'btn-outline-danger' : 'btn-primary')];
+            if ($confirm) {
+                $attrs['onclick'] = 'return confirm(' . json_encode(get_string('health_confirm', 'mod_bento')) . ')';
+            }
+            $buttons .= html_writer::link(new moodle_url('/mod/bento/repair.php', $params), $label, $attrs);
+        }
+        $class = ['error' => 'alert-danger', 'warning' => 'alert-warning'][$issue['level']] ?? 'alert-info';
+        $html .= html_writer::div(html_writer::tag('p', $issue['text'], ['class' => 'mb-2']) . $buttons, 'alert ' . $class);
+    }
+    return html_writer::div(html_writer::tag('h4', get_string('health_heading', 'mod_bento'), ['class' => 'h5']) . $html,
+        'mod-bento-health mb-3');
 }
 
 /**
