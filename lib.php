@@ -406,6 +406,14 @@ function bento_moodle_config_meta(int $cmid, int $deckid = 0, array $playlistdec
     if ($deckid > 0) {
         $moodleconfig['deckid'] = $deckid;
     }
+    // Bilder aus anderen Tabs (Bento editor/webimage.ts): über image_proxy.php holen, wenn die fremde Seite
+    // das Lesen per CORS sperrt. Nur wenn der Proxy eingeschaltet ist und die Person ihn nutzen darf.
+    if (get_config('mod_bento', 'imageproxyenabled')) {
+        $cm = get_coursemodule_from_id('bento', $cmid, 0, false, IGNORE_MISSING);
+        if ($cm && has_capability('mod/bento:usebentoproxy', context_course::instance($cm->course))) {
+            $moodleconfig['imageproxy'] = (new moodle_url('/mod/bento/image_proxy.php', ['courseid' => $cm->course]))->out(false);
+        }
+    }
     if ($playlistdeckids) {
         $moodleconfig['playlist'] = array_map(function (int $id) use ($cmid): array {
             return ['url' => (new moodle_url('/mod/bento/deck.php', ['id' => $cmid, 'deckid' => $id]))->out(false)];
